@@ -240,7 +240,9 @@ Future<RemovePlan> removePlan(Ctx ctx, AppEntry app, {bool deleteSettings = fals
   }
 
   // The app's own steps (KDE): shown before they run.
-  final recipe = app.removeRecipe == RemoveRecipe.none ? null : await recipePlan(ctx, app, receipt, keptTrees: keptTrees);
+  final recipe = app.removeRecipe == RemoveRecipe.none
+      ? null
+      : await recipePlan(ctx, app, receipt, keptTrees: keptTrees, checks: {for (final c in treeChecks) c.root: c});
   if (recipe != null) {
     stays.addAll(recipe.stays);
     blocked ??= recipe.blocked;

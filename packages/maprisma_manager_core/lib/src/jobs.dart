@@ -1247,13 +1247,22 @@ final class JobEngine {
     if (WantedBar.load(paths).of(ctx.desktop, app.id) != null) return;
     final installed = app.components.any((c) => c.paths.any((ip) => ip.key && File(paths.expand(ip.path)).existsSync()));
     if (!installed) return;
-    final st = (await BarSnapshot.read(ctx, ctx.processes())).stateOf(app);
+    final snap = await BarSnapshot.read(ctx, ctx.processes());
+    final st = snap.stateOf(app);
     if (st['state'] != 'in' && st['state'] != 'out') return;
     final area = parseArea(st['zone']);
-    // COSMIC: its exact place too (index within the area, the panel instance), so putting it
-    // back gives the same order.
+    // Its exact place too (COSMIC: index within the area and the panel instance; KDE: index within
+    // the widget's zone and the widget), so putting it back gives the same order.
     int? index;
     String? panel;
+    Map<String, Object>? kdeTarget;
+    if (ctx.desktop == DesktopId.kde && st['state'] == 'in' && app.bar.kdeId != null && snap.widget != null) {
+      final at = snap.bar.kdeShown(snap.widget!, snap.procs).find(app.bar.kdeId!);
+      if (at != null) {
+        index = at.index;
+        kdeTarget = {'widget': snap.widget!.widget};
+      }
+    }
     if (ctx.desktop == DesktopId.cosmic && st['state'] == 'in' && app.bar.cosmicApplet != null) {
       for (final i in cosmicInstances(paths)) {
         final at = CosmicPanelConfig.read(paths, i).layout.find(app.bar.cosmicApplet!);
@@ -1267,7 +1276,8 @@ final class JobEngine {
     await withStateLock(paths, () async {
       final wanted = WantedBar.load(paths);
       if (wanted.of(ctx.desktop, app.id) != null) return;
-      wanted.set(ctx.desktop, app.id, placed: st['state'] == 'in', area: area, index: index, target: panel == null || panel == _mainPanel() ? null : {'panel': panel});
+      wanted.set(ctx.desktop, app.id, placed: st['state'] == 'in', area: area, index: index,
+          target: kdeTarget ?? (panel == null || panel == _mainPanel() ? null : {'panel': panel}));
       wanted.save(paths);
     });
     r.log.note('bar state recorded ${r.kind == JobKind.remove ? 'before the remove (a later install puts it back there)' : 'before the install'}: '

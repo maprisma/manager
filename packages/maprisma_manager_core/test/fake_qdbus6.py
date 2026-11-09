@@ -38,9 +38,11 @@ def describe(w):
 
 # Maprisma Icons' remove: every widget taken out of the panels.
 if script.startswith("// mm:remove-widgets"):
+    ids = json.loads(re.search(r"^var ids = (.*);$", script, re.M).group(1))
+    keep = [w for w in widgets if w["widget"] not in ids]
     with open(state_file, "w") as f:
-        json.dump([], f)
-    print("MM:" + json.dumps({"removed": len(widgets)}))
+        json.dump(keep, f)
+    print("MM:" + json.dumps({"removed": len(widgets) - len(keep)}))
     sys.exit(0)
 
 m = re.search(r"^var want = (.*);$", script, re.M)

@@ -2,8 +2,9 @@
 /// whole (a Flutter bundle, a backend, a KWin script package) is recorded in the receipt as a
 /// manifest of every entry below it (`{p, sha256, mode}` / `{p, link}` / `{p, dir}`), bounded in
 /// size. A remove deletes only entries that are still what the manifest says, plus Python's
-/// byte-code caches (`__pycache__/*.pyc`, made from the tree's own files), then the folders left
-/// empty; everything else stays and is listed. Leftovers of atomic-swap installers
+/// byte-code caches of the manifest's own modules (`x/__pycache__/m.*.pyc` for an owned `x/m.py`),
+/// then the manifest's folders (and those caches' folders) left empty; everything else stays and is
+/// listed. Leftovers of atomic-swap installers
 /// (`<root>.new.XXXXXX`, `<root>.old.XXXXXX`) go only when they hold nothing but the manifest's
 /// files.
 library;
@@ -25,10 +26,45 @@ const maxTreeStays = 100;
 bool validRel(Object? v) =>
     v is String && v.isNotEmpty && !p.isAbsolute(v) && p.normalize(v) == v && !p.split(v).contains('..') && v != '.';
 
-/// A derived byte-code cache Python writes next to the tree's own modules.
+/// A byte-code cache's path as Python writes it (`…/__pycache__/<module>.<tag>.pyc`).
 bool isPyCache(String rel) {
   final parts = p.split(rel);
   return parts.length >= 2 && parts[parts.length - 2] == '__pycache__' && (rel.endsWith('.pyc') || rel.endsWith('.pyo'));
+}
+
+/// The module source a byte-code cache was made from (`a/__pycache__/m.cpython-314.pyc` → `a/m.py`).
+String? pyCacheSource(String rel) {
+  if (!isPyCache(rel)) return null;
+  final name = p.basename(rel);
+  final dot = name.indexOf('.');
+  if (dot <= 0) return null;
+  final dir = p.dirname(p.dirname(rel));
+  final src = '${name.substring(0, dot)}.py';
+  return dir == '.' ? src : p.join(dir, src);
+}
+
+/// Every entry below [root] (no links followed), sorted, at most [max] (+1 to tell an overflow);
+/// a folder deeper than [maxDepth] isn't entered. Never more than that is held in memory.
+List<FileSystemEntity> walk(String root, {int max = maxTreeEntries, int maxDepth = 64}) {
+  final out = <FileSystemEntity>[];
+  void visit(Directory d, int depth) {
+    if (out.length > max) return;
+    List<FileSystemEntity> items;
+    try {
+      items = d.listSync(followLinks: false)..sort((a, b) => a.path.compareTo(b.path));
+    } on FileSystemException {
+      return;
+    }
+    for (final e in items) {
+      if (out.length > max) return;
+      out.add(e);
+      if (e is Directory && depth < maxDepth) visit(e, depth + 1);
+    }
+  }
+
+  visit(Directory(root), 0);
+  out.sort((a, b) => a.path.compareTo(b.path));
+  return out;
 }
 
 /// The digest of a manifest's entries (stored with it; a receipt whose digest differs is broken).
@@ -39,11 +75,10 @@ String manifestDigest(List<Map<String, dynamic>> entries) => sha256Text(jsonEnco
 Map<String, dynamic>? treeManifest(String root, {int max = maxTreeEntries}) {
   if (FileSystemEntity.typeSync(root, followLinks: false) != FileSystemEntityType.directory) return null;
   final entries = <Map<String, dynamic>>[];
-  var files = 0, links = 0, dirs = 0, bytes = 0, count = 0;
-  final all = Directory(root).listSync(recursive: true, followLinks: false)..sort((a, b) => a.path.compareTo(b.path));
+  var files = 0, links = 0, dirs = 0, bytes = 0;
+  final all = walk(root, max: max);
+  if (all.length > max) return {'root': root, 'overflow': true, 'files': '>$max'};
   for (final e in all) {
-    count++;
-    if (count > max) return {'root': root, 'overflow': true, 'files': all.length};
     final rel = p.relative(e.path, from: root);
     if (isPyCache(rel)) continue; // derived, made at runtime
     final st = pathState(e.path);
@@ -121,13 +156,19 @@ final class TreeCheck {
 }
 
 /// Compares [root] with a manifest's [entries]: an entry goes only while it is what the manifest
-/// says (files by sha256, links by target, never followed); `__pycache__/*.pyc` go as derived;
-/// anything else stays with the reason.
+/// says (files by sha256, links by target, never followed); a byte-code cache goes as derived only
+/// when its module is the manifest's (`a/__pycache__/m.*.pyc` for an owned `a/m.py`); anything else
+/// stays with the reason. Only the manifest's folders (and the caches' `__pycache__` folders) are
+/// removed when empty, then the root. A tree bigger than the manifest could be stays as a whole.
 TreeCheck checkTree(String root, List<Map<String, dynamic>> entries, {required String Function(String rel) foreignWhy}) {
   final c = TreeCheck(root);
   if (FileSystemEntity.typeSync(root, followLinks: false) != FileSystemEntityType.directory) return c;
   final want = {for (final e in entries) e['p'] as String: e};
-  final all = Directory(root).listSync(recursive: true, followLinks: false)..sort((a, b) => a.path.compareTo(b.path));
+  final all = walk(root);
+  if (all.length > maxTreeEntries) {
+    c.stays.add({'path': root, 'why': 'more than $maxTreeEntries entries now: not checked, it stays'});
+    return c;
+  }
   final dirs = <String>[];
   var extra = 0;
   void stay(String path, String why) {
@@ -143,7 +184,9 @@ TreeCheck checkTree(String root, List<Map<String, dynamic>> entries, {required S
     final w = want[rel];
     final type = FileSystemEntity.typeSync(e.path, followLinks: false);
     if (type == FileSystemEntityType.directory) {
-      dirs.add(e.path);
+      final owned = w != null && w['dir'] == true;
+      final cacheDir = p.basename(rel) == '__pycache__' && (p.dirname(rel) == '.' || want[p.dirname(rel)]?['dir'] == true);
+      if (owned || cacheDir) dirs.add(e.path);
       continue;
     }
     if (type == FileSystemEntityType.file) {
@@ -151,7 +194,7 @@ TreeCheck checkTree(String root, List<Map<String, dynamic>> entries, {required S
       if (w != null && w['sha256'] == h) {
         c.goes.add((path: e.path, sha256: h, link: null));
         c.bytes += File(e.path).lengthSync();
-      } else if (w == null && isPyCache(rel)) {
+      } else if (w == null && want[pyCacheSource(rel)]?['sha256'] != null) {
         c.goes.add((path: e.path, sha256: h, link: null));
         c.derived++;
       } else {

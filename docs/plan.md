@@ -176,6 +176,11 @@ original files backed up and restored byte for byte at the end:
   and checks it came back. A batch (`bar.apply`) writes once per panel and checks once.
 - Moving between the two files writes two files, so the panel rebuilds twice; the file that loses the
   entry is written first, so an applet is never in the panel twice.
+- An applet that ended (its binary replaced by an install) is **not** started again by cosmic-panel.
+  Restarting the panel does start it, but cosmic-session restarts a killed panel with a delay that
+  doubles each time (seen 2026-11-09: 65 s after the third reinstall in a row). Since step 5a the
+  Manager never restarts the panel: the applet's file is written once without it and then back with
+  its exact bytes; the panel rebuilds and starts it (checked live for seven apps).
 
 ## GitHub (asked 2026-11-09: "also GitHub versions, if existent, for install or update; show where
 the Maprisma apps exist and, if on GitHub, a URL")
@@ -224,6 +229,11 @@ maprisma/maprisma). Local only: control, home, theme, video, tiling, icons, the 
    private origin's main), so it is shown, never fast-forwarded).
 5. The others: Flutter apps, Narrator/Video, Launcher (+ applet), Theme, then Tiling, Icons, maprisma
    (pacman); icon changes (and the small own-icon-name changes in the apps' repos).
+   **5a done** (every app but maprisma and the Manager: install/update/reinstall/remove; whole-tree
+   ownership of bundle folders; docs/protocol.md "Owned folders", "KDE steps"; reinstalled live on
+   COSMIC through the Manager: control, launcher + applet, theme, bluetooth, home, hue, llm, narrator,
+   video, plus a remove/install round trip of home; Tiling and Icons against fake KDE tools only).
+   5b: maprisma (pacman); icon changes.
 6. Self-update; then the Flutter UI (list, bar editor, icon picker, log sheet) and tools/install-local.
 7. Checks on COSMIC live, KDE in a later Plasma session: interrupted installs, hidden icons kept, shared
    data kept, concurrent config edits.

@@ -23,8 +23,10 @@ import 'package:path/path.dart' as p;
 import 'bar_kde.dart';
 import 'catalog.dart';
 import 'context.dart';
+import 'ownership.dart';
 import 'paths.dart';
 import 'receipts.dart';
+import 'trees.dart';
 
 enum StepWhen { before, after }
 
@@ -86,18 +88,45 @@ Map<String, String> iniGroup(String path, String group) {
   return out;
 }
 
-/// The remove steps of a KDE app ([RemoveRecipe]); [kept] are the tree roots that stay.
-Future<RecipePlan> recipePlan(Ctx ctx, AppEntry app, Receipt? receipt, {required Set<String> keptTrees}) async {
+/// The remove steps of a KDE app ([RemoveRecipe]); [keptTrees] are the owned folders that stay,
+/// [checks] the planned checks of those that go (a package is removed by kpackagetool6 only while
+/// it is still exactly that: checked again right before).
+Future<RecipePlan> recipePlan(Ctx ctx, AppEntry app, Receipt? receipt, {required Set<String> keptTrees, Map<String, TreeCheck> checks = const {}}) async {
   final plan = RecipePlan();
   switch (app.removeRecipe) {
     case RemoveRecipe.none:
       break;
     case RemoveRecipe.kwinTiling:
-      _tiling(ctx, plan, keptTrees);
+      _tiling(ctx, plan, receipt, keptTrees, checks);
     case RemoveRecipe.plasmaIcons:
-      await _icons(ctx, plan, receipt, keptTrees);
+      await _icons(ctx, plan, receipt, keptTrees, checks);
   }
   return plan;
+}
+
+/// A step that runs `kpackagetool6 -t <type> -r <name>` for each package whose folder is still
+/// what the plan checked (the same files, nothing added); otherwise kpackagetool6 isn't run and
+/// the per-file removal takes only what is still the Manager's.
+RecipeStep _packages(Ctx ctx, String title, String type, Map<String, String> roots, Receipt? receipt, Map<String, TreeCheck> checks) {
+  final argvs = {for (final e in roots.entries) e.key: ['kpackagetool6', '-t', type, '-r', e.key]};
+  return RecipeStep('packages', title, commands: argvs.values.toList(), run: (log) async {
+    String? error;
+    for (final MapEntry(key: name, value: root) in roots.entries) {
+      final planned = checks[root];
+      final rec = receipt?.tree(root);
+      final now = planned == null || rec == null
+          ? null
+          : checkTree(root, (rec['entries'] as List).cast<Map<String, dynamic>>(), foreignWhy: (_) => 'added');
+      if (now == null || !now.whole || now.digest != planned!.digest || unsafeReach(root, sharedRoots(ctx.paths)) != null) {
+        log('$root changed since the plan: kpackagetool6 not run (only its unchanged files go)');
+        continue;
+      }
+      final r = await ctx.runner.run(argvs[name]!, timeout: const Duration(seconds: 60));
+      log('${argvs[name]!.join(' ')}: ${r.ok ? 'ok' : 'failed (${r.stderr.trim().split('\n').first})'}');
+      if (!r.ok) error ??= 'kpackagetool6 failed for $name (its unchanged files go one by one)';
+    }
+    return error;
+  });
 }
 
 void _need(Ctx ctx, RecipePlan plan, List<String> tools) {
@@ -105,7 +134,7 @@ void _need(Ctx ctx, RecipePlan plan, List<String> tools) {
   if (missing.isNotEmpty) plan.blocked ??= 'needs ${missing.join(', ')} (a KDE Plasma 6 session)';
 }
 
-void _tiling(Ctx ctx, RecipePlan plan, Set<String> keptTrees) {
+void _tiling(Ctx ctx, RecipePlan plan, Receipt? receipt, Set<String> keptTrees, Map<String, TreeCheck> checks) {
   final paths = ctx.paths;
   _need(ctx, plan, ['qdbus6', 'kwriteconfig6', 'kpackagetool6']);
   final scripts = p.join(paths.data, 'kwin/scripts');
@@ -137,8 +166,7 @@ void _tiling(Ctx ctx, RecipePlan plan, Set<String> keptTrees) {
     plan.steps.add(RecipeStep('kwinrc', 'delete Maprisma Tiling\'s own kwinrc keys (${cmds.length}); nothing else in kwinrc', commands: cmds));
   }
   if (names.isNotEmpty) {
-    plan.steps.add(RecipeStep('packages', 'kpackagetool6 removes the script package(s)',
-        commands: [for (final n in names) ['kpackagetool6', '-t', 'KWin/Script', '-r', n]]));
+    plan.steps.add(_packages(ctx, 'kpackagetool6 removes the script package(s)', 'KWin/Script', {for (final n in names) n: p.join(scripts, n)}, receipt, checks));
   }
   plan.steps.add(RecipeStep('reconfigure', 'KWin reloads its configuration', commands: [['qdbus6', 'org.kde.KWin', '/KWin', 'reconfigure']], when: StepWhen.after));
   plan.steps.add(RecipeStep('dbus', 'D-Bus forgets the overlay service',
@@ -198,59 +226,76 @@ String? _notGenerated(String dir) {
   return null;
 }
 
-/// Removes every Maprisma Icons widget from every panel; prints `MM:{"removed": n}`.
-String removeWidgetsScript() => '''// mm:remove-widgets
+/// Removes the Maprisma Icons widgets [ids] (those the plan showed) from the panels; prints
+/// `MM:{"removed": n}`.
+String removeWidgetsScript(List<int> ids) => '''// mm:remove-widgets
+var ids = ${jsonEncode(ids)};
 var n = 0;
 var ps = panels();
 for (var i = 0; i < ps.length; i++) {
   var ws = ps[i].widgets('$iconsWidget');
-  for (var j = 0; j < ws.length; j++) { ws[j].remove(); n++; }
+  for (var j = 0; j < ws.length; j++) { if (ids.indexOf(ws[j].id) >= 0) { ws[j].remove(); n++; } }
 }
 print('MM:' + JSON.stringify({removed: n}));
 ''';
+
+/// Whether a Plasma style of that name is installed (the user's or the system's).
+bool styleInstalled(Paths paths, String name) =>
+    name == 'default' ||
+    Directory(p.join(paths.data, 'plasma/desktoptheme', name)).existsSync() ||
+    Directory(paths.sys('/usr/share/plasma/desktoptheme/$name')).existsSync();
 
 /// The Plasma style the user had before Icons (a generated one is never "before").
 String? plasmaStyle(Paths paths) => iniValue(p.join(paths.config, 'plasmarc'), 'Theme', 'name');
 
 bool isGeneratedStyle(String? name) => name != null && name.startsWith('maprisma-panel-');
 
-Future<void> _icons(Ctx ctx, RecipePlan plan, Receipt? receipt, Set<String> keptTrees) async {
+Future<void> _icons(Ctx ctx, RecipePlan plan, Receipt? receipt, Set<String> keptTrees, Map<String, TreeCheck> checks) async {
   final paths = ctx.paths;
+  final roots = sharedRoots(paths);
   _need(ctx, plan, ['qdbus6', 'kpackagetool6']);
-  if (plan.blocked == null) {
-    try {
-      final ws = await readKdeWidgets(ctx.runner);
-      plan.notes.add('${ws.length} Maprisma Icons widget(s) in the panels');
-    } on RouteError catch (e) {
-      plan.blocked = 'plasmashell can\'t be asked (${e.message}): the widgets must leave the panels first';
-    }
-  }
-  plan.steps.add(RecipeStep('widgets', 'take every Maprisma Icons widget out of the panels', required: true, run: (log) async {
-    try {
-      final v = await evaluatePlasma(ctx.runner, removeWidgetsScript());
-      log('widgets removed: ${v is Map ? v['removed'] : '?'}');
-      return v is Map ? null : 'plasmashell gave an unreadable answer';
-    } on RouteError catch (e) {
-      return '${e.code}: ${e.message}';
-    }
-  }));
+  // The style first: when switching back fails, the widgets are still there.
   final current = plasmaStyle(paths);
   if (isGeneratedStyle(current)) {
-    final back = receipt?.saved['plasmaTheme'] ?? 'default';
+    var back = receipt?.saved['plasmaTheme'] ?? 'default';
+    if (!styleInstalled(paths, back)) {
+      plan.notes.add('the Plasma style from before ($back) is not installed any more: back to default (Breeze)');
+      back = 'default';
+    }
     _need(ctx, plan, ['plasma-apply-desktoptheme']);
     plan.steps.add(RecipeStep('style', 'switch the Plasma style from $current back to $back',
         commands: [['plasma-apply-desktoptheme', back]], required: true));
   }
+  // Exactly the widgets the plan shows (their ids are in the step, so in the plan's revision).
+  var ids = <int>[];
+  if (plan.blocked == null) {
+    try {
+      ids = [for (final w in await readKdeWidgets(ctx.runner)) w.widget];
+    } on RouteError catch (e) {
+      plan.blocked = 'plasmashell can\'t be asked (${e.message}): the widgets must leave the panels first';
+    }
+  }
+  if (ids.isNotEmpty) {
+    plan.steps.add(RecipeStep('widgets', 'take the Maprisma Icons widget(s) ${ids.join(', ')} out of the panels', required: true, run: (log) async {
+      try {
+        final v = await evaluatePlasma(ctx.runner, removeWidgetsScript(ids));
+        log('widgets removed: ${v is Map ? v['removed'] : '?'}');
+        return v is Map ? null : 'plasmashell gave an unreadable answer';
+      } on RouteError catch (e) {
+        return '${e.code}: ${e.message}';
+      }
+    }));
+  }
   final root = p.join(paths.data, 'plasma/plasmoids', iconsWidget);
   if (Directory(root).existsSync() && !keptTrees.contains(root)) {
-    plan.steps.add(RecipeStep('package', 'kpackagetool6 removes the widget package', commands: [['kpackagetool6', '-t', 'Plasma/Applet', '-r', iconsWidget]]));
+    plan.steps.add(_packages(ctx, 'kpackagetool6 removes the widget package', 'Plasma/Applet', {iconsWidget: root}, receipt, checks));
   }
   // Generated styles and the colour cache: deleted after the switch, only when they are ours.
   final styles = <String>[];
   for (final n in _styleNames) {
     final dir = p.join(paths.data, 'plasma/desktoptheme', n);
     if (FileSystemEntity.typeSync(dir, followLinks: false) != FileSystemEntityType.directory) continue;
-    final why = _notGenerated(dir);
+    final why = unsafeReach(dir, roots) ?? _notGenerated(dir);
     if (why == null) {
       styles.add(dir);
       plan.goes.add({'path': dir, 'kind': 'generated', 'why': 'Plasma style made by maprisma-panel-color'});
@@ -259,8 +304,11 @@ Future<void> _icons(Ctx ctx, RecipePlan plan, Receipt? receipt, Set<String> kept
     }
   }
   final cache = p.join(paths.cache, 'maprisma-panel');
-  final cacheOk = FileSystemEntity.typeSync(cache, followLinks: false) == FileSystemEntityType.directory &&
+  bool cacheOurs() =>
+      FileSystemEntity.typeSync(cache, followLinks: false) == FileSystemEntityType.directory &&
+      unsafeReach(cache, roots) == null &&
       Directory(cache).listSync(followLinks: false).every((e) => p.basename(e.path) == 'state.json' && e is File);
+  final cacheOk = cacheOurs();
   if (cacheOk) plan.goes.add({'path': cache, 'kind': 'generated', 'why': 'the colour cache'});
   if (styles.isNotEmpty || cacheOk) {
     plan.steps.add(RecipeStep('generated', 'delete the generated Plasma styles and the colour cache', when: StepWhen.after, run: (log) async {
@@ -270,14 +318,15 @@ Future<void> _icons(Ctx ctx, RecipePlan plan, Receipt? receipt, Set<String> kept
           log('kept $d: it is the active Plasma style');
           continue;
         }
-        if (_notGenerated(d) != null) {
+        // checked again right before: still a real folder, reached through no link, still ours
+        if (FileSystemEntity.typeSync(d, followLinks: false) != FileSystemEntityType.directory || unsafeReach(d, roots) != null || _notGenerated(d) != null) {
           log('kept $d: it changed');
           continue;
         }
         Directory(d).deleteSync(recursive: true);
         log('removed $d');
       }
-      if (cacheOk && Directory(cache).existsSync() && Directory(cache).listSync().every((e) => p.basename(e.path) == 'state.json' && e is File)) {
+      if (cacheOk && cacheOurs()) {
         Directory(cache).deleteSync(recursive: true);
         log('removed $cache');
       }

@@ -161,6 +161,8 @@ final class Receipt {
   final f = File(p.join(paths.receipts, '$id.json'));
   if (!f.existsSync()) return (receipt: null, error: null);
   try {
+    // bounded: a few trees of at most maxTreeEntries entries each fit easily
+    if (f.lengthSync() > maxReceiptBytes) return (receipt: null, error: 'invalid receipt: larger than ${maxReceiptBytes ~/ (1024 * 1024)} MiB');
     return (receipt: Receipt.parse(id, jsonDecode(f.readAsStringSync())), error: null);
   } on FormatException catch (e) {
     return (receipt: null, error: 'invalid receipt: ${e.message}');
@@ -168,6 +170,9 @@ final class Receipt {
     return (receipt: null, error: 'unreadable receipt: ${e.osError?.message ?? e.message}');
   }
 }
+
+/// A receipt larger than this is not read (broken).
+const maxReceiptBytes = 32 * 1024 * 1024;
 
 bool _nonEmpty(Object? v) => v is String && v.isNotEmpty;
 bool _isCommit(Object? v) => v is String && RegExp(r'^[0-9a-f]{40}([0-9a-f]{24})?$').hasMatch(v);

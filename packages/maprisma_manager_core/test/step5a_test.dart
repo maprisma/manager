@@ -8,6 +8,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:maprisma_manager_core/maprisma_manager_core.dart';
+import 'package:maprisma_manager_core/src/kde_remove.dart';
 import 'package:maprisma_manager_core/src/trees.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
@@ -282,13 +283,14 @@ exit 0''');
   }
 
   group('trees', () {
-    test('a manifest lists every entry; changed, added and linked-away entries stay; byte-code caches go', () {
+    test('a manifest lists every entry; changed, added and linked-away entries stay; caches of its own modules go', () {
       final root = home('.local/lib/t');
       w.writeFile(p.join(root, 'a'), 'a');
       w.writeFile(p.join(root, 'sub/b'), 'b', mode: '755');
+      w.writeFile(p.join(root, 'sub/x.py'), 'x');
       Link(p.join(root, 'l')).createSync('a');
       final m = treeManifest(root)!;
-      expect(m['files'], 2);
+      expect(m['files'], 3);
       expect(m['links'], 1);
       expect(m['dirs'], 1);
       validateTree(m);
@@ -299,17 +301,22 @@ exit 0''');
       w.writeFile(p.join(root, 'sub/b'), 'changed');
       w.writeFile(p.join(root, 'mine.txt'), 'user');
       w.writeFile(p.join(root, 'sub/__pycache__/x.cpython-314.pyc'), 'pyc');
+      w.writeFile(p.join(root, 'sub/__pycache__/other.cpython-314.pyc'), 'pyc of a module that isn\'t ours');
+      Directory(p.join(root, 'empty-of-mine')).createSync();
       Link(p.join(root, 'l')).deleteSync();
       Link(p.join(root, 'l')).createSync('/etc/passwd');
       final c = checkTree(root, (m['entries'] as List).cast<Map<String, dynamic>>(), foreignWhy: (_) => 'foreign');
-      expect(c.goes.map((g) => p.relative(g.path, from: root)), unorderedEquals(['a', 'sub/__pycache__/x.cpython-314.pyc']));
+      expect(c.goes.map((g) => p.relative(g.path, from: root)), unorderedEquals(['a', 'sub/x.py', 'sub/__pycache__/x.cpython-314.pyc']));
       expect(c.derived, 1);
       expect({for (final s in c.stays) p.relative(s['path'] as String, from: root): s['why']}, {
         'l': 'the link points elsewhere now',
         'mine.txt': 'foreign',
         'sub/b': 'changed since the Manager installed it',
+        'sub/__pycache__/other.cpython-314.pyc': 'foreign',
       });
       expect(c.whole, isFalse);
+      // only the manifest's folders (and caches' folders) are removed when empty: not one of the user's
+      expect(c.dirs.map((d) => p.relative(d, from: root)), ['sub/__pycache__', 'sub', '.']);
     });
 
     test('swap leftovers: only <name>.new.XXXXXX / .old.XXXXXX (and <name>.new when staged)', () {
@@ -665,6 +672,55 @@ printf '[Theme]\nname=%s\n' "$1" > "${XDG_CONFIG_HOME:-$HOME/.config}/plasmarc"'
       expect(exists(p.join(w.paths.data, 'dbus-1/services/org.maprisma.TilingOverlay.service')), isFalse);
     });
 
+    test('tiling: a package that changed after the plan is not removed by kpackagetool6', () async {
+      tilingRepo();
+      final scripts = p.join(w.paths.data, 'kwin/scripts');
+      final c = kde();
+      expect((await run(c, 'tiling', 'install'))['state'], 'succeeded');
+      final plan = await removePlan(c.ctx, findApp('tiling')!);
+      final packages = plan.recipe!.steps.firstWhere((s) => s.id == 'packages');
+      w.writeFile(p.join(scripts, 'maprisma-tiling/contents/ui/extra.qml'), 'added after the plan');
+      File(p.join(ctl, 'order.log')).writeAsStringSync('');
+      final lines = <String>[];
+      await runRecipe(c.ctx, [packages], StepWhen.before, lines.add);
+      expect(lines.join('\n'), contains('maprisma-tiling changed since the plan: kpackagetool6 not run'));
+      expect(orderLog(), isNot(contains('-r maprisma-tiling')));
+      expect(orderLog(), contains('-r omarchy-navigation'));
+      expect(File(p.join(scripts, 'maprisma-tiling/contents/ui/extra.qml')).existsSync(), isTrue);
+    });
+
+    test('KDE: remove and install again puts the tray back at its place in the widget', () async {
+      final repo = w.repo('maprisma-home');
+      w.writeFile(p.join(repo, 'install.sh'), r'''#!/bin/sh
+set -eu
+bin="$HOME/.local/bin"; data="${XDG_DATA_HOME:-$HOME/.local/share}"; c=io.github.ubruckhaus.CosmicMaprismaHome
+mkdir -p "$bin" "$data/maprisma-home/scripts" "$data/applications" "$data/icons/hicolor/scalable/apps" "$HOME/.config/autostart"
+for b in maprisma-home maprisma-home-tray; do printf '#!/bin/sh\n' > "$bin/$b"; chmod 755 "$bin/$b"; done
+for s in stove.py switchbot.py stove_map.json; do echo "$s" > "$data/maprisma-home/scripts/$s"; done
+echo '<svg/>' > "$data/icons/hicolor/scalable/apps/$c-symbolic.svg"
+printf '[Desktop Entry]\n' > "$data/applications/$c.desktop"
+printf '[Desktop Entry]\n' > "$data/applications/$c.Window.desktop"
+printf '[Desktop Entry]\nOnlyShowIn=KDE;\n' > "$HOME/.config/autostart/$c.Tray.desktop"
+''', mode: '755');
+      w.git(repo, ['add', '.']);
+      w.git(repo, ['commit', '-q', '-m', 'installer']);
+      final c = kde();
+      expect((await run(c, 'home', 'install'))['state'], 'succeeded');
+      File(plasma).writeAsStringSync(jsonEncode([
+        {'panel': 1, 'widget': 3, 'zoneLeft': ['maprisma-wlan-monitor', 'maprisma-home', 'maprisma-hue-lights'], 'zoneCenter': ['clock'], 'zoneRight': [], 'hidden': []},
+      ]));
+      final remove = await run(c, 'home', 'remove');
+      expect(remove['state'], 'succeeded', reason: log(remove));
+      expect(WantedBar.load(w.paths).of(DesktopId.kde, 'home'), {'placed': true, 'area': 'left', 'index': 1, 'widget': 3});
+      // (the widget's own Launcher entry is added to the left zone as the widget does)
+      expect((jsonDecode(File(plasma).readAsStringSync()) as List).single['zoneLeft'], ['maprisma-wlan-monitor', 'maprisma-hue-lights', 'maprisma-launcher']);
+      final again = await run(c, 'home', 'install');
+      expect(again['state'], 'succeeded', reason: log(again));
+      final widget = (jsonDecode(File(plasma).readAsStringSync()) as List).single as Map;
+      expect(widget['zoneLeft'], ['maprisma-wlan-monitor', 'maprisma-home', 'maprisma-hue-lights', 'maprisma-launcher']);
+      expect(widget['hidden'], isEmpty);
+    });
+
     test('tiling: omarchy-navigation it installed goes; a changed package stays whole', () async {
       tilingRepo();
       final scripts = p.join(w.paths.data, 'kwin/scripts');
@@ -707,6 +763,7 @@ printf '[Theme]\nname=%s\n' "$1" > "${XDG_CONFIG_HOME:-$HOME/.config}/plasmarc"'
         iconsRepo();
         final plasmarc = p.join(w.paths.config, 'plasmarc');
         w.writeFile(plasmarc, '[Theme]\nname=breeze-dark\n');
+        Directory(p.join(w.root, 'usr/share/plasma/desktoptheme/breeze-dark')).createSync(recursive: true);
         File(plasma).writeAsStringSync(jsonEncode([{'panel': 1, 'widget': 7, 'zoneLeft': ['maprisma-home']}]));
         final c = kde();
         final job = await run(c, 'icons', 'install');
@@ -722,9 +779,17 @@ printf '[Theme]\nname=%s\n' "$1" > "${XDG_CONFIG_HOME:-$HOME/.config}/plasmarc"'
         expect((await run(c, 'icons', 'reinstall'))['state'], 'succeeded');
         expect(receipt('icons')['saved'], {'plasmaTheme': 'breeze-dark'});
 
-        final plan = await c.call('apps.remove_plan', {'id': 'icons'});
-        expect([for (final s in plan['steps'] as List) s['id']], ['widgets', 'style', 'package', 'generated']);
-        expect((plan['steps'] as List)[1]['commands'], ['plasma-apply-desktoptheme breeze-dark']);
+        var plan = await c.call('apps.remove_plan', {'id': 'icons'});
+        // a widget added after the plan was shown: the plan's revision no longer holds
+        File(plasma).writeAsStringSync(jsonEncode([{'panel': 1, 'widget': 7}, {'panel': 2, 'widget': 9}]));
+        final stale = await run(c, 'icons', 'remove', {'revision': plan['revision']});
+        expect(stale['result']['code'], 'changed');
+        expect(jsonDecode(File(plasma).readAsStringSync()), hasLength(2));
+        plan = await c.call('apps.remove_plan', {'id': 'icons'});
+        // the style first (a failure keeps the widgets), then exactly the widgets shown
+        expect([for (final s in plan['steps'] as List) s['id']], ['style', 'widgets', 'packages', 'generated']);
+        expect((plan['steps'] as List)[0]['commands'], ['plasma-apply-desktoptheme breeze-dark']);
+        expect((plan['steps'] as List)[1]['title'], contains('7, 9'));
         expect([for (final g in plan['generated'] as List) g['path']], [a, cache]);
         expect(stayOf(plan, b)!['why'], contains('colors'));
         File(p.join(ctl, 'order.log')).writeAsStringSync('');
@@ -733,12 +798,34 @@ printf '[Theme]\nname=%s\n' "$1" > "${XDG_CONFIG_HOME:-$HOME/.config}/plasmarc"'
         expect(jsonDecode(File(plasma).readAsStringSync()), isEmpty);
         expect(File('$plasma.log').readAsStringSync(), contains('// mm:remove-widgets'));
         expect(orderLog().trim().split('\n'), ['plasma-apply-desktoptheme breeze-dark', 'kpackagetool6 -t Plasma/Applet -r com.maprisma.panel']);
+        expect(remove['result']['ok'], isTrue);
         expect(File(plasmarc).readAsStringSync(), contains('name=breeze-dark'));
         expect(exists(p.join(w.paths.data, 'plasma/plasmoids/com.maprisma.panel')), isFalse);
         expect(exists(a), isFalse);
         expect(exists(p.join(b, 'colors')), isTrue);
         expect(exists(cache), isFalse);
         expect(exists(home('.local/bin/maprisma-panel-color')), isFalse);
+      });
+
+      test('a style the user had is gone: back to default; styles behind a linked folder stay', () async {
+        iconsRepo();
+        final plasmarc = p.join(w.paths.config, 'plasmarc');
+        w.writeFile(plasmarc, '[Theme]\nname=some-removed-style\n');
+        final c = kde();
+        expect((await run(c, 'icons', 'install'))['state'], 'succeeded');
+        w.writeFile(plasmarc, '[Theme]\nname=maprisma-panel-a\n');
+        // the styles folder is a link to somewhere else
+        final elsewhere = p.join(w.dir, 'elsewhere');
+        final dir = p.join(elsewhere, 'maprisma-panel-a');
+        w.writeFile(p.join(dir, 'metadata.json'), jsonEncode({'KPlugin': {'Id': 'maprisma-panel-a', 'Description': 'maprisma-panel-color'}}));
+        Directory(p.join(w.paths.data, 'plasma')).createSync(recursive: true);
+        Link(p.join(w.paths.data, 'plasma/desktoptheme')).createSync(elsewhere);
+        final plan = await c.call('apps.remove_plan', {'id': 'icons'});
+        expect((plan['steps'] as List).first['commands'], ['plasma-apply-desktoptheme default']);
+        expect(plan['notes'], contains(contains('some-removed-style')));
+        expect(stayOf(plan, p.join(w.paths.data, 'plasma/desktoptheme/maprisma-panel-a'))!['why'], contains('linked folder'));
+        expect((await run(c, 'icons', 'remove'))['state'], 'succeeded');
+        expect(File(p.join(dir, 'metadata.json')).existsSync(), isTrue);
       });
 
       test('plasmashell not reachable: the remove is blocked before anything changes', () async {
