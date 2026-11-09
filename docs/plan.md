@@ -177,6 +177,32 @@ original files backed up and restored byte for byte at the end:
 - Moving between the two files writes two files, so the panel rebuilds twice; the file that loses the
   entry is written first, so an applet is never in the panel twice.
 
+## GitHub (asked 2026-11-09: "also GitHub versions, if existent, for install or update; show where
+the Maprisma apps exist and, if on GitHub, a URL")
+
+Checked 2026-11-09 with `gh`: public in the `maprisma` org are maprisma (releases, latest v0.14.2), launcher
+(releases, v0.1.4), maprisma-addons, wlan-monitor, llm-monitor, hue-lights, bluetooth-monitor, narrator (no
+releases). `uBruckhaus/maprisma` is the private origin of the maprisma folder (its `public` remote is
+maprisma/maprisma). Local only: control, home, theme, video, tiling, icons, the launcher applet, manager.
+
+- **Where it exists**, per app and input: the local folder (path, present, branch, HEAD) and GitHub (the
+  web URL `https://github.com/<org>/<repo>`, public/private, the latest release tag, date and URL, its
+  assets). Shown in the list and the details; the URL is a link (opened with `xdg-open`) and can be copied.
+  GitHub facts come from `gh api` when `gh` is logged in, else the public REST API without a token; cached
+  in `~/.local/state/maprisma-manager/github.json`, refreshed with "Check for updates" (at most every 30 min
+  otherwise); offline: the last known facts with their age.
+- **Install from GitHub** when the folder is missing: `git clone` of the GitHub repo into the projects
+  folder, then the normal build. Apps with a release (maprisma, launcher) also offer "Install release
+  vX.Y.Z" without building: download the tarball, check it against its `.sha256`, then
+  - launcher: the repo's `tools/install-local --no-build` with the tarball in its `dist/` (the folder is
+    cloned first when missing, the script needs it);
+  - maprisma: a package recipe for that tarball (as aur-maprisma-bin does), `pkexec pacman -U` (step 5).
+- **Update from GitHub**: the upstream compared is the GitHub remote of that repo, also when the
+  configured upstream is another one (maprisma: origin is the private uBruckhaus repo; GitHub here = the
+  `public` remote, maprisma/maprisma). New commits there → "Update" (fetch + fast-forward when clean, then
+  build); a newer release than the installed version → "Update to release vX.Y.Z" (no build).
+- The receipt records the source: folder build (commits) or release (tag, asset, sha256).
+
 ## Steps (in the review's order)
 
 1. Read-only: catalog, status per component, receipts read, git provenance, prerequisites; CLI `status`.
@@ -191,6 +217,8 @@ original files backed up and restored byte for byte at the end:
    Manager (self-update); not yet removable: Narrator (runtime), Icons (themes), and Launcher, Theme,
    Video Translator (bundle trees need whole-tree ownership): `unsupported_yet`.
 4. One simple Rust app end to end (WLAN Monitor): install, update, remove with ownership, bar state kept.
+4b. GitHub: where each app exists (folder, GitHub URL, latest release), clone when the folder is missing,
+   update against the GitHub remote, release installs for the launcher (maprisma's in step 5).
 5. The others: Flutter apps, Narrator/Video, Launcher (+ applet), Theme, then Tiling, Icons, maprisma
    (pacman); icon changes (and the small own-icon-name changes in the apps' repos).
 6. Self-update; then the Flutter UI (list, bar editor, icon picker, log sheet) and tools/install-local.
