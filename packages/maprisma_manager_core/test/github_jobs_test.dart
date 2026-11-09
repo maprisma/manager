@@ -371,10 +371,12 @@ void main() {
     expect(job['result']['code'], 'no_release');
   });
 
-  test('release routes: maprisma unsupported_yet, an app without releases unavailable, a bad tag refused', () async {
+  test('release routes: an app without releases unavailable, a bad tag refused', () async {
     final c = core();
-    await expectLater(c.call('jobs.start', {'app': 'maprisma', 'kind': 'release'}),
-        throwsA(isA<RouteError>().having((e) => e.code, 'code', 'unsupported_yet')));
+    await expectLater(c.call('jobs.start', {'app': 'maprisma', 'kind': 'release', 'options': {'tag': '-x'}}),
+        throwsA(isA<RouteError>().having((e) => e.code, 'code', 'bad_params')));
+    await expectLater(c.call('jobs.start', {'app': 'wlan', 'kind': 'install', 'options': {'source': 'release'}}),
+        throwsA(isA<RouteError>().having((e) => e.code, 'code', 'bad_params')));
     await expectLater(c.call('jobs.start', {'app': 'wlan', 'kind': 'release'}),
         throwsA(isA<RouteError>().having((e) => e.code, 'code', 'unavailable')));
     await expectLater(c.call('jobs.start', {'app': 'ghfake', 'kind': 'release', 'options': {'tag': '../x'}}),

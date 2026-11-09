@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'bar.dart';
 import 'catalog.dart';
 import 'context.dart';
+import 'icons.dart';
 import 'jobs.dart';
 import 'paths.dart';
 import 'procs.dart';
@@ -71,6 +72,9 @@ final class CoreService {
       'jobs.list': (params) async => jobs.list(params),
       'jobs.cancel': (params) => jobs.cancel(params),
       'jobs.log': (params) async => jobs.readLog(params),
+      'icons.get': (params) => icons.get(params),
+      'icons.set': (params) => icons.set(params),
+      'icons.reset': (params) => icons.reset(params),
       'apps.remove_plan': (params) async {
         final id = _app(params);
         final del = params['delete_settings'] ?? false;
@@ -85,6 +89,9 @@ final class CoreService {
 
   /// The job engine (install, update, reinstall, remove).
   late final JobEngine jobs;
+
+  /// Bar icon changes (icons.*).
+  late final IconService icons = IconService(ctx, jobs);
 
   Future<Map<String, dynamic>> Function(List<ProcInfo> before)? _followPanel;
 

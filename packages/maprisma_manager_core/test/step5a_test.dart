@@ -126,6 +126,9 @@ printf '[Desktop Entry]\\nName=tray\\n' > "\$HOME/.config/autostart/$autostart"
 $extra
 ''';
 
+/// The bar icon an installer writes (its own name since step 5b).
+String _iconLine(String name) => 'mkdir -p "\$data/icons/hicolor/scalable/apps"; printf \'<svg xmlns="http://www.w3.org/2000/svg"/>\\n\' > "\$data/icons/hicolor/scalable/apps/$name.svg"';
+
 const _tilingInstall = r'''#!/bin/sh
 set -eu
 data="${XDG_DATA_HOME:-$HOME/.local/share}"
@@ -494,6 +497,7 @@ printf '[Desktop Entry]\nOnlyShowIn=KDE;\n' > "$HOME/.config/autostart/$c.Tray.d
         windowLink: 'maprisma-narrator',
         entries: ['com.maprisma.Narrator.desktop', 'io.github.ubruckhaus.CosmicMaprismaNarrator.desktop', 'com.maprisma.Narrator.Desktop.desktop'],
         autostart: 'com.maprisma.Narrator.Tray.desktop',
+        extra: _iconLine('io.github.ubruckhaus.CosmicMaprismaNarrator-symbolic'),
       ), mode: '755');
       for (final f in ['bridge.py', 'setup_backend.py', 'reader/ocr.py']) {
         w.writeFile(p.join(repo, 'backend', f), '# $f\n');
@@ -552,6 +556,7 @@ printf '[Desktop Entry]\nOnlyShowIn=KDE;\n' > "$HOME/.config/autostart/$c.Tray.d
         windowLink: 'maprisma-video-translator',
         entries: ['com.maprisma.VideoTranslator.desktop', 'io.github.ubruckhaus.CosmicMaprismaVideoTranslator.desktop'],
         autostart: 'com.maprisma.VideoTranslator.Tray.desktop',
+        extra: _iconLine('io.github.ubruckhaus.CosmicMaprismaVideoTranslator-symbolic'),
       ), mode: '755');
       for (final f in ['bridge.sh', 'bridge.py', 'backend.py']) {
         w.writeFile(p.join(repo, 'backend', f), '# $f\n');

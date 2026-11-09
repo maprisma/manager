@@ -32,6 +32,8 @@ AppEntry _rustApp({
   String? github,
   List<DataPath> data = const [],
   List<RuntimePath> runtime = const [],
+  String? iconNote,
+  bool cosmicIconBuiltIn = false,
 }) {
   final appId = '$_c$suffix';
   return AppEntry(
@@ -74,6 +76,8 @@ AppEntry _rustApp({
       kdeAutostart: '{autostart}/$appId.Tray.desktop',
       kdeTrayExe: '{bin}/$binary-tray',
       iconName: '$appId-symbolic',
+      iconNote: iconNote,
+      cosmicIconBuiltIn: cosmicIconBuiltIn,
     ),
     postSteps: const ['gtk-update-icon-cache'],
   );
@@ -134,12 +138,9 @@ final List<AppEntry> builtinCatalog = [
     release: ReleaseSpec(
       tarball: 'maprisma-{version}-x86_64.tar.gz',
       component: 'package',
-      supported: false,
-      note: 'installed as a pacman package from a recipe for the tarball (step 5)',
+      note: 'installed as the pacman package maprisma-bin from a recipe for the tarball',
     ),
-    installation: Support.unsupportedYet,
-    removal: Support.unsupportedYet,
-    supportNote: 'the pacman package comes in step 5',
+    supportNote: 'installed as the pacman package maprisma-bin (pkexec asks for the password); the newer of the release and a folder build by default',
     note: 'Maprisma Control is its bar icon.',
   ),
 
@@ -160,11 +161,13 @@ final List<AppEntry> builtinCatalog = [
         paths: [
           InstalledPath('{bin}/maprisma-applet', PathKind.executable, key: true),
           InstalledPath('{bin}/maprisma-control-tray', PathKind.executable),
+          InstalledPath('{icons}/$_c-symbolic.svg', PathKind.file, note: 'the bar icon (Maprisma\'s logo)'),
           InstalledPath('{apps}/$_c.desktop', PathKind.file),
           InstalledPath('{autostart}/com.maprisma.Control.Tray.desktop', PathKind.file, note: 'OnlyShowIn=KDE'),
         ],
       ),
     ],
+    postSteps: ['gtk-update-icon-cache'],
     processes: [
       ProcessMatch(MatchKind.exe, '{bin}/maprisma-applet'),
       ProcessMatch(MatchKind.exe, '{bin}/maprisma-control-tray'),
@@ -175,7 +178,8 @@ final List<AppEntry> builtinCatalog = [
       kdeId: 'maprisma-control',
       kdeAutostart: '{autostart}/com.maprisma.Control.Tray.desktop',
       kdeTrayExe: '{bin}/maprisma-control-tray',
-      iconName: 'com.maprisma.Maprisma',
+      iconName: '$_c-symbolic',
+      iconNote: 'Maprisma\'s coloured logo: the applet draws the icon in its own colours (a symbolic icon shows dark grey)',
     ),
   ),
 
@@ -337,6 +341,7 @@ final List<AppEntry> builtinCatalog = [
     runtime: const [
       RuntimePath('/etc/udev/rules.d/42-logitech-hidpp-uaccess.rules', note: 'written by allow-access.sh via pkexec'),
     ],
+    iconNote: 'the COSMIC panel shows the kind of the connected device (status icons, kept); this icon shows in the popup, the KDE tray and the menus',
   ),
   _rustApp(
     id: 'home',
@@ -359,6 +364,8 @@ final List<AppEntry> builtinCatalog = [
     github: 'maprisma/hue-lights',
     scripts: const ['hue-lights.py'],
     data: const [DataPath('{config}/hue-lights', sharedWithOmarchy: true)],
+    iconNote: 'the COSMIC applet draws its built-in bulb (lit or dim by state, kept): a changed icon shows in the KDE tray and the menus',
+    cosmicIconBuiltIn: true,
   ),
   _rustApp(
     id: 'llm',
@@ -378,6 +385,8 @@ final List<AppEntry> builtinCatalog = [
     github: 'maprisma/wlan-monitor',
     scripts: const ['wlan-monitor.py'],
     data: const [DataPath('{config}/ubruckhaus-wlan-monitor', sharedWithOmarchy: true)],
+    iconNote: 'the COSMIC applet draws a built-in copy of its radar (with the signal colours): a changed icon shows in the KDE tray and the menus',
+    cosmicIconBuiltIn: true,
   ),
 
   // --- narrator ----------------------------------------------------------------------------
@@ -409,6 +418,7 @@ final List<AppEntry> builtinCatalog = [
           InstalledPath('{bin}/maprisma-narrator-applet', PathKind.executable, key: true),
           InstalledPath('{bin}/maprisma-narrator-tray', PathKind.executable),
           InstalledPath('{bin}/maprisma-narrator-desktop', PathKind.executable),
+          InstalledPath('{icons}/${_c}Narrator-symbolic.svg', PathKind.file, note: 'the bar icon'),
           InstalledPath('{data}/maprisma-narrator/backend/bridge.py', PathKind.file),
           InstalledPath('{data}/maprisma-narrator/backend/setup_backend.py', PathKind.file),
           InstalledPath('{apps}/${_c}Narrator.desktop', PathKind.file),
@@ -449,8 +459,10 @@ final List<AppEntry> builtinCatalog = [
       kdeId: 'com.maprisma.Narrator.Tray',
       kdeAutostart: '{autostart}/com.maprisma.Narrator.Tray.desktop',
       kdeTrayExe: '{bin}/maprisma-narrator-tray',
-      iconName: 'audio-headphones',
+      iconName: '${_c}Narrator-symbolic',
+      iconNote: 'the KDE tray shows it while the reader is idle (playing and paused keep their own icons)',
     ),
+    postSteps: ['gtk-update-icon-cache'],
     supportNote: 'the reader runtime (ocrvox.service, simple-reader, kindle-reader) stays on remove: it is shared with Omarchy\'s reader',
   ),
 
@@ -483,6 +495,7 @@ final List<AppEntry> builtinCatalog = [
           InstalledPath('{bin}/maprisma-video-translator-applet', PathKind.executable, key: true),
           InstalledPath('{bin}/maprisma-video-translator-tray', PathKind.executable),
           InstalledPath('{bin}/maprisma-video-translator-captions', PathKind.executable),
+          InstalledPath('{icons}/${_c}VideoTranslator-symbolic.svg', PathKind.file, note: 'the bar icon'),
           InstalledPath('{data}/maprisma-video-translator/backend/bridge.sh', PathKind.file),
           InstalledPath('{data}/maprisma-video-translator/backend/bridge.py', PathKind.file),
           InstalledPath('{data}/maprisma-video-translator/backend/backend.py', PathKind.file),
@@ -517,8 +530,9 @@ final List<AppEntry> builtinCatalog = [
       kdeId: 'maprisma-video-translator',
       kdeAutostart: '{autostart}/com.maprisma.VideoTranslator.Tray.desktop',
       kdeTrayExe: '{bin}/maprisma-video-translator-tray',
-      iconName: 'media-view-subtitles-symbolic',
+      iconName: '${_c}VideoTranslator-symbolic',
     ),
+    postSteps: ['gtk-update-icon-cache'],
     supportNote: 'the video-trans command and its desktop entry ("Set up now") stay on remove: shared with Omarchy\'s video-trans',
   ),
 

@@ -223,7 +223,7 @@ exit 1''');
         'maprisma-manager': null,
       });
       expect(findApp('launcher')!.release!.asset('0.1.4'), 'maprisma-launcher-0.1.4-x86_64.tar.gz');
-      expect(findApp('maprisma')!.release!.supported, isFalse);
+      expect(findApp('maprisma')!.release!.supported, isTrue);
     });
   });
 

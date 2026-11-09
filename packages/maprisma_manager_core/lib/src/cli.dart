@@ -12,17 +12,19 @@ const usage = '''usage: maprisma-manager-core status [--json] [--desktop cosmic|
        maprisma-manager-core bar [--json] [--panel <name>]
        maprisma-manager-core bar <id> left|center|right|out [--index <n>] [--panel <name>]
        maprisma-manager-core bar apply
-       maprisma-manager-core install|update|reinstall <id> [--force]   (--force: Launcher's install-local --force)
+       maprisma-manager-core install|update|reinstall <id> [--force] [--source release|folder]
+                             (--force: Launcher's install-local --force; --source: Maprisma's archive)
        maprisma-manager-core release <id> [<tag>]
        maprisma-manager-core remove <id> [--delete-settings] [--yes]
+       maprisma-manager-core icon <id> [<name>|<file>|--reset] [--search <text>] [--json]
        maprisma-manager-core jobs [<id>]
        maprisma-manager-core log <job>''';
 
 /// `maprisma-manager-core <command>`: a human table by default, JSON with --json.
 Future<int> runCli(List<String> args, {CoreService? service, IOSink? out}) async {
   final sink = out ?? stdout;
-  var json = false, force = false, yes = false, deleteSettings = false;
-  String? desktop, panel;
+  var json = false, force = false, yes = false, deleteSettings = false, reset = false;
+  String? desktop, panel, source, search;
   int? index;
   final rest = <String>[];
   for (var i = 0; i < args.length; i++) {
@@ -35,6 +37,12 @@ Future<int> runCli(List<String> args, {CoreService? service, IOSink? out}) async
       yes = true;
     } else if (a == '--delete-settings') {
       deleteSettings = true;
+    } else if (a == '--reset') {
+      reset = true;
+    } else if (a == '--source' && i + 1 < args.length) {
+      source = args[++i];
+    } else if (a == '--search' && i + 1 < args.length) {
+      search = args[++i];
     } else if (a == '--desktop' && i + 1 < args.length) {
       desktop = args[++i];
     } else if (a == '--panel' && i + 1 < args.length) {
@@ -136,7 +144,13 @@ Future<int> runCli(List<String> args, {CoreService? service, IOSink? out}) async
           }
         }
       case [final kind, final id] when ['install', 'update', 'reinstall'].contains(kind):
-        return await _runJob(core, sink, {'app': id, 'kind': kind, if (force) 'options': {'force': true}});
+        return await _runJob(core, sink, {'app': id, 'kind': kind, 'options': {if (force) 'force': true, 'source': ?source}});
+      case ['icon', final id]:
+        final r = reset ? await core.call('icons.reset', {'app': id}) : await core.call('icons.get', {'app': id, 'query': search ?? '', 'limit': 40});
+        sink.writeln(json ? const JsonEncoder.withIndent('  ').convert(r) : (reset ? iconChangeText(r) : iconText(r)));
+      case ['icon', final id, final icon]:
+        final r = await core.call('icons.set', {'app': id, 'icon': icon});
+        sink.writeln(json ? const JsonEncoder.withIndent('  ').convert(r) : iconChangeText(r));
       case ['remove', final id]:
         final plan = await core.call('apps.remove_plan', {'id': id, 'delete_settings': deleteSettings});
         sink.writeln(planText(plan));
@@ -236,6 +250,45 @@ Future<int> _runJob(CoreService core, IOSink sink, Map<String, dynamic> params) 
       '${result['repair'] == true ? '. Repair: maprisma-manager-core reinstall ${job['app']}' : ''}');
   sink.writeln('log: ${job['log']}');
   return job['state'] == 'cancelled' ? 130 : 1;
+}
+
+/// The human view of icons.get.
+String iconText(Map<String, dynamic> r) {
+  final lines = <String>['${r['name']}: bar icon ${r['iconName'] ?? '-'}'];
+  if (r['changeable'] != true) {
+    lines.add('  not changeable: ${r['why']}');
+    return lines.join('\n');
+  }
+  lines.add('  file: ${r['file']}${r['exists'] == true ? '' : ' (missing)'}');
+  final choice = r['choice'] as Map<String, dynamic>?;
+  lines.add('  now: ${r['current']}${choice == null ? '' : ' (${choice['name'] ?? choice['from']})'}');
+  final orig = r['original'] as Map<String, dynamic>;
+  if (orig['kept'] == true) lines.add('  original kept: ${orig['file']}');
+  if (r['note'] != null) lines.add('  note: ${r['note']}');
+  final theme = r['theme'] as Map<String, dynamic>;
+  lines.add('Symbolic icons in ${(theme['chain'] as List).join(' → ')}${(r['query'] as String).isEmpty ? '' : ' matching "${r['query']}"'}: ${r['total']}${r['truncated'] == true ? ' (first ${(r['choices'] as List).length})' : ''}');
+  for (final c in (r['choices'] as List).cast<Map<String, dynamic>>()) {
+    lines.add('  ${c['name']}  (${c['theme']})');
+  }
+  return lines.join('\n');
+}
+
+/// The human view of icons.set / icons.reset.
+String iconChangeText(Map<String, dynamic> r) {
+  final lines = <String>[];
+  if (r['reset'] == false) return '${r['app']}: ${r['note']}';
+  final choice = r['choice'] as Map<String, dynamic>?;
+  lines.add(r['reset'] == true
+      ? '${r['app']}: the original icon is back in ${r['file']}'
+      : '${r['app']}: ${r['file']} is now ${choice?['name'] ?? choice?['from']}');
+  if (r['iconCache'] != null) lines.add('  icon cache: ${r['iconCache']}');
+  final bar = r['bar'] as Map<String, dynamic>?;
+  if (bar != null) {
+    final panel = bar['panel'] as Map<String, dynamic>?;
+    lines.add('  bar: ${panel != null ? (panel['error'] != null ? 'not refreshed (${panel['error']})' : 'the panel rebuilt (${panel['panel']})') : bar['trayRestarted'] != null ? 'tray restarted: ${bar['trayRestarted']}' : bar['error'] ?? bar['note'] ?? ''}');
+    if (panel != null && bar['note'] != null) lines.add('  note: ${bar['note']}');
+  }
+  return lines.join('\n');
 }
 
 /// The human view of apps.remove_plan.

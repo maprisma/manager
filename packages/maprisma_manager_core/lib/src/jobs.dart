@@ -29,6 +29,7 @@ import 'context.dart';
 import 'core.dart' show coreVersion;
 import 'git.dart' show Git, Relation;
 import 'github.dart';
+import 'icons.dart';
 import 'kde_remove.dart';
 import 'ownership.dart';
 import 'paths.dart';
@@ -39,6 +40,8 @@ import 'sources.dart';
 import 'status.dart';
 import 'sysproc.dart';
 import 'trees.dart';
+
+part 'jobs_pacman.dart';
 
 enum JobKind { install, update, reinstall, remove, release }
 
@@ -224,6 +227,9 @@ final class JobEngine {
   /// How long an applet may take to start again after an install (COSMIC).
   Duration appletWait = const Duration(seconds: 3);
 
+  /// How long pkexec may wait for its password dialog before it is ended (Maprisma's pacman steps).
+  Duration pkexecWait = const Duration(minutes: 5);
+
   int maxLog = maxLogBytes;
 
   String get dir => p.join(paths.managerState, 'jobs');
@@ -256,12 +262,18 @@ final class JobEngine {
     }
     if (options['revision'] != null && options['revision'] is! String) throw RouteError('bad_params', 'options.revision');
     // Flags an installer takes (Launcher: force): a bool, and only where a component knows it.
-    const known = {'delete_settings', 'dependents_ok', 'revision', 'tag'};
+    const known = {'delete_settings', 'dependents_ok', 'revision', 'tag', 'source'};
     for (final k in options.keys) {
       if (known.contains(k)) continue;
       if (!app.components.any((c) => c.flags.containsKey(k))) throw RouteError('bad_params', 'options.$k: ${app.name} has no such option');
       if (options[k] is! bool) throw RouteError('bad_params', 'options.$k');
       if (kind == JobKind.remove) throw RouteError('bad_params', 'options.$k is for installs');
+    }
+    if (options['source'] != null) {
+      if (options['source'] != 'release' && options['source'] != 'folder') throw RouteError('bad_params', 'options.source (release or folder)');
+      if (!app.components.any((c) => c.kind == InstallKind.pacman) || kind == JobKind.remove || kind == JobKind.release) {
+        throw RouteError('bad_params', 'options.source is for a pacman package\'s install, update and reinstall');
+      }
     }
     if (params['tag'] != null && options['tag'] == null) options['tag'] = params['tag'];
     if (options['tag'] != null && (options['tag'] is! String || !validTag(options['tag'] as String))) {
@@ -286,7 +298,6 @@ final class JobEngine {
       if (!app.desktops.contains(ctx.desktop) || !app.components.any((c) => c.desktops.contains(ctx.desktop))) {
         throw RouteError('unavailable', '${app.name} is not for ${ctx.desktop.name}');
       }
-      if (app.components.any((c) => c.kind != InstallKind.script)) throw RouteError('unsupported_yet', 'only install scripts so far');
     }
     if (_runs.values.any((r) => r.job['app'] == appId && r.job['finished'] != true)) {
       throw RouteError('busy', 'a job for ${app.name} is already queued or running');
@@ -582,7 +593,10 @@ final class JobEngine {
     _persist(r.job);
     r.log.note('${r.kind.name} ${r.app.name} (job ${r.id})');
     try {
-      final result = r.kind == JobKind.remove ? await _remove(r) : await _install(r);
+      final pacman = r.app.components.any((c) => c.kind == InstallKind.pacman);
+      final result = r.kind == JobKind.remove
+          ? await (pacman ? _removePacman(r) : _remove(r))
+          : await (pacman ? _installPacman(r) : _install(r));
       _end(r, 'succeeded', {'ok': true, ...result});
     } on _Cancelled {
       _dropNewBackups(r);
@@ -870,6 +884,13 @@ final class JobEngine {
     if (partial.isNotEmpty) r.log.note('partly installed: no ${partial.join(', ')}');
 
     _phase(r, 'finish');
+    // A bar icon the user changed through the Manager: the installer put the default back.
+    try {
+      final icon = IconService(ctx, this).reapply(app);
+      if (icon != null) r.log.note(icon);
+    } on Object catch (e) {
+      r.log.note('the chosen bar icon could not be applied again: $e');
+    }
     await _postSteps(r, app.postSteps);
     // Units stopped at the commit are started again (Narrator's reader).
     final unitsStarted = <String>[];
@@ -1329,7 +1350,8 @@ final class JobEngine {
     return out;
   }
 
-  Future<void> _runScript(_Run r, Component c) async {
+  /// Runs [c]'s install command (or [argv] in [cwd] with [extraEnv]) as the job's script.
+  Future<void> _runScript(_Run r, Component c, {List<String>? argv, String? cwd, Map<String, String> extraEnv = const {}}) async {
     if (!r.committed) {
       _phase(r, 'build', component: c);
     } else {
@@ -1338,18 +1360,18 @@ final class JobEngine {
       _persist(r.job);
     }
     _checkCancel(r);
-    final folder = ctx.repoFolder(c.repo);
+    final folder = cwd ?? ctx.repoFolder(c.repo);
     final setsid = ctx.runner.which('setsid') ?? '/usr/bin/setsid';
     final options = r.job['options'] as Map? ?? const {};
-    final argv = [...c.install, for (final f in c.flags.entries) if (options[f.key] == true) f.value];
+    argv ??= [...c.install, for (final f in c.flags.entries) if (options[f.key] == true) f.value];
     r.log.note('\$ ${argv.join(' ')}   (in $folder)');
     r.recent.clear();
     final Process proc;
     try {
       proc = await Process.start(setsid, argv,
-          workingDirectory: folder, environment: scriptEnv(c, job: r.id), includeParentEnvironment: false);
+          workingDirectory: folder, environment: {...scriptEnv(c, job: r.id), ...extraEnv}, includeParentEnvironment: false);
     } on ProcessException catch (e) {
-      throw JobFailure('script_failed', 'could not start ${c.install.first}: ${e.message}');
+      throw JobFailure('script_failed', 'could not start ${argv.first}: ${e.message}');
     }
     r.process = proc;
     // Not reaped yet, so this pid is the script's: its start time is its identity.
@@ -1648,6 +1670,14 @@ final class JobEngine {
     if (r['apply'] == true) await (Bar(ctx)..follow = follow).applyWanted();
     return r;
   }
+
+  /// [_nudgeApplet] for the bar icon change (icons.dart).
+  Future<Map<String, dynamic>> nudgeApplet(String id) => _nudgeApplet(id);
+
+  /// A job for [app] that hasn't ended (in this process or another Manager).
+  bool activeFor(String app) =>
+      _runs.values.any((r) => r.job['app'] == app && r.job['finished'] != true) ||
+      loadJobs(paths).any((j) => j['app'] == app && j['finished'] != true);
 
   /// Starts a program in its own session, detached from this one (KDE trays).
   Future<bool> startDetached(String exe, [List<String> args = const []]) async {

@@ -88,7 +88,9 @@ final class Receipt {
     final at = data['at'] is String ? DateTime.tryParse(data['at']) : null;
     if (at == null) throw const FormatException('at');
     final rawInputs = data['inputs'];
-    if (rawInputs is! List || rawInputs.isEmpty) throw const FormatException('inputs');
+    // A release install may have no folder at all (Maprisma's package): no inputs then.
+    final release = data['source'] is Map && (data['source'] as Map)['kind'] == 'release';
+    if (rawInputs is! List || (rawInputs.isEmpty && !release)) throw const FormatException('inputs');
     final inputs = <ReceiptInput>[];
     for (final i in rawInputs) {
       if (i is! Map || !_nonEmpty(i['repo']) || !_isCommit(i['commit']) || i['dirty'] is! bool) {

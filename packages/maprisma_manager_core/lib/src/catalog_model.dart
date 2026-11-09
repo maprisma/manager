@@ -164,6 +164,8 @@ final class BarIcon {
     this.kdeTrayArgs = const [],
     this.iconName,
     this.kdeIconName,
+    this.iconNote,
+    this.cosmicIconBuiltIn = false,
   });
 
   /// The COSMIC applet id (the panel config lists it), e.g. io.github.ubruckhaus.CosmicMaprismaHome.
@@ -191,6 +193,12 @@ final class BarIcon {
   /// The KDE tray's icon name when it differs from [iconName].
   final String? kdeIconName;
 
+  /// What to know about changing the icon (where it shows, status variants).
+  final String? iconNote;
+
+  /// The COSMIC applet draws a built-in copy, not the icon file (a change shows elsewhere only).
+  final bool cosmicIconBuiltIn;
+
   bool get none => cosmicApplet == null && kdeId == null;
 
   Map<String, dynamic> toJson() => {
@@ -202,6 +210,8 @@ final class BarIcon {
     if (kdeTrayExe != null) 'kdeTrayExe': kdeTrayExe,
     'iconName': ?iconName,
     'kdeIconName': ?kdeIconName,
+    'iconNote': ?iconNote,
+    if (cosmicIconBuiltIn) 'cosmicIconBuiltIn': true,
   };
 }
 

@@ -58,6 +58,7 @@ void checkRemovable(AppEntry app, [DesktopId? desktop]) {
 
 Future<RemovePlan> removePlan(Ctx ctx, AppEntry app, {bool deleteSettings = false}) async {
   checkRemovable(app, ctx.desktop);
+  if (app.components.any((c) => c.kind == InstallKind.pacman)) return _pacmanPlan(ctx, app, deleteSettings: deleteSettings);
   final paths = ctx.paths;
   final roots = sharedRoots(paths);
   // Folders owned as a whole: their paths are handled by the tree's manifest only.
@@ -305,4 +306,82 @@ Future<RemovePlan> removePlan(Ctx ctx, AppEntry app, {bool deleteSettings = fals
     'blocked': ?blocked,
     'revision': revision,
   }, goes, settingsGo, restores, trees: treeChecks, recipe: recipe, blocked: blocked);
+}
+
+/// Maprisma (pacman): the package goes as a whole (`pkexec /usr/bin/pacman -R`), after its
+/// provider service is stopped and disabled; its user data only with `delete_settings`.
+Future<RemovePlan> _pacmanPlan(Ctx ctx, AppEntry app, {required bool deleteSettings}) async {
+  final paths = ctx.paths;
+  final roots = sharedRoots(paths);
+  final pkg = app.version.pacman!;
+  final status = StatusReader(ctx);
+  final installed = await status.pacmanVersion(pkg);
+  String? blocked;
+  if (installed == null) {
+    blocked = 'pacman not found';
+  } else if (installed.isEmpty) {
+    blocked = '$pkg is not installed (pacman -Q $pkg)';
+  } else if (ctx.runner.which('pkexec') == null) {
+    blocked = 'pkexec not found: it asks for the password pacman needs';
+  }
+  final goes = <Map<String, dynamic>>[
+    if (installed != null && installed.isNotEmpty) {'path': pkg, 'kind': 'package', 'version': installed, 'note': 'pacman removes every file of the package'},
+  ];
+  final settingsGo = <String>[];
+  final data = <Map<String, dynamic>>[];
+  for (final d in app.data) {
+    final path = paths.expand(d.path);
+    if (FileSystemEntity.typeSync(path, followLinks: false) == FileSystemEntityType.notFound) continue;
+    final unsafe = unsafeReach(path, roots);
+    if (d.neverDelete) {
+      data.add({'path': path, 'goes': false, 'why': d.sharedWithOmarchy ? 'shared with Omarchy (never deleted)' : 'never deleted'});
+    } else if (deleteSettings && unsafe != null) {
+      data.add({'path': path, 'goes': false, 'why': unsafe});
+    } else if (deleteSettings) {
+      data.add({'path': path, 'goes': true});
+      settingsGo.add(path);
+    } else {
+      data.add({'path': path, 'goes': false, 'why': 'user data (kept; "delete settings" removes it)'});
+    }
+  }
+  final stays = <Map<String, dynamic>>[
+    for (final u in app.units)
+      if (File(paths.expand(u.fileTemplate)).existsSync())
+        {'path': paths.expand(u.fileTemplate), 'why': 'written by Maprisma itself: disabled, not deleted', 'runtime': true},
+  ];
+  final dependents = <Map<String, dynamic>>[];
+  for (final other in catalog) {
+    if (!other.dependsOn.contains(app.id)) continue;
+    final states = [for (final c in other.components) (await status.component(other, c)).state];
+    if (states.any((s) => s != InstallState.absent)) dependents.add({'id': other.id, 'name': other.name});
+  }
+  final steps = [
+    for (final u in app.units)
+      {'id': 'unit', 'title': 'Stop and disable ${u.name}', 'commands': ['systemctl --user stop ${u.name}', 'systemctl --user disable ${u.name}'], 'when': 'before'},
+    {'id': 'package', 'title': 'Remove the package (a password dialog asks)', 'commands': ['pkexec /usr/bin/pacman -R --noconfirm $pkg'], 'when': 'before', 'required': true},
+  ];
+  final rec = readReceipt(paths, app.id);
+  final revision = sha256Text(jsonEncode([goes, settingsGo, steps])).substring(0, 16);
+  return RemovePlan(app, {
+    'app': app.id,
+    'name': app.name,
+    'receipt': rec.receipt != null ? 'valid' : (rec.error != null ? 'broken' : 'none'),
+    if (rec.error != null) 'receiptError': rec.error,
+    'verified': installed != null && installed.isNotEmpty,
+    'goes': goes,
+    'stays': stays,
+    'data': data,
+    'deleteSettings': deleteSettings,
+    'runtime': const [],
+    'restores': const [],
+    'backupsKept': const [],
+    'dependents': dependents,
+    'units': [for (final u in app.units) u.name],
+    'running': runningFor(app, paths, ctx.processes()).length,
+    'bar': {'has': false},
+    'postSteps': const [],
+    'steps': steps,
+    'blocked': ?blocked,
+    'revision': revision,
+  }, goes, settingsGo, const [], blocked: blocked);
 }

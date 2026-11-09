@@ -471,7 +471,7 @@ exit 0''');
     // KDE-only apps: refused on COSMIC (their remove steps need Plasma)
     await expectLater(c.call('jobs.start', {'app': 'tiling', 'kind': 'remove'}), throwsA(isA<RouteError>().having((e) => e.code, 'code', 'unavailable')));
     await expectLater(c.call('apps.remove_plan', {'id': 'icons'}), throwsA(isA<RouteError>().having((e) => e.code, 'code', 'unavailable')));
-    await expectLater(c.call('jobs.start', {'app': 'maprisma', 'kind': 'install'}), throwsA(isA<RouteError>().having((e) => e.code, 'code', 'unsupported_yet')));
+    await expectLater(c.call('jobs.start', {'app': 'manager', 'kind': 'install'}), throwsA(isA<RouteError>().having((e) => e.code, 'code', 'unsupported_yet')));
   });
 
   test('a second remove never takes what the first one kept; nothing through a linked folder', () async {

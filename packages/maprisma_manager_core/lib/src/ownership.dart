@@ -28,6 +28,7 @@ String sha256File(String path, {String? normalized}) {
 }
 
 String sha256Text(String text) => sha256.convert(utf8.encode(text)).toString();
+String sha256Bytes(List<int> bytes) => sha256.convert(bytes).toString();
 
 /// One path as it is now: `{path, exists, type: file|link|dir|other, sha256?, link?, mode?}`.
 Map<String, dynamic> pathState(String path, {bool hash = true, String? normalized}) {
