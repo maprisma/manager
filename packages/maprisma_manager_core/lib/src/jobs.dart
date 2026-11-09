@@ -23,6 +23,7 @@ import 'package:path/path.dart' as p;
 import 'bar.dart';
 import 'bar_cosmic.dart';
 import 'bar_kde.dart';
+import 'bar_read.dart';
 import 'catalog.dart';
 import 'context.dart';
 import 'core.dart' show coreVersion;
@@ -63,7 +64,7 @@ final class JobLog {
   JobLog(this.path, {this.max = maxLogBytes, this.tailMax = maxLogTail}) {
     Directory(p.dirname(path)).createSync(recursive: true);
     _raf = File(path).openSync(mode: FileMode.writeOnlyAppend);
-    _bytes = const Utf8Decoder(allowMalformed: true).startChunkedConversion(const LineSplitter().startChunkedConversion(_LineSink(_lines)));
+    _bytes = const Utf8Decoder(allowMalformed: true).startChunkedConversion(_LineCutter(_lines));
   }
 
   final String path;
@@ -116,13 +117,49 @@ final class JobLog {
   }
 }
 
-final class _LineSink implements Sink<String> {
-  _LineSink(this.c);
+/// Splits decoded output into lines for the UI; a line longer than [maxLine] characters is
+/// handed out in pieces (memory stays bounded whatever the script prints).
+final class _LineCutter extends StringConversionSinkBase {
+  _LineCutter(this.c);
+  static const maxLine = 64 * 1024;
   final StreamController<String> c;
+  final _pending = StringBuffer();
+
   @override
-  void add(String data) => c.add(data);
+  void addSlice(String str, int start, int end, bool isLast) {
+    var from = start;
+    while (from < end) {
+      final nl = str.indexOf('\n', from);
+      final stop = nl < 0 || nl >= end ? end : nl;
+      _pending.write(str.substring(from, stop));
+      if (stop < end) {
+        _emit();
+        from = stop + 1;
+      } else {
+        from = end;
+      }
+      while (_pending.length > maxLine) {
+        final text = _pending.toString();
+        c.add(text.substring(0, maxLine));
+        _pending
+          ..clear()
+          ..write(text.substring(maxLine));
+      }
+    }
+    if (isLast) close();
+  }
+
+  void _emit() {
+    var line = _pending.toString();
+    if (line.endsWith('\r')) line = line.substring(0, line.length - 1);
+    c.add(line);
+    _pending.clear();
+  }
+
   @override
-  void close() {}
+  void close() {
+    if (_pending.isNotEmpty) _emit();
+  }
 }
 
 /// One job while this process runs it.
@@ -141,6 +178,11 @@ final class _Run {
   bool cancelRequested = false;
   bool committed = false;
   Timer? killTimer;
+  DateTime? cancelAt;
+  int? scriptStart;
+
+  /// The commit transition (stopping the app) while it runs: awaited before the job goes on.
+  Future<void>? committing;
   Map<String, String> signatures = const {};
   List<Map<String, dynamic>> newBackups = [];
   Set<String> aliveAtEnd = {};
@@ -266,7 +308,19 @@ final class JobEngine {
     final whole = from + bytes.length >= size && finished;
     if (!whole) {
       final nl = bytes.lastIndexOf(10);
-      bytes = nl < 0 ? <int>[] : bytes.sublist(0, nl + 1);
+      if (nl >= 0) {
+        bytes = bytes.sublist(0, nl + 1);
+      } else if (bytes.length >= maxLogRead || finished) {
+        // A line longer than one read: hand it out in pieces, cut at a UTF-8 character boundary.
+        var cut = bytes.length;
+        while (cut > 0 && cut > bytes.length - 4 && (bytes[cut - 1] & 0xC0) == 0x80) {
+          cut--;
+        }
+        if (cut > 0 && bytes[cut - 1] >= 0xC0) cut--; // a lead byte without its continuation
+        bytes = bytes.sublist(0, cut == 0 ? bytes.length : cut);
+      } else {
+        bytes = <int>[];
+      }
     }
     final next = from + bytes.length;
     return {
@@ -298,36 +352,64 @@ final class JobEngine {
     if (run.committed || !['prepare', 'build'].contains(job['phase'])) {
       throw RouteError('not_cancellable', 'the job is in its ${job['phase']} phase (it changes files now)');
     }
-    final proc = run.process;
-    if (proc == null) {
+    if (run.process == null || run.pgid == null) {
+      // prepare, or the script is being started: it is ended as soon as its group is known.
       run.cancelRequested = true;
       run.log.note('cancel asked: the job stops before the next step');
       return {'id': run.id, 'cancelling': true};
     }
-    final pg = run.pgid;
-    if (pg == null) throw RouteError('not_cancellable', 'the script\'s process group is unknown');
-    // Pause the whole group, then look: only a script that hasn't touched the app's files is ended.
-    final paused = signaller.group(pg, sigStop);
+    await _cancelScript(run);
+    return {'id': run.id, 'cancelling': true};
+  }
+
+  /// Signals the job's script group, only while it is still that group: its leader is the
+  /// process that started at the recorded time, or (leader gone) members of the session it made.
+  bool _signalGroup(_Run r, int sig) {
+    final pg = r.pgid;
+    if (pg == null) return false;
+    if (!sameProcess(pg, r.scriptStart) && groupMembers(pg).isEmpty) return false;
+    return signaller.group(pg, sig);
+  }
+
+  /// SIGSTOP to the group, then waits until every member is stopped (a stopped process runs no
+  /// code and is in no system call, so nothing it does lands after the check). False when it
+  /// could not be paused in time (then it is let go again).
+  Future<bool> _pause(_Run r) async {
+    if (!_signalGroup(r, sigStop)) return groupMembers(r.pgid!).isEmpty && r.process == null;
+    if (!signaller.real) return true; // recording: nothing to wait for
+    final until = DateTime.now().add(const Duration(seconds: 1));
+    while (DateTime.now().isBefore(until)) {
+      if (groupMembers(r.pgid!).every((m) => m.stopped)) return true;
+      await Future<void>.delayed(const Duration(milliseconds: 2));
+    }
+    _signalGroup(r, sigCont);
+    return false;
+  }
+
+  /// Ends the script when it hasn't touched the app's files: paused, checked, then TERM (KILL
+  /// after [killAfter], until no member of its group is left). Throws `not_cancellable` otherwise.
+  Future<void> _cancelScript(_Run run) async {
+    run.cancelRequested = false;
+    if (!await _pause(run)) {
+      throw RouteError('not_cancellable', 'the script could not be paused to check it');
+    }
     final changed = firstChanged(run.signatures);
     if (changed != null) {
-      final entering = _enterCommit(run, changed);
-      unawaited(entering.whenComplete(() {
-        if (paused) signaller.group(pg, sigCont);
-      }));
+      try {
+        await _enterCommit(run, changed, paused: true);
+      } finally {
+        _signalGroup(run, sigCont);
+      }
       throw RouteError('not_cancellable', 'the install has started writing its files ($changed)');
     }
     run.cancelRequested = true;
-    run.log.note('cancel: TERM to the script\'s process group $pg');
-    signaller.group(pg, sigTerm);
-    if (paused) signaller.group(pg, sigCont);
-    final start = procStat(pg)?.start;
+    run.cancelAt = DateTime.now();
+    run.log.note('cancel: TERM to the script\'s process group ${run.pgid}');
+    _signalGroup(run, sigTerm);
+    _signalGroup(run, sigCont);
     run.killTimer = Timer(killAfter, () {
-      if (run.process != null && sameProcess(pg, start)) {
-        run.log.note('cancel: KILL to the process group $pg');
-        signaller.group(pg, sigKill);
-      }
+      if (_signalGroup(run, sigKill)) run.log.note('cancel: KILL to the process group ${run.pgid}');
     });
-    return {'id': run.id, 'cancelling': true};
   }
 
   /// The UI's live output of a job run by this process (null: not ours or ended).
@@ -344,6 +426,11 @@ final class JobEngine {
     if (holder != null && holder != this) throw RouteError('busy', 'another job runs in this process');
     final f = File(lockPath);
     f.createSync(recursive: true);
+    // A script whose Manager is gone may still be writing (an interrupted job's orphan).
+    final orphan = loadJobs(paths).where((j) => j['state'] == 'interrupted' && orphanRunning(j)).firstOrNull;
+    if (orphan != null) {
+      throw RouteError('busy', 'the script of the interrupted job ${orphan['id']} still runs (pid ${(orphan['script'] as Map)['pid']}); wait for it to end');
+    }
     final raf = f.openSync(mode: FileMode.append);
     try {
       raf.lockSync(FileLock.exclusive);
@@ -460,6 +547,14 @@ final class JobEngine {
       _end(r, 'cancelled', {'ok': false, 'code': 'cancelled', 'message': 'nothing was changed'});
     } on JobFailure catch (f) {
       if (!r.committed) _dropNewBackups(r);
+      if (r.committed && r.kind != JobKind.remove) {
+        // The installer may have rewritten the autostart file: the wanted bar state still holds.
+        try {
+          await (Bar(ctx)..follow = follow).applyWanted();
+        } on Object catch (e) {
+          r.log.note('bar state not applied: $e');
+        }
+      }
       _end(r, 'failed', {
         'ok': false,
         'code': f.code,
@@ -559,6 +654,9 @@ final class JobEngine {
     }
     _checkCancel(r);
 
+    await _seedWantedBar(r);
+    _checkCancel(r);
+
     // Snapshot and displaced files, before anything runs.
     final cat = catalogPaths(paths, comps);
     final norm = normalizedPaths(paths, app);
@@ -652,6 +750,8 @@ final class JobEngine {
     };
     Receipt.parse(app.id, jsonDecode(jsonEncode(receiptJson))); // never write one the reader refuses
     atomicWrite(p.join(paths.receipts, '${app.id}.json'), const JsonEncoder.withIndent('  ').convert(receiptJson));
+    final keptRecord = File(keptFile(paths, app.id));
+    if (keptRecord.existsSync()) keptRecord.deleteSync(); // the receipt says what is the app's now
     r.log.note('receipt written (${(receiptJson['paths'] as List).length} paths)');
     return {
       if (partial.isNotEmpty) 'partial': partial.toList(),
@@ -659,6 +759,27 @@ final class JobEngine {
       'bar': bar,
       'receipt': p.join(paths.receipts, '${app.id}.json'),
     };
+  }
+
+  /// The bar state before an install: an app the user never placed through the Manager has no
+  /// entry in bar.json; its current state (in the bar, and where, or out) is recorded there first,
+  /// so it is put back after the installer rewrote its autostart file.
+  Future<void> _seedWantedBar(_Run r) async {
+    final app = r.app;
+    if (ctx.desktop == DesktopId.other || app.bar.none) return;
+    if (WantedBar.load(paths).of(ctx.desktop, app.id) != null) return;
+    final installed = app.components.any((c) => c.paths.any((ip) => ip.key && File(paths.expand(ip.path)).existsSync()));
+    if (!installed) return;
+    final st = (await BarSnapshot.read(ctx, ctx.processes())).stateOf(app);
+    if (st['state'] != 'in' && st['state'] != 'out') return;
+    final area = parseArea(st['zone']);
+    await withStateLock(paths, () async {
+      final wanted = WantedBar.load(paths);
+      if (wanted.of(ctx.desktop, app.id) != null) return;
+      wanted.set(ctx.desktop, app.id, placed: st['state'] == 'in', area: area);
+      wanted.save(paths);
+    });
+    r.log.note('bar state recorded before the install: ${st['state']}${area == null ? '' : ' (${area.name})'}');
   }
 
   /// The script's environment: explicit, no login shell. PATH gets flutter's folder and
@@ -721,13 +842,15 @@ final class JobEngine {
       throw JobFailure('script_failed', 'could not start ${c.install.first}: ${e.message}');
     }
     r.process = proc;
+    // Not reaped yet, so this pid is the script's: its start time is its identity.
+    r.scriptStart = procStat(proc.pid)?.start;
     await proc.stdin.close();
     // setsid makes the script the leader of its own session and group (pgid = pid).
-    final until = DateTime.now().add(const Duration(seconds: 1));
     // (A script that has already ended counts as its own group: there is nothing left to signal.)
+    final until = DateTime.now().add(const Duration(seconds: 1));
     while (true) {
       final st = procStat(proc.pid);
-      if (st == null || st.zombie || st.pgrp == proc.pid) {
+      if (st == null || st.zombie || (st.pgrp == proc.pid && st.session == proc.pid)) {
         r.pgid = proc.pid;
         break;
       }
@@ -735,24 +858,29 @@ final class JobEngine {
       await Future<void>.delayed(const Duration(milliseconds: 2));
     }
     if (r.pgid == null) r.log.note('the script\'s process group is unknown: it can\'t be cancelled');
-    r.job['script'] = {'pid': proc.pid, 'pgid': r.pgid, 'start': procStat(proc.pid)?.start, 'component': c.id};
+    r.job['script'] = {'pid': proc.pid, 'pgid': r.pgid, 'start': r.scriptStart, 'component': c.id};
     _persist(r.job);
     final outDone = proc.stdout.listen(r.log.add).asFuture<void>();
     final errDone = proc.stderr.listen(r.log.add).asFuture<void>();
-    var polling = false;
-    final timer = Timer.periodic(pollEvery, (_) async {
-      if (r.committed || polling) return;
-      polling = true;
+    // A cancel that came while the script was being started.
+    if (r.cancelRequested && r.pgid != null) {
       try {
-        final changed = firstChanged(r.signatures);
-        if (changed != null) await _enterCommit(r, changed);
-      } finally {
-        polling = false;
+        await _cancelScript(r);
+      } on RouteError catch (e) {
+        r.log.note('cancel came too late: ${e.message}');
       }
+    }
+    final timer = Timer.periodic(pollEvery, (_) {
+      if (r.committed || r.committing != null) return;
+      final changed = firstChanged(r.signatures);
+      if (changed != null) unawaited(_enterCommit(r, changed));
     });
     final code = await proc.exitCode;
     timer.cancel();
     r.process = null;
+    // A commit transition still stopping the app is finished before anything goes on.
+    await r.committing;
+    if (r.cancelRequested) await _reapGroup(r);
     r.killTimer?.cancel();
     try {
       await Future.wait([outDone, errDone]).timeout(const Duration(seconds: 2));
@@ -771,27 +899,54 @@ final class JobEngine {
     if (code != 0) throw JobFailure('script_failed', '${c.install.join(' ')} exited with $code');
   }
 
+  /// After a cancelled script's leader ended: its group's other members (a child that ignored
+  /// TERM) get KILL once [killAfter] has passed since the cancel; waits until none is left.
+  Future<void> _reapGroup(_Run r) async {
+    final pg = r.pgid;
+    if (pg == null) return;
+    final killAt = (r.cancelAt ?? DateTime.now()).add(killAfter);
+    final giveUp = killAt.add(const Duration(seconds: 3));
+    var killed = false;
+    while (groupMembers(pg).isNotEmpty) {
+      final now = DateTime.now();
+      if (!killed && now.isAfter(killAt)) {
+        killed = _signalGroup(r, sigKill);
+        r.log.note('cancel: KILL to what is left of the process group $pg');
+      }
+      if (now.isAfter(giveUp)) {
+        r.log.note('members of the process group $pg are still running');
+        break;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
+  }
+
   /// The commit boundary: from here the job isn't cancellable. The script is paused while the
-  /// app's units and processes are stopped (where it doesn't do that itself).
-  Future<void> _enterCommit(_Run r, String changed, {bool scriptEnded = false}) async {
-    if (r.committed) return;
+  /// app's units and processes are stopped (where it doesn't do that itself). One transition per
+  /// job: callers await [_Run.committing].
+  Future<void> _enterCommit(_Run r, String changed, {bool scriptEnded = false, bool paused = false}) {
+    if (r.committing != null) return r.committing!;
+    if (r.committed) return Future.value();
     r.committed = true;
     r.job['committed'] = true;
     r.job['phase'] = 'commit';
     _persist(r.job);
     r.log.note('phase: commit ($changed changed; not cancellable from here)');
-    final c = r.component;
-    if (c != null && c.stopsOwnProcesses) {
-      r.log.note('the installer stops ${r.app.name}\'s processes itself');
-      return;
+    Future<void> body() async {
+      final c = r.component;
+      if (c != null && c.stopsOwnProcesses) {
+        r.log.note('the installer stops ${r.app.name}\'s processes itself');
+        return;
+      }
+      final pause = !paused && !scriptEnded && r.process != null && await _pause(r);
+      try {
+        await _stopApp(r);
+      } finally {
+        if (pause) _signalGroup(r, sigCont);
+      }
     }
-    final pg = r.pgid;
-    final paused = !scriptEnded && pg != null && r.process != null && signaller.group(pg, sigStop);
-    try {
-      await _stopApp(r);
-    } finally {
-      if (paused) signaller.group(pg, sigCont);
-    }
+
+    return r.committing = body();
   }
 
   /// Stops the app's systemd user units, then its processes (exe under its install paths, or
@@ -886,7 +1041,7 @@ final class JobEngine {
       if (stop.isNotEmpty) await stopProcesses(stop, signaller: signaller, procRoot: paths.proc, uid: ctx.uid, grace: stopGrace);
       final left = trays.where((t) => !stop.contains(t)).toList();
       if (shown && left.isEmpty) {
-        final ok = await startDetached(paths.expand(app.bar.kdeTrayExe!));
+        final ok = await startDetached(paths.expand(app.bar.kdeTrayExe!), app.bar.kdeTrayArgs);
         out['trayStarted'] = ok;
         r.log.note(ok ? 'tray started' : 'the tray could not be started');
       } else if (!shown) {
@@ -898,11 +1053,11 @@ final class JobEngine {
   }
 
   /// Starts a program in its own session, detached from this one (KDE trays).
-  Future<bool> startDetached(String exe) async {
+  Future<bool> startDetached(String exe, [List<String> args = const []]) async {
     if (!isExecutableFileOrLink(exe)) return false;
     final env = scriptEnv(const Component(id: 'tray', name: 'tray', repo: '', install: [], paths: []));
     try {
-      await Process.start(ctx.runner.which('setsid') ?? '/usr/bin/setsid', [exe],
+      await Process.start(ctx.runner.which('setsid') ?? '/usr/bin/setsid', [exe, ...args],
           mode: ProcessStartMode.detached, environment: env, includeParentEnvironment: false, workingDirectory: paths.home);
       return true;
     } on ProcessException {
@@ -949,8 +1104,14 @@ final class JobEngine {
     await _stopApp(r);
 
     final deleted = <String>[], kept = <Map<String, dynamic>>[];
+    final reach = sharedRoots(paths);
     for (final g in plan.goes.where((g) => g['kind'] != 'dir')) {
       final path = g['path'] as String;
+      final unsafe = unsafeReach(path, reach); // checked again right before the delete
+      if (unsafe != null) {
+        kept.add({'path': path, 'why': unsafe});
+        continue;
+      }
       final now = pathState(path, normalized: g['normalized'] as String?);
       if (now['exists'] != true) continue;
       if (g['kind'] == 'file' && now['type'] == 'file' && now['sha256'] == g['sha256']) {
@@ -974,8 +1135,9 @@ final class JobEngine {
     }
     final displaced = Displaced.load(paths, app.id);
     final restored = <String>[];
-    for (final e in [...displaced.entries]) {
-      if (e['restore'] != true) continue;
+    for (final planned in plan.restores) {
+      final e = displaced.of(planned['path'] as String);
+      if (e == null || e['restore'] != true || unsafeReach(e['path'] as String, reach) != null) continue;
       if (displaced.restoreEntry(e)) {
         restored.add(e['path'] as String);
         r.log.note('restored ${e['path']} (it was there before the Manager installed ${app.name})');
@@ -985,6 +1147,7 @@ final class JobEngine {
     displaced.save();
     final settings = <String>[];
     for (final path in plan.settingsGo) {
+      if (unsafeReach(path, reach) != null) continue;
       final t = FileSystemEntity.typeSync(path, followLinks: false);
       if (t == FileSystemEntityType.link) {
         Link(path).deleteSync();
@@ -1003,9 +1166,25 @@ final class JobEngine {
 
     _phase(r, 'finish');
     await _postSteps(r, const ['gtk-update-icon-cache', 'update-desktop-database']);
+    // What stays is recorded, so a later remove without a receipt never takes it as the app's.
+    final keptNow = <Map<String, dynamic>>[];
+    final known = {for (final (_, path) in catalogPaths(paths, app.components)) path};
+    final oldKept = loadKept(paths, app.id);
+    for (final path in {...oldKept.keys, for (final s in [...(plan.json['stays'] as List), ...kept]) s['path'] as String}) {
+      if (!known.contains(path)) continue;
+      final st = pathState(path, normalized: normalizedPaths(paths, app).contains(path) ? normalizedHidden : null);
+      if (st['exists'] != true) continue;
+      keptNow.add({'path': path, 'sha256': ?st['sha256'], 'link': ?st['link'], 'type': st['type']});
+    }
+    if (keptNow.isEmpty) {
+      final f = File(keptFile(paths, app.id));
+      if (f.existsSync()) f.deleteSync();
+    } else {
+      atomicWrite(keptFile(paths, app.id), const JsonEncoder.withIndent('  ').convert({'at': ctx.clock().toUtc().toIso8601String(), 'paths': keptNow}));
+    }
     final receipt = File(p.join(paths.receipts, '${app.id}.json'));
     if (receipt.existsSync()) receipt.deleteSync();
-    r.log.note('receipt dropped');
+    r.log.note('receipt dropped${keptNow.isEmpty ? '' : '; ${keptNow.length} kept path(s) recorded'}');
     return {
       'deleted': deleted,
       'kept': [...(plan.json['stays'] as List), ...kept],
@@ -1017,12 +1196,7 @@ final class JobEngine {
 
   /// Folders that are never removed when they become empty (the shared roots and above).
   late final Set<String> _roots = () {
-    final base = {
-      paths.home, paths.bin, paths.lib, paths.data, paths.homeShare, paths.apps, paths.icons, paths.autostart,
-      paths.config, paths.state, paths.cache, paths.units, p.join(paths.homeShare, 'applications'),
-      p.join(paths.homeShare, 'icons/hicolor/scalable/apps'), p.join(paths.data, 'kwin/scripts'), p.join(paths.data, 'plasma/plasmoids'),
-      p.join(paths.data, 'dbus-1/services'),
-    };
+    final base = {paths.home, ...sharedRoots(paths)};
     final all = <String>{};
     for (final b in base) {
       var d = p.normalize(b);
@@ -1084,11 +1258,12 @@ Map<String, dynamic>? loadJob(Paths paths, String id) {
   }
   if (job['finished'] == true) return job;
   final owner = job['owner'];
-  final alive = owner is Map && owner['pid'] is int && sameProcess(owner['pid'] as int, owner['start'] as int?);
+  // Identity = pid + start time; without a start time nothing counts as alive.
+  final alive = owner is Map && owner['pid'] is int && owner['start'] is int && sameProcess(owner['pid'] as int, owner['start'] as int);
   if (alive) return job;
+  final orphan = orphanRunning(job);
   final script = job['script'];
-  final orphan = script is Map && script['pid'] is int && sameProcess(script['pid'] as int, script['start'] as int?);
-  if (orphan && script['pgid'] is int && paths.proc == '/proc') {
+  if (orphan && script is Map && paths.proc == '/proc') {
     // A script paused at the commit boundary must not stay paused without its Manager.
     Signaller().group(script['pgid'] as int, sigCont);
   }
@@ -1110,6 +1285,16 @@ Map<String, dynamic>? loadJob(Paths paths, String id) {
     // shown anyway
   }
   return job;
+}
+
+/// The job's script (or what is left of its process group) still runs: for an interrupted job,
+/// nothing else may change the app until it has ended.
+bool orphanRunning(Map<String, dynamic> job) {
+  final script = job['script'];
+  if (script is! Map || script['pgid'] is! int) return false;
+  final pg = script['pgid'] as int;
+  if (script['start'] is int && sameProcess(pg, script['start'] as int)) return true;
+  return groupMembers(pg).isNotEmpty;
 }
 
 /// Every job on disk, newest first.

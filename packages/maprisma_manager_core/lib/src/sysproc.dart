@@ -21,29 +21,49 @@ final _kill = DynamicLibrary.process().lookupFunction<_KillC, _KillD>('kill');
 
 /// What `/proc/<pid>/stat` says about a process: its identity (pid + start ticks), parent, group.
 final class ProcStat {
-  ProcStat(this.pid, this.state, this.ppid, this.pgrp, this.start);
+  ProcStat(this.pid, this.state, this.ppid, this.pgrp, this.session, this.start);
   final int pid;
   final String state;
   final int ppid;
   final int pgrp;
+  final int session;
   final int start;
   bool get zombie => state == 'Z' || state == 'X';
+
+  /// Stopped by a signal (or traced): it runs no code and is in no system call.
+  bool get stopped => state == 'T' || state == 't';
 }
 
 ProcStat? procStat(int pid, {String procRoot = '/proc'}) {
   try {
     final stat = File(p.join(procRoot, '$pid', 'stat')).readAsStringSync();
     final f = stat.substring(stat.lastIndexOf(')') + 2).split(' ');
-    return ProcStat(pid, f[0], int.parse(f[1]), int.parse(f[2]), int.parse(f[19]));
+    return ProcStat(pid, f[0], int.parse(f[1]), int.parse(f[2]), int.parse(f[3]), int.parse(f[19]));
   } on Object {
     return null;
   }
 }
 
-/// The process [pid] is still the one that started at [start] (and not a zombie).
+/// The process [pid] is still the one that started at [start] (and not a zombie). Without a
+/// known [start] it only says whether some live process has that pid.
 bool sameProcess(int pid, int? start, {String procRoot = '/proc'}) {
   final s = procStat(pid, procRoot: procRoot);
   return s != null && !s.zombie && (start == null || s.start == start);
+}
+
+/// The live members of the process group [pgid] that is also its own session (a job's script
+/// started with setsid): a reused number of an unrelated group doesn't count.
+List<ProcStat> groupMembers(int pgid, {String procRoot = '/proc'}) {
+  final out = <ProcStat>[];
+  final dir = Directory(procRoot);
+  if (!dir.existsSync()) return out;
+  for (final e in dir.listSync(followLinks: false)) {
+    final n = int.tryParse(p.basename(e.path));
+    if (n == null) continue;
+    final st = procStat(n, procRoot: procRoot);
+    if (st != null && !st.zombie && st.pgrp == pgid && st.session == pgid) out.add(st);
+  }
+  return out;
 }
 
 /// Sends signals. The real one refuses pid ≤ 1 and this process' own group; tests (and a fake
@@ -55,6 +75,9 @@ class Signaller {
   factory Signaller.recording() = _Recording;
 
   final List<String> sent = [];
+
+  /// Whether signals really go out.
+  bool get real => true;
 
   late final int _ownGroup = procStat(pid)?.pgrp ?? pid;
 
@@ -72,6 +95,9 @@ class Signaller {
 }
 
 final class _Recording extends Signaller {
+  @override
+  bool get real => false;
+
   @override
   bool signal(int target, int sig) {
     sent.add('$target:$sig');

@@ -64,6 +64,8 @@ echo "FLUTTER=${FLUTTER:-}"
 echo "MM_FAKE=${MM_FAKE:-}"
 echo "JOB=${MAPRISMA_MANAGER_JOB:-}"
 if [ -e "$ctl/fail-build" ]; then echo "build failed" >&2; exit 3; fi
+if [ -e "$ctl/stubborn" ]; then ( trap '' TERM; while :; do sleep 0.05; done ) & fi
+if [ -e "$ctl/long-line" ]; then head -c 300000 /dev/zero | tr '\0' 'x'; echo; fi
 while [ -e "$ctl/hold-build" ]; do sleep 0.05; done
 bin="$HOME/.local/bin"
 data="${XDG_DATA_HOME:-$HOME/.local/share}"
@@ -264,6 +266,54 @@ exit 0''');
     expect(sameProcess(pg, null), isFalse);
   });
 
+  test('cancel: a child that ignores TERM is killed; the job ends only when the group is gone', () async {
+    final c = core();
+    File(p.join(ctl, 'hold-build')).createSync();
+    File(p.join(ctl, 'stubborn')).createSync();
+    final j = await c.call('jobs.start', {'app': 'fake', 'kind': 'install'});
+    final id = j['id'] as String;
+    await until(() => File(p.join(w.paths.managerState, 'logs/$id.log')).readAsStringSync().contains('building'));
+    await c.call('jobs.cancel', {'id': id});
+    final job = await c.jobs.done(id)!;
+    expect(job['state'], 'cancelled', reason: log(job));
+    expect(log(job), contains('KILL'));
+    expect(groupMembers((job['script'] as Map)['pgid'] as int), isEmpty);
+  });
+
+  test('an orphaned script of an interrupted job keeps every other job out', () async {
+    final orphan = await Process.start('setsid', ['sleep', '30']);
+    started.add(orphan);
+    await until(() => procStat(orphan.pid)?.session == orphan.pid);
+    const id = '20261109T100000Z-fake-install';
+    w.writeFile(p.join(w.paths.managerState, 'jobs/$id.json'), jsonEncode({
+      'id': id, 'app': 'fake', 'kind': 'install', 'state': 'running', 'phase': 'commit', 'committed': true,
+      'created': '2026-11-09T10:00:00Z', 'owner': {'pid': 999999999, 'start': 1}, 'log': p.join(w.paths.managerState, 'logs/$id.log'),
+      'script': {'pid': orphan.pid, 'pgid': orphan.pid, 'start': procStat(orphan.pid)!.start},
+    }));
+    final c = core();
+    expect((await c.call('jobs.get', {'id': id}))['result']['orphan'], isTrue);
+    await expectLater(c.call('jobs.start', {'app': 'fake', 'kind': 'reinstall'}), throwsA(isA<RouteError>().having((e) => e.code, 'code', 'busy')));
+    orphan.kill(ProcessSignal.sigkill);
+    await orphan.exitCode;
+    expect((await run(c, 'reinstall'))['state'], 'succeeded');
+  });
+
+  test('jobs.log hands out a line longer than one read in pieces', () async {
+    File(p.join(ctl, 'long-line')).createSync();
+    final c = core();
+    final job = await run(c, 'install');
+    var from = 0, rounds = 0, text = StringBuffer();
+    while (true) {
+      final r = await c.call('jobs.log', {'id': job['id'], 'from': from});
+      text.write(r['text']);
+      if (r['finished'] == true) break;
+      expect(r['next'], greaterThan(from));
+      from = r['next'] as int;
+      expect(++rounds, lessThan(10));
+    }
+    expect(text.toString(), File(job['log'] as String).readAsStringSync());
+  });
+
   test('cancel once the script has written: refused (not_cancellable), even before the poll saw it', () async {
     final c = core();
     c.jobs.pollEvery = const Duration(hours: 1); // only the cancel's own check can see the change
@@ -389,6 +439,39 @@ exit 0''');
     await expectLater(c.call('apps.remove_plan', {'id': 'narrator'}), throwsA(isA<RouteError>().having((e) => e.code, 'code', 'unsupported_yet')));
     await expectLater(c.call('jobs.start', {'app': 'tiling', 'kind': 'remove'}), throwsA(isA<RouteError>().having((e) => e.code, 'code', 'unsupported_yet')));
     await expectLater(c.call('jobs.start', {'app': 'maprisma', 'kind': 'install'}), throwsA(isA<RouteError>().having((e) => e.code, 'code', 'unsupported_yet')));
+  });
+
+  test('a second remove never takes what the first one kept; nothing through a linked folder', () async {
+    final c = core();
+    expect((await run(c, 'install'))['state'], 'succeeded');
+    w.writeFile(desktop(), '[Desktop Entry]\nName=Edited\n');
+    expect((await run(c, 'remove'))['state'], 'succeeded');
+    expect(File(desktop()).existsSync(), isTrue);
+    expect(File(keptFile(w.paths, 'fake')).existsSync(), isTrue);
+    final plan = await c.call('apps.remove_plan', {'id': 'fake'});
+    expect(plan['verified'], isFalse);
+    expect([for (final g in plan['goes'] as List) g['path']], isNot(contains(desktop())));
+    expect({for (final s in plan['stays'] as List) s['path']: s['why']}[desktop()], contains('kept by an earlier remove'));
+
+    // the app's scripts folder is a link to somewhere else: the file there is not touched
+    final elsewhere = p.join(w.dir, 'elsewhere');
+    w.writeFile(p.join(elsewhere, 'helper.sh'), 'mine', mode: '755');
+    Directory(p.join(w.paths.data, 'mm-fake')).createSync(recursive: true);
+    Link(p.join(w.paths.data, 'mm-fake/scripts')).createSync(elsewhere);
+    final plan2 = await c.call('apps.remove_plan', {'id': 'fake'});
+    expect([for (final g in plan2['goes'] as List) g['path']], isNot(contains(helper())));
+    expect({for (final s in plan2['stays'] as List) s['path']: s['why']}[helper()], contains('linked folder'));
+  });
+
+  test('install records the bar state of an app never placed through the Manager', () async {
+    final c = core();
+    expect((await run(c, 'install'))['state'], 'succeeded');
+    expect(File(WantedBar.file(w.paths)).existsSync(), isFalse); // not installed before: nothing to record
+    final center = p.join(w.paths.config, 'cosmic/com.system76.CosmicPanel.Panel/v1/plugins_center');
+    w.writeFile(center, 'Some([\n    "com.system76.CosmicAppletTime",\n    "$_applet",\n])');
+    final job = await run(c, 'reinstall');
+    expect(job['state'], 'succeeded', reason: log(job));
+    expect(WantedBar.load(w.paths).of(DesktopId.cosmic, 'fake'), {'placed': true, 'area': 'center'});
   });
 
   test('without a receipt, remove takes the catalog paths, marked unverified', () async {

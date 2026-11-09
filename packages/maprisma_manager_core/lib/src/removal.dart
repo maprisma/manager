@@ -116,6 +116,21 @@ Future<RemovePlan> removePlan(Ctx ctx, AppEntry app, {bool deleteSettings = fals
     }
   }
 
+  // Nothing reached through a linked folder or outside the install folders; without a receipt,
+  // nothing an earlier remove kept (changed or foreign then, and not the Manager's since).
+  final roots = sharedRoots(paths);
+  final kept = receipt == null ? loadKept(paths, app.id) : const <String, Map<String, dynamic>>{};
+  for (final g in [...goes]) {
+    final path = g['path'] as String;
+    final unsafe = unsafeReach(path, roots);
+    final k = kept[path];
+    final wasKept = k != null && ((k['sha256'] != null && k['sha256'] == g['sha256']) || (k['link'] != null && k['link'] == g['link']));
+    if (unsafe != null || wasKept) {
+      goes.remove(g);
+      stays.add({'path': path, 'why': unsafe ?? 'kept by an earlier remove (not the Manager\'s)'});
+    }
+  }
+
   // User data: kept unless asked; data shared with Omarchy never goes.
   final settingsGo = <String>[];
   final data = <Map<String, dynamic>>[];
@@ -125,6 +140,8 @@ Future<RemovePlan> removePlan(Ctx ctx, AppEntry app, {bool deleteSettings = fals
     if (!exists) continue;
     if (d.neverDelete) {
       data.add({'path': path, 'goes': false, 'why': 'shared with Omarchy (never deleted)'});
+    } else if (deleteSettings && unsafeReach(path, roots) != null) {
+      data.add({'path': path, 'goes': false, 'why': unsafeReach(path, roots)});
     } else if (deleteSettings) {
       data.add({'path': path, 'goes': true});
       settingsGo.add(path);
@@ -139,8 +156,12 @@ Future<RemovePlan> removePlan(Ctx ctx, AppEntry app, {bool deleteSettings = fals
   ];
 
   final displaced = Displaced.load(paths, app.id);
-  final restores = [for (final e in displaced.entries) if (e['restore'] == true) e];
-  final kept = [for (final e in displaced.entries) if (e['restore'] != true) e];
+  // Put back only at the app's own catalog paths, never through a linked folder.
+  final restores = [
+    for (final e in displaced.entries)
+      if (e['restore'] == true && known.containsKey(e['path']) && unsafeReach(e['path'] as String, roots) == null) e,
+  ];
+  final backups = [for (final e in displaced.entries) if (!restores.contains(e)) e];
 
   final status = StatusReader(ctx);
   final dependents = <Map<String, dynamic>>[];
@@ -170,7 +191,7 @@ Future<RemovePlan> removePlan(Ctx ctx, AppEntry app, {bool deleteSettings = fals
     'deleteSettings': deleteSettings,
     'runtime': runtime,
     'restores': [for (final e in restores) {'path': e['path'], 'backup': e['backup'], 'reason': e['reason']}],
-    'backupsKept': [for (final e in kept) {'path': e['path'], 'backup': e['backup'], 'reason': e['reason']}],
+    'backupsKept': [for (final e in backups) {'path': e['path'], 'backup': e['backup'], 'reason': e['reason']}],
     'dependents': dependents,
     'units': [for (final u in app.units) u.name],
     'running': running,

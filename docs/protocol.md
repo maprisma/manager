@@ -179,7 +179,15 @@ With a valid receipt, a file goes only while its sha256 is the receipt's (an aut
 a receipt (installed before the Manager, or a broken one) the catalog's paths go, each marked
 `unverified`; a link only when it points where the installer points it. Refused with `unsupported_yet`
 for Maprisma (pacman), Narrator (reader runtime), Tiling (Krohnkite migration), Icons (generated
-Plasma themes) and the Manager (step 6).
+Plasma themes), Launcher, Theme and Video Translator (their Flutter bundles need whole-tree ownership
+in the receipt first) and the Manager (step 6).
+
+Never touched: a path outside the shared install folders (`~/.local/bin`, `~/.local/lib`, the data,
+config, applications, icons, autostart … folders) or reached through a symlinked folder below them
+(checked in the plan and again right before each delete). Paths a remove kept are recorded in
+`kept/<app>.json`; a later remove without a receipt never takes them while they are unchanged (an
+install clears the record). Displaced files are put back only at the app's catalog paths, when the
+backup's sha256 still matches.
 
 ## Jobs
 
@@ -196,7 +204,7 @@ gets `busy`. Every job's state is `jobs/<id>.json`, its log `logs/<id>.log` (100
 
 An unfinished job whose owner (pid + start time) is gone is `interrupted` (`repair: true` unless it was
 still queued); if its script still runs it gets SIGCONT (it may have been paused at the commit) and
-`orphan: true`.
+`orphan: true`, and every `jobs.start` is `busy` until it has ended.
 
 Phases of install/update/reinstall:
 
@@ -204,7 +212,8 @@ Phases of install/update/reinstall:
    optional part is a warning), every input repo present with a commit; for `update` only: `git pull
    --ff-only` when the repo is clean, behind and has an upstream (otherwise the reason is logged and
    the folder is built as it is). The inputs (HEAD, dirty, fingerprint) are recorded. The catalog paths
-   are snapshotted; a file at one of them that isn't the Manager's (per the receipt) is copied to
+   are snapshotted; an installed app without a bar.json entry gets its current bar state recorded
+   there (so the installer's rewritten autostart file doesn't change it); a file at one of them that isn't the Manager's (per the receipt) is copied to
    `displaced/<app>/` first (`restore: true` when a receipt existed, `false` for files from before the
    Manager: those are most likely an earlier install of the same app).
 2. **build** (cancellable): the component's install command runs from its repo folder through
@@ -215,9 +224,12 @@ Phases of install/update/reinstall:
    stdout and stderr go to the log (4 MiB, then its last 256 KiB at the end) and to `lines(id)`.
 3. **commit** (not cancellable): **the rule**: the stat signature of every catalog path (type, size,
    mode, mtime, ctime, link target) is compared every 150 ms; the first changed path starts the commit.
-   `jobs.cancel` pauses the script's group (SIGSTOP) and compares once more: unchanged → TERM to the
-   group (then SIGCONT; KILL after 5 s), changed → the group continues, the job enters its commit and the
-   cancel is refused with `not_cancellable`. So a cancel never ends a script that has touched one of the
+   `jobs.cancel` pauses the script's group (SIGSTOP), waits until every member is stopped (state `T`;
+   not reached within 1 s → refused, fail closed) and compares once more: unchanged → TERM to the group
+   (then SIGCONT; KILL to what is left 5 s after the cancel; the job ends when no member is left),
+   changed → the group continues, the job enters its commit and the cancel is refused with
+   `not_cancellable`. Group signals go out only while the group is still the script's (leader pid +
+   start time, or members of the session it made). So a cancel never ends a script that has touched one of the
    app's files. At the commit (unless the installer does it itself: Launcher, Theme) the script is
    paused while the app's systemd user units are stopped (`systemctl --user stop`, when active) and then
    its processes (by `/proc/<pid>/exe` under its paths or its scripts' exact normalized path in argv;
@@ -257,7 +269,8 @@ with `state: cancelled`); `not_cancellable`, `finished`, `not_owner`.
 ### `jobs.log` `{id, from?}`
 
 `{id, from, next, size, text, finished}`: the log from byte `from`, at most 256 KiB; while the job runs
-the text ends at a full line. Poll with `from = next`. In-process, `CoreService.jobs.lines(id)` streams
+the text ends at a full line (a line longer than one read comes in pieces, cut at a UTF-8 boundary).
+Poll with `from = next`. In-process, `CoreService.jobs.lines(id)` streams
 the lines and `jobs.done(id)` completes with the job.
 
 ## CLI

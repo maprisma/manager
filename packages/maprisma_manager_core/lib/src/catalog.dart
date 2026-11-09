@@ -234,6 +234,8 @@ final List<AppEntry> builtinCatalog = [
       folderPattern: r'^version: *([0-9.]+)',
     ),
     postSteps: ['update-desktop-database'],
+    removal: Support.unsupportedYet,
+    supportNote: 'its Flutter bundle needs whole-tree ownership in the receipt first (step 5)',
   ),
 
   // --- theme: maprisma-theme ---------------------------------------------------------------
@@ -286,6 +288,7 @@ final List<AppEntry> builtinCatalog = [
       kdeId: 'maprisma-theme',
       kdeAutostart: '{autostart}/com.maprisma.Theme.Daemon.desktop',
       kdeTrayExe: '{lib}/maprisma-theme/bin/maprisma-theme-core',
+      kdeTrayArgs: ['daemon'],
       iconName: '${_c}Theme-symbolic',
       kdeIconName: 'com.maprisma.Theme', // the daemon's SNI IconName (daemon.dart)
     ),
@@ -295,6 +298,8 @@ final List<AppEntry> builtinCatalog = [
       folderPattern: r'^version: *([0-9.]+)',
     ),
     postSteps: ['gtk-update-icon-cache', 'update-desktop-database'],
+    removal: Support.unsupportedYet,
+    supportNote: 'its Flutter bundle needs whole-tree ownership in the receipt first (step 5)',
   ),
 
   // --- the rust monitors -------------------------------------------------------------------
@@ -488,6 +493,8 @@ final List<AppEntry> builtinCatalog = [
       kdeTrayExe: '{bin}/maprisma-video-translator-tray',
       iconName: 'media-view-subtitles-symbolic',
     ),
+    removal: Support.unsupportedYet,
+    supportNote: 'its Flutter bundle and backend need whole-tree ownership in the receipt first (step 5)',
   ),
 
   // --- KDE: tiling and the icons widget ----------------------------------------------------

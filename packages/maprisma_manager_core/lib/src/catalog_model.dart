@@ -126,6 +126,7 @@ final class BarIcon {
     this.kdeKind = KdeBarKind.tray,
     this.kdeAutostart,
     this.kdeTrayExe,
+    this.kdeTrayArgs = const [],
     this.iconName,
     this.kdeIconName,
   });
@@ -145,6 +146,9 @@ final class BarIcon {
 
   /// The tray's program (template), to tell whether it runs.
   final String? kdeTrayExe;
+
+  /// Its arguments when the Manager starts it (as its autostart file does).
+  final List<String> kdeTrayArgs;
 
   /// The icon name the applet/tray loads (an own name can be replaced; plan "Changing an icon").
   final String? iconName;

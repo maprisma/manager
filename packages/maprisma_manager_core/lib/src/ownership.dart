@@ -111,6 +111,57 @@ String? firstChanged(Map<String, String> before) {
   return null;
 }
 
+// --- where removing may reach ---------------------------------------------------------------
+
+/// The shared folders apps install into (never removed themselves).
+Set<String> sharedRoots(Paths paths) => {
+  for (final r in [
+    paths.bin, paths.lib, paths.data, paths.homeShare, paths.apps, paths.icons, paths.autostart, paths.config,
+    paths.state, paths.cache, paths.units, p.join(paths.homeShare, 'applications'),
+    p.join(paths.homeShare, 'icons/hicolor/scalable/apps'), p.join(paths.data, 'kwin/scripts'),
+    p.join(paths.data, 'plasma/plasmoids'), p.join(paths.data, 'dbus-1/services'), p.join(paths.home, '.config'),
+  ])
+    p.normalize(r),
+};
+
+/// Why [path] must not be touched by a remove, or null: it must lie below one of the shared roots
+/// and no folder between that root and it may be a symlink (a linked folder would take the delete
+/// somewhere else).
+String? unsafeReach(String path, Set<String> roots) {
+  final n = p.normalize(path);
+  String? root;
+  for (final r in roots) {
+    if (p.isWithin(r, n) && (root == null || r.length > root.length)) root = r;
+  }
+  if (root == null) return 'outside the folders apps install into';
+  var d = p.dirname(n);
+  while (d != root && p.isWithin(root, d)) {
+    if (FileSystemEntity.isLinkSync(d)) return 'reached through the linked folder $d';
+    d = p.dirname(d);
+  }
+  return null;
+}
+
+// --- files a remove kept ------------------------------------------------------------------
+
+/// What a remove left in place (changed or foreign files): `kept/<app>.json`. Without a receipt
+/// a later remove would take them as the catalog's; these are never taken.
+String keptFile(Paths paths, String app) => p.join(paths.managerState, 'kept', '$app.json');
+
+Map<String, Map<String, dynamic>> loadKept(Paths paths, String app) {
+  try {
+    final data = jsonDecode(File(keptFile(paths, app)).readAsStringSync());
+    if (data is Map && data['paths'] is List) {
+      return {for (final e in data['paths'] as List) if (e is Map && e['path'] is String) e['path'] as String: Map<String, dynamic>.from(e)};
+    }
+  } on FileSystemException {
+    // none
+  } on FormatException {
+    // broken: none
+  }
+  return {};
+}
+
 // --- displaced files -------------------------------------------------------------------------
 
 /// The displaced files of one app: `<state>/maprisma-manager/displaced/<app>/index.json`
@@ -127,7 +178,15 @@ final class Displaced {
     try {
       final data = jsonDecode(File(p.join(dir, 'index.json')).readAsStringSync());
       if (data is Map && data['entries'] is List) {
-        return Displaced(dir, [for (final e in data['entries'] as List) if (e is Map && e['path'] is String) Map<String, dynamic>.from(e)]);
+        // Only well-formed entries: an absolute path, and a backup inside this folder (or a link).
+        bool valid(Map e) {
+          final path = e['path'], backup = e['backup'];
+          if (path is! String || !p.isAbsolute(path) || p.normalize(path) != path) return false;
+          if (backup == '(link)') return e['link'] is String;
+          return backup is String && p.isWithin(dir, backup) && p.normalize(backup) == backup;
+        }
+
+        return Displaced(dir, [for (final e in data['entries'] as List) if (e is Map && valid(e)) Map<String, dynamic>.from(e)]);
       }
     } on FileSystemException {
       // none
@@ -168,7 +227,7 @@ final class Displaced {
   void drop(Map<String, dynamic> entry) {
     entries.remove(entry);
     final b = entry['backup'];
-    if (b is String && b != '(link)') {
+    if (b is String && b != '(link)' && p.isWithin(dir, b)) {
       try {
         File(b).deleteSync();
       } on FileSystemException {
@@ -200,7 +259,8 @@ final class Displaced {
       return true;
     }
     final b = e['backup'];
-    if (b is! String || !File(b).existsSync()) return false;
+    if (b is! String || !p.isWithin(dir, b) || FileSystemEntity.typeSync(b, followLinks: false) != FileSystemEntityType.file) return false;
+    if (e['sha256'] is String && sha256File(b) != e['sha256']) return false; // not the file that was backed up
     File(b).copySync(path);
     final mode = e['mode'];
     if (mode is String) Process.runSync('chmod', [mode, path]);
