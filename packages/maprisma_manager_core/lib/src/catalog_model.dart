@@ -33,12 +33,43 @@ final class InstalledPath {
   };
 }
 
+/// A folder an installer fills as a whole (a bundle): owned by a manifest of every entry in the
+/// receipt (trees.dart). [swap]: the installer swaps it in atomically (`<root>.new.XXXXXX`, its old
+/// copy moved to `<root>.old.XXXXXX`). [mayPreexist]: it may be there before the app was installed
+/// through the Manager and belong to someone else too (Tiling's omarchy-navigation): then it
+/// stays on remove. [staged]: the installer copies into `<root>.new` first, then renames it.
+final class TreeRoot {
+  const TreeRoot(this.path, {this.swap = false, this.staged = false, this.mayPreexist = false, this.wholeOnly = false, this.part = 'main', this.note});
+  final String path;
+
+  /// Removed only as a whole (a package another program loads): one changed file keeps all of it.
+  final bool wholeOnly;
+  final bool swap;
+  final bool staged;
+  final bool mayPreexist;
+  final String part;
+  final String? note;
+
+  Map<String, dynamic> toJson() => {
+    'path': path,
+    if (swap) 'swap': true,
+    if (staged) 'staged': true,
+    if (mayPreexist) 'mayPreexist': true,
+    if (wholeOnly) 'wholeOnly': true,
+    'part': part,
+    'note': ?note,
+  };
+}
+
 /// Something made at runtime (by the app, its setup, or later steps), not by the
 /// installer: never a postcondition, removed only by its own step (plan: "not removed blindly").
 final class RuntimePath {
-  const RuntimePath(this.path, {required this.note, this.glob = false, this.marker});
+  const RuntimePath(this.path, {required this.note, this.glob = false, this.marker, this.stays});
   final String path;
   final String note;
+
+  /// Why a remove of the app leaves it (shown under "stays"); null = only listed as runtime.
+  final String? stays;
 
   /// [path] is a glob of the last segment (e.g. `maprisma-theme-key-*.desktop`).
   final bool glob;
@@ -51,17 +82,21 @@ final class RuntimePath {
     'note': note,
     if (glob) 'glob': true,
     if (marker != null) 'marker': marker,
+    'stays': ?stays,
   };
 }
 
 /// User data: kept on remove unless asked; Omarchy-shared data never deleted.
 final class DataPath {
-  const DataPath(this.path, {this.sharedWithOmarchy = false, this.note});
+  const DataPath(this.path, {this.sharedWithOmarchy = false, this.keep = false, this.note});
   final String path;
   final bool sharedWithOmarchy;
+
+  /// Never deleted, not even with "delete its settings" (e.g. Tiling's Krohnkite backup).
+  final bool keep;
   final String? note;
 
-  bool get neverDelete => sharedWithOmarchy;
+  bool get neverDelete => sharedWithOmarchy || keep;
 
   Map<String, dynamic> toJson() => {
     'path': path,
@@ -201,6 +236,18 @@ enum InstallKind { script, pacman }
 /// Whether the job engine can install / remove an app yet (later steps add app-specific steps).
 enum Support { supported, unsupportedYet }
 
+/// App-specific remove steps around the file deletion (kde_remove.dart).
+enum RemoveRecipe {
+  none,
+
+  /// Maprisma Tiling: shortcuts restored, scripts unloaded, its kwinrc keys, kpackagetool6 -r.
+  kwinTiling,
+
+  /// Maprisma Icons: widget instances removed, the Plasma style switched back, kpackagetool6 -r,
+  /// generated styles and the colour cache.
+  plasmaIcons,
+}
+
 /// One installable unit: a repo and its install command.
 final class Component {
   const Component({
@@ -217,11 +264,23 @@ final class Component {
     this.dependsOn = const [],
     this.stopsOwnProcesses = false,
     this.env = const {},
+    this.trees = const [],
+    this.flags = const {},
+    this.busyMarker,
     this.note,
   });
 
   final String id;
   final String name;
+
+  /// Folders it fills as a whole (owned by manifest).
+  final List<TreeRoot> trees;
+
+  /// Job options (bool) that add an argument to [install], e.g. `{'force': '--force'}`.
+  final Map<String, String> flags;
+
+  /// Output that means the installer refused because the app is busy (nothing was changed).
+  final String? busyMarker;
 
   /// The install script stops the app's running copies itself (Launcher, Theme): the job
   /// engine doesn't stop them at the commit.
@@ -332,6 +391,7 @@ final class AppEntry {
     this.postSteps = const [],
     this.installation = Support.supported,
     this.removal = Support.supported,
+    this.removeRecipe = RemoveRecipe.none,
     this.supportNote,
     this.release,
     this.note,
@@ -346,6 +406,7 @@ final class AppEntry {
   /// Whether jobs can install/update and remove it yet; [supportNote] says why not.
   final Support installation;
   final Support removal;
+  final RemoveRecipe removeRecipe;
   final String? supportNote;
 
   /// rust, flutter, rust + flutter, KWin scripts …

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import 'paths.dart';
+import 'trees.dart';
 
 /// One input repo as it was built.
 final class ReceiptInput {
@@ -24,7 +25,17 @@ final class ReceiptInput {
 ///   "paths":[{path, sha256} | {path, link} | {path, dir:true}], "displaced":[{path, backup}]}`.
 /// Read here only; written by the job engine (step 3).
 final class Receipt {
-  Receipt({required this.id, required this.at, required this.inputs, required this.paths, required this.displaced, this.version, this.source});
+  Receipt({
+    required this.id,
+    required this.at,
+    required this.inputs,
+    required this.paths,
+    required this.displaced,
+    this.version,
+    this.source,
+    this.trees = const [],
+    this.saved = const {},
+  });
 
   final String id;
   final DateTime at;
@@ -38,6 +49,16 @@ final class Receipt {
   final Map<String, dynamic>? source;
 
   bool get fromRelease => source?['kind'] == 'release';
+
+  /// The folders owned as a whole: `{root, files, links, dirs, bytes, entries: [{p, sha256, mode} |
+  /// {p, link} | {p, dir}], digest, preexisting?}` or `{root, overflow: true, files}` (trees.dart).
+  final List<Map<String, dynamic>> trees;
+
+  /// Settings the install found and a remove puts back (Icons: `plasmaTheme`, the Plasma style
+  /// that was active before).
+  final Map<String, String> saved;
+
+  Map<String, dynamic>? tree(String root) => trees.where((t) => t['root'] == root).firstOrNull;
 
   ReceiptInput? input(String repo) {
     for (final i in inputs) {
@@ -54,6 +75,11 @@ final class Receipt {
     'paths': paths.length,
     'displaced': displaced.length,
     if (source != null) 'source': source,
+    if (trees.isNotEmpty)
+      'trees': [
+        for (final t in trees)
+          {'root': t['root'], 'files': t['files'], 'bytes': ?t['bytes'], if (t['overflow'] == true) 'overflow': true, if (t['preexisting'] == true) 'preexisting': true},
+      ],
   };
 
   static Receipt parse(String id, Object? data) {
@@ -103,8 +129,23 @@ final class Receipt {
       }
       source = Map<String, dynamic>.from(rawSource);
     }
+    final rawTrees = data['trees'] ?? const [];
+    if (rawTrees is! List) throw const FormatException('trees');
+    final trees = <Map<String, dynamic>>[];
+    for (final t in rawTrees) {
+      if (t is! Map) throw const FormatException('trees');
+      validateTree(t);
+      if (trees.any((x) => x['root'] == t['root'])) throw const FormatException('duplicate tree');
+      trees.add(Map<String, dynamic>.from(t));
+    }
+    final rawSaved = data['saved'] ?? const {};
+    if (rawSaved is! Map || rawSaved.values.any((v) => v is! String) || rawSaved.keys.any((k) => k is! String)) {
+      throw const FormatException('saved');
+    }
     return Receipt(
       id: id,
+      trees: trees,
+      saved: Map<String, String>.from(rawSaved),
       source: source,
       at: at,
       version: data['version'] is String ? data['version'] : null,

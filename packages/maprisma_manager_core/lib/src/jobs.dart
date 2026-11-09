@@ -29,6 +29,7 @@ import 'context.dart';
 import 'core.dart' show coreVersion;
 import 'git.dart' show Git, Relation;
 import 'github.dart';
+import 'kde_remove.dart';
 import 'ownership.dart';
 import 'paths.dart';
 import 'procs.dart';
@@ -37,6 +38,7 @@ import 'removal.dart';
 import 'sources.dart';
 import 'status.dart';
 import 'sysproc.dart';
+import 'trees.dart';
 
 enum JobKind { install, update, reinstall, remove, release }
 
@@ -188,6 +190,18 @@ final class _Run {
   Map<String, String> signatures = const {};
   List<Map<String, dynamic>> newBackups = [];
   Set<String> aliveAtEnd = {};
+
+  /// The script's last output (bounded): tells a refusal (the app is busy) from a failure.
+  final recent = StringBuffer();
+  void remember(List<int> data) {
+    recent.write(utf8.decode(data, allowMalformed: true));
+    if (recent.length > 16384) {
+      final t = recent.toString();
+      recent
+        ..clear()
+        ..write(t.substring(t.length - 8192));
+    }
+  }
 }
 
 /// The engine of one core process.
@@ -243,12 +257,20 @@ final class JobEngine {
       if (options[k] != null && options[k] is! bool) throw RouteError('bad_params', 'options.$k');
     }
     if (options['revision'] != null && options['revision'] is! String) throw RouteError('bad_params', 'options.revision');
+    // Flags an installer takes (Launcher: force): a bool, and only where a component knows it.
+    const known = {'delete_settings', 'dependents_ok', 'revision', 'tag'};
+    for (final k in options.keys) {
+      if (known.contains(k)) continue;
+      if (!app.components.any((c) => c.flags.containsKey(k))) throw RouteError('bad_params', 'options.$k: ${app.name} has no such option');
+      if (options[k] is! bool) throw RouteError('bad_params', 'options.$k');
+      if (kind == JobKind.remove) throw RouteError('bad_params', 'options.$k is for installs');
+    }
     if (params['tag'] != null && options['tag'] == null) options['tag'] = params['tag'];
     if (options['tag'] != null && (options['tag'] is! String || !validTag(options['tag'] as String))) {
       throw RouteError('bad_params', 'tag');
     }
     if (kind == JobKind.remove) {
-      checkRemovable(app);
+      checkRemovable(app, ctx.desktop);
     } else if (kind == JobKind.release) {
       final spec = app.release;
       if (spec == null) throw RouteError('unavailable', '${app.name} has no GitHub releases');
@@ -631,14 +653,38 @@ final class JobEngine {
       optionalParts: base.optionalParts,
       stopsOwnProcesses: base.stopsOwnProcesses,
       env: base.env,
+      trees: base.trees,
+      flags: base.flags,
+      busyMarker: base.busyMarker,
       note: base.note,
     );
+  }
+
+  /// Components in dependency order (`app/component` and `component` names within the app).
+  List<Component> _ordered(AppEntry app, List<Component> comps) {
+    final out = <Component>[];
+    final seen = <String>{};
+    void visit(Component c, Set<String> path) {
+      if (seen.contains(c.id) || !path.add(c.id)) return;
+      for (final d in c.dependsOn) {
+        final parts = d.split('/');
+        if (parts.length == 2 && parts[0] != app.id) continue;
+        final dep = comps.where((x) => x.id == parts.last).firstOrNull;
+        if (dep != null) visit(dep, path);
+      }
+      if (seen.add(c.id)) out.add(c);
+    }
+
+    for (final c in comps) {
+      visit(c, {});
+    }
+    return out;
   }
 
   Future<Map<String, dynamic>> _install(_Run r) async {
     final app = r.app;
     final release = r.kind == JobKind.release;
-    final comps = release ? [_releaseComponent(app)] : _components(app);
+    final comps = release ? [_releaseComponent(app)] : _ordered(app, _components(app));
     _phase(r, 'prepare');
     final status = StatusReader(ctx);
 
@@ -748,7 +794,28 @@ final class JobEngine {
     final receipt = readReceipt(paths, app.id).receipt;
     final displaced = Displaced.load(paths, app.id);
     final at = ctx.clock();
+    // Owned folders: replaced as a whole by their installer, so none of their files is displaced;
+    // one that is there before the first install through the Manager may not be only the app's.
+    final treeRoots = [for (final c in comps) for (final t in c.trees) (t, paths.expand(t.path))];
+    bool inTree(String path) => treeRoots.any((t) => p.isWithin(t.$2, path) || t.$2 == path);
+    final preexisting = <String>{
+      for (final (t, root) in treeRoots)
+        if (t.mayPreexist &&
+            (receipt?.tree(root)?['preexisting'] == true ||
+                (receipt?.tree(root) == null && FileSystemEntity.typeSync(root, followLinks: false) != FileSystemEntityType.notFound)))
+          root,
+    };
+    for (final root in preexisting) {
+      r.log.note('$root was there before: it stays on remove');
+    }
+    // Icons: the Plasma style before a generated one, to switch back to on remove.
+    final saved = <String, String>{...?receipt?.saved};
+    if (app.removeRecipe == RemoveRecipe.plasmaIcons) {
+      final style = plasmaStyle(paths);
+      if (!isGeneratedStyle(style)) saved['plasmaTheme'] = style ?? 'default';
+    }
     for (final (_, path) in cat) {
+      if (inTree(path)) continue;
       final st = before[path]!;
       if (st['exists'] != true || (st['type'] != 'file' && st['type'] != 'link')) continue;
       final owned = receipt?.paths.where((e) => e['path'] == path).firstOrNull;
@@ -806,6 +873,13 @@ final class JobEngine {
 
     _phase(r, 'finish');
     await _postSteps(r, app.postSteps);
+    // Units stopped at the commit are started again (Narrator's reader).
+    final unitsStarted = <String>[];
+    for (final u in (r.job['units'] as List? ?? const []).cast<String>()) {
+      final s = await ctx.runner.run(['systemctl', '--user', 'start', u], timeout: const Duration(seconds: 60));
+      r.log.note('systemctl --user start $u: ${s.ok ? 'ok' : 'failed (${s.stderr.trim()})'}');
+      if (s.ok) unitsStarted.add(u);
+    }
     final bar = await _barFinish(r);
     // Backups of files the script left as they were weren't displaced after all.
     final d = Displaced.load(paths, app.id);
@@ -826,6 +900,19 @@ final class JobEngine {
     final carried = release && receipt != null
         ? [for (final e in receipt.paths) if (!catSet.contains(e['path']) && otherPaths.contains(e['path'])) e]
         : const <Map<String, dynamic>>[];
+    // The owned folders as installed now (a release carries the other components' folders over).
+    final trees = <Map<String, dynamic>>[];
+    for (final (_, root) in treeRoots) {
+      final m = treeManifest(root);
+      if (m == null) continue;
+      if (preexisting.contains(root)) m['preexisting'] = true;
+      trees.add(m);
+      r.log.note(m['overflow'] == true ? '$root: too many files to own (${m['files']})' : '$root: ${m['files']} files owned');
+    }
+    final otherRoots = {for (final c in otherComps) for (final t in c.trees) paths.expand(t.path)};
+    if (release && receipt != null) {
+      trees.addAll([for (final t in receipt.trees) if (otherRoots.contains(t['root']) && !trees.any((x) => x['root'] == t['root'])) t]);
+    }
     final carriedInputs = release && receipt != null && carried.isNotEmpty
         ? [for (final i in receipt.inputs) if (!repos.contains(i.repo)) i.toJson()]
         : const <Map<String, dynamic>>[];
@@ -854,6 +941,8 @@ final class JobEngine {
         ...carried,
       ],
       'displaced': [for (final e in d.entries) {'path': e['path'], 'backup': e['backup'], 'restore': e['restore'], 'reason': e['reason']}],
+      if (trees.isNotEmpty) 'trees': trees,
+      if (saved.isNotEmpty) 'saved': saved,
     };
     Receipt.parse(app.id, jsonDecode(jsonEncode(receiptJson))); // never write one the reader refuses
     atomicWrite(p.join(paths.receipts, '${app.id}.json'), const JsonEncoder.withIndent('  ').convert(receiptJson));
@@ -865,6 +954,7 @@ final class JobEngine {
       if (rel != null) 'release': {'tag': rel.release['tag'], 'asset': rel.asset, 'sha256': rel.sha256},
       if (notes.isNotEmpty) 'sources': notes,
       'stopped': r.job['stopped'] ?? const [],
+      if (unitsStarted.isNotEmpty) 'unitsStarted': unitsStarted,
       'bar': bar,
       'receipt': p.join(paths.receipts, '${app.id}.json'),
     };
@@ -1162,13 +1252,33 @@ final class JobEngine {
     final st = (await BarSnapshot.read(ctx, ctx.processes())).stateOf(app);
     if (st['state'] != 'in' && st['state'] != 'out') return;
     final area = parseArea(st['zone']);
+    // COSMIC: its exact place too (index within the area, the panel instance), so putting it
+    // back gives the same order.
+    int? index;
+    String? panel;
+    if (ctx.desktop == DesktopId.cosmic && st['state'] == 'in' && app.bar.cosmicApplet != null) {
+      for (final i in cosmicInstances(paths)) {
+        final at = CosmicPanelConfig.read(paths, i).layout.find(app.bar.cosmicApplet!);
+        if (at != null) {
+          index = at.index;
+          panel = i;
+          break;
+        }
+      }
+    }
     await withStateLock(paths, () async {
       final wanted = WantedBar.load(paths);
       if (wanted.of(ctx.desktop, app.id) != null) return;
-      wanted.set(ctx.desktop, app.id, placed: st['state'] == 'in', area: area);
+      wanted.set(ctx.desktop, app.id, placed: st['state'] == 'in', area: area, index: index, target: panel == null || panel == _mainPanel() ? null : {'panel': panel});
       wanted.save(paths);
     });
-    r.log.note('bar state recorded before the install: ${st['state']}${area == null ? '' : ' (${area.name})'}');
+    r.log.note('bar state recorded ${r.kind == JobKind.remove ? 'before the remove (a later install puts it back there)' : 'before the install'}: '
+        '${st['state']}${area == null ? '' : ' (${area.name}${index == null ? '' : ' #$index'}${panel == null ? '' : ', $panel'})'}');
+  }
+
+  String _mainPanel() {
+    final instances = cosmicInstances(paths);
+    return instances.contains('Panel') ? 'Panel' : instances.first;
   }
 
   /// The script's environment: explicit, no login shell. PATH gets flutter's folder and
@@ -1222,10 +1332,13 @@ final class JobEngine {
     _checkCancel(r);
     final folder = ctx.repoFolder(c.repo);
     final setsid = ctx.runner.which('setsid') ?? '/usr/bin/setsid';
-    r.log.note('\$ ${c.install.join(' ')}   (in $folder)');
+    final options = r.job['options'] as Map? ?? const {};
+    final argv = [...c.install, for (final f in c.flags.entries) if (options[f.key] == true) f.value];
+    r.log.note('\$ ${argv.join(' ')}   (in $folder)');
+    r.recent.clear();
     final Process proc;
     try {
-      proc = await Process.start(setsid, c.install,
+      proc = await Process.start(setsid, argv,
           workingDirectory: folder, environment: scriptEnv(c, job: r.id), includeParentEnvironment: false);
     } on ProcessException catch (e) {
       throw JobFailure('script_failed', 'could not start ${c.install.first}: ${e.message}');
@@ -1249,8 +1362,13 @@ final class JobEngine {
     if (r.pgid == null) r.log.note('the script\'s process group is unknown: it can\'t be cancelled');
     r.job['script'] = {'pid': proc.pid, 'pgid': r.pgid, 'start': r.scriptStart, 'component': c.id};
     _persist(r.job);
-    final outDone = proc.stdout.listen(r.log.add).asFuture<void>();
-    final errDone = proc.stderr.listen(r.log.add).asFuture<void>();
+    void out(List<int> d) {
+      r.log.add(d);
+      r.remember(d);
+    }
+
+    final outDone = proc.stdout.listen(out).asFuture<void>();
+    final errDone = proc.stderr.listen(out).asFuture<void>();
     // A cancel that came while the script was being started.
     if (r.cancelRequested && r.pgid != null) {
       try {
@@ -1285,7 +1403,11 @@ final class JobEngine {
       if (r.committed) throw JobFailure('cancelled', 'cancelled, but the script had started writing: repair (reinstall)');
       throw _Cancelled();
     }
-    if (code != 0) throw JobFailure('script_failed', '${c.install.join(' ')} exited with $code');
+    if (code != 0 && !r.committed && c.busyMarker != null && r.recent.toString().contains(c.busyMarker!)) {
+      throw JobFailure('app_busy',
+          '${c.name} ${c.busyMarker}: let it finish (or close it) and try again${c.flags.containsKey('force') ? ', or choose "force" (it is ended)' : ''}; nothing was changed');
+    }
+    if (code != 0) throw JobFailure('script_failed', '${argv.join(' ')} exited with $code');
   }
 
   /// After a cancelled script's leader ended: its group's other members (a child that ignored
@@ -1502,6 +1624,7 @@ final class JobEngine {
     if (dependents.isNotEmpty && options['dependents_ok'] != true) {
       throw JobFailure('needed_by', 'needed by ${dependents.map((d) => d['name']).join(', ')}');
     }
+    if (plan.blocked != null) throw JobFailure('blocked', plan.blocked!);
     for (final s in (plan.json['stays'] as List).cast<Map<String, dynamic>>()) {
       r.log.note('stays: ${s['path']} (${s['why']})');
     }
@@ -1514,6 +1637,12 @@ final class JobEngine {
       DesktopId.other => null,
     };
     if (barId != null) {
+      // where it is now goes to bar.json first (when the user never placed it through the Manager)
+      try {
+        await _seedWantedBar(r);
+      } on Object catch (e) {
+        r.log.note('bar state not recorded: $e');
+      }
       try {
         await (Bar(ctx)..follow = follow).remove({'app': app.id}, remember: false, autostart: false);
         r.log.note('bar icon taken out');
@@ -1524,9 +1653,44 @@ final class JobEngine {
     r.committed = true;
     r.job['committed'] = true;
     await _stopApp(r);
+    final steps = plan.recipe?.steps ?? const <RecipeStep>[];
+    try {
+      await runRecipe(ctx, steps, StepWhen.before, r.log.note);
+    } on RecipeFailure catch (f) {
+      throw JobFailure('step_failed', '${f.step}: ${f.message}; no file was deleted');
+    }
 
     final deleted = <String>[], kept = <Map<String, dynamic>>[];
     final reach = sharedRoots(paths);
+    // The owned folders: each file/link checked again right before it goes; then the folders
+    // that are empty, deepest first.
+    var treeFiles = 0;
+    for (final t in plan.trees) {
+      for (final g in t.goes) {
+        final unsafe = unsafeReach(g.path, reach);
+        if (unsafe != null) {
+          kept.add({'path': g.path, 'why': unsafe});
+          continue;
+        }
+        final now = pathState(g.path);
+        if (now['exists'] != true) continue;
+        if (g.sha256 != null && now['type'] == 'file' && now['sha256'] == g.sha256) {
+          File(g.path).deleteSync();
+        } else if (g.link != null && now['type'] == 'link' && now['link'] == g.link) {
+          Link(g.path).deleteSync();
+        } else {
+          kept.add({'path': g.path, 'why': 'changed while removing'});
+          continue;
+        }
+        treeFiles++;
+      }
+      for (final d in t.dirs) {
+        if (unsafeReach(d, reach) == null) _removeIfEmpty(d);
+      }
+      final gone = FileSystemEntity.typeSync(t.root, followLinks: false) == FileSystemEntityType.notFound;
+      r.log.note('${gone ? 'removed' : 'emptied'} ${t.root} (${t.goes.length} files and links${gone ? '' : '; what stays is listed'})');
+      if (gone) deleted.add(t.root);
+    }
     for (final g in plan.goes.where((g) => g['kind'] != 'dir')) {
       final path = g['path'] as String;
       final unsafe = unsafeReach(path, reach); // checked again right before the delete
@@ -1555,6 +1719,7 @@ final class JobEngine {
     for (final path in [...deleted]) {
       _pruneParents(p.dirname(path));
     }
+    await runRecipe(ctx, steps, StepWhen.after, r.log.note);
     final displaced = Displaced.load(paths, app.id);
     final restored = <String>[];
     for (final planned in plan.restores) {
@@ -1609,6 +1774,7 @@ final class JobEngine {
     r.log.note('receipt dropped${keptNow.isEmpty ? '' : '; ${keptNow.length} kept path(s) recorded'}');
     return {
       'deleted': deleted,
+      if (treeFiles > 0) 'treeFiles': treeFiles,
       'kept': [...(plan.json['stays'] as List), ...kept],
       'restored': restored,
       'settingsDeleted': settings,

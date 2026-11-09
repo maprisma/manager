@@ -59,7 +59,7 @@ void main() {
     });
     for (final a in catalog) {
       for (final d in a.data) {
-        expect(d.neverDelete, d.sharedWithOmarchy);
+        expect(d.neverDelete, d.sharedWithOmarchy || d.keep);
       }
     }
   });

@@ -92,6 +92,8 @@ final class ComponentStatus {
       'prerequisites': prerequisites,
       'dependsOn': component.dependsOn,
       'optionalParts': component.optionalParts.toList(),
+      if (component.trees.isNotEmpty) 'trees': [for (final t in component.trees) t.toJson()],
+      if (component.flags.isNotEmpty) 'options': component.flags.keys.toList(),
       if (component.note != null) 'catalogNote': component.note,
     },
   };

@@ -12,7 +12,7 @@ const usage = '''usage: maprisma-manager-core status [--json] [--desktop cosmic|
        maprisma-manager-core bar [--json] [--panel <name>]
        maprisma-manager-core bar <id> left|center|right|out [--index <n>] [--panel <name>]
        maprisma-manager-core bar apply
-       maprisma-manager-core install|update|reinstall <id>
+       maprisma-manager-core install|update|reinstall <id> [--force]   (--force: Launcher's install-local --force)
        maprisma-manager-core release <id> [<tag>]
        maprisma-manager-core remove <id> [--delete-settings] [--yes]
        maprisma-manager-core jobs [<id>]
@@ -136,10 +136,14 @@ Future<int> runCli(List<String> args, {CoreService? service, IOSink? out}) async
           }
         }
       case [final kind, final id] when ['install', 'update', 'reinstall'].contains(kind):
-        return await _runJob(core, sink, {'app': id, 'kind': kind});
+        return await _runJob(core, sink, {'app': id, 'kind': kind, if (force) 'options': {'force': true}});
       case ['remove', final id]:
         final plan = await core.call('apps.remove_plan', {'id': id, 'delete_settings': deleteSettings});
         sink.writeln(planText(plan));
+        if (plan['blocked'] != null) {
+          stderr.writeln('error: ${plan['blocked']}');
+          return 1;
+        }
         if ((plan['goes'] as List).isEmpty && (plan['data'] as List).every((d) => d['goes'] != true)) {
           sink.writeln('Nothing of ${plan['name']} to remove.');
         }
@@ -243,7 +247,13 @@ String planText(Map<String, dynamic> plan) {
   final goes = (plan['goes'] as List).cast<Map<String, dynamic>>();
   lines.add('Goes:${goes.isEmpty ? ' nothing' : ''}');
   for (final g in goes) {
-    lines.add('  ${g['path']}${g['kind'] == 'dir' ? '/ (if empty)' : ''}${g['unverified'] == true ? '  [unverified]' : ''}');
+    final tree = g['kind'] == 'tree'
+        ? '/  (${g['files']} files${g['links'] == 0 ? '' : ', ${g['links']} links'}${g['derived'] == null ? '' : ', ${g['derived']} byte-code caches'}${g['leftover'] == true ? '; left by an interrupted install' : ''})'
+        : '';
+    lines.add('  ${g['path']}${g['kind'] == 'dir' ? '/ (if empty)' : ''}$tree${g['unverified'] == true ? '  [unverified]' : ''}');
+  }
+  for (final g in (plan['generated'] as List? ?? const []).cast<Map<String, dynamic>>()) {
+    lines.add('  ${g['path']}  (${g['why']})');
   }
   for (final d in (plan['data'] as List).cast<Map<String, dynamic>>().where((d) => d['goes'] == true)) {
     lines.add('  ${d['path']}  [settings]');
@@ -251,7 +261,7 @@ String planText(Map<String, dynamic> plan) {
   final stays = [
     ...(plan['stays'] as List).cast<Map<String, dynamic>>(),
     ...(plan['data'] as List).cast<Map<String, dynamic>>().where((d) => d['goes'] != true),
-    ...(plan['runtime'] as List).cast<Map<String, dynamic>>(),
+    ...(plan['runtime'] as List).cast<Map<String, dynamic>>().where((r) => !(plan['stays'] as List).any((s) => s['path'] == r['path'])),
   ];
   lines.add('Stays:${stays.isEmpty ? ' nothing' : ''}');
   for (final s in stays) {
@@ -263,6 +273,18 @@ String planText(Map<String, dynamic> plan) {
   for (final b in (plan['backupsKept'] as List).cast<Map<String, dynamic>>()) {
     lines.add('Backup kept, not restored: ${b['path']} (${b['reason']}) in ${b['backup']}');
   }
+  final steps = (plan['steps'] as List? ?? const []).cast<Map<String, dynamic>>();
+  if (steps.isNotEmpty) lines.add('Steps:');
+  for (final s in steps) {
+    lines.add('  ${s['when'] == 'after' ? 'after the files: ' : ''}${s['title']}');
+    for (final c in (s['commands'] as List? ?? const [])) {
+      lines.add('    \$ $c');
+    }
+  }
+  for (final n in (plan['notes'] as List? ?? const [])) {
+    lines.add('Note: $n');
+  }
+  if (plan['blocked'] != null) lines.add('Not possible now: ${plan['blocked']}');
   final dependents = plan['dependents'] as List;
   if (dependents.isNotEmpty) lines.add('Warning: needed by ${dependents.map((d) => d['name']).join(', ')}');
   final bar = plan['bar'] as Map<String, dynamic>;

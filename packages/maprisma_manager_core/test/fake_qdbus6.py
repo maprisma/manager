@@ -10,6 +10,16 @@ import sys
 
 state_file = os.environ["FAKE_PLASMA"]
 args = sys.argv[1:]
+# KWin (Maprisma Tiling's remove): logged, answered like KWin does.
+if args[:1] == ["org.kde.KWin"]:
+    with open(state_file + ".kwin.log", "a") as log:
+        log.write(" ".join(args) + "\n")
+    if os.environ.get("FAKE_KWIN_DOWN"):
+        print("Error: org.freedesktop.DBus.Error.ServiceUnknown", file=sys.stderr)
+        sys.exit(1)
+    if args[-2:-1] == ["org.kde.kwin.Scripting.unloadScript"] or args[-1:] == ["org.kde.kwin.Scripting.unloadScript"]:
+        print("true")
+    sys.exit(0)
 if args[:3] != ["org.kde.plasmashell", "/PlasmaShell", "org.kde.PlasmaShell.evaluateScript"] or len(args) != 4:
     print("fake qdbus6: unexpected call", args, file=sys.stderr)
     sys.exit(2)
@@ -25,6 +35,13 @@ KEYS = ["zoneLeft", "zoneCenter", "zoneRight", "hidden"]
 
 def describe(w):
     return {k: w.get(k) for k in ["panel", "widget", "screen", "location", "order"] + KEYS}
+
+# Maprisma Icons' remove: every widget taken out of the panels.
+if script.startswith("// mm:remove-widgets"):
+    with open(state_file, "w") as f:
+        json.dump([], f)
+    print("MM:" + json.dumps({"removed": len(widgets)}))
+    sys.exit(0)
 
 m = re.search(r"^var want = (.*);$", script, re.M)
 if not m:

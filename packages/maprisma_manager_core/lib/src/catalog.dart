@@ -18,6 +18,9 @@ const _c = 'io.github.ubruckhaus.CosmicMaprisma';
 const _gtkIconCache = Prerequisite('gtk-update-icon-cache', optional: true);
 const _desktopDb = Prerequisite('update-desktop-database', optional: true);
 
+const _readerStays = 'made by the reader\'s setup, shared with Omarchy\'s reader (kindle-reader): not removed with the app';
+const _videoTransStays = 'made by "Set up now", shared with Omarchy\'s video-trans: not removed with the app';
+
 /// The rust applet + tray apps share one installer layout (install.sh, `cargo build --release`).
 AppEntry _rustApp({
   required String id,
@@ -193,6 +196,10 @@ final List<AppEntry> builtinCatalog = [
         install: ['tools/install-local'],
         flutter: FlutterEnv.path,
         stopsOwnProcesses: true,
+        trees: [TreeRoot('{lib}/maprisma-launcher', swap: true, note: 'the Flutter bundle, swapped in atomically')],
+        // install-local refuses while the app's terminal runs a command; --force ends it (only when asked)
+        flags: {'force': '--force'},
+        busyMarker: 'is running a command in its terminal',
         prerequisites: [Prerequisite('python3'), Prerequisite('flutter'), Prerequisite('cargo'), _desktopDb],
         note: 'install-local hardcodes \$HOME/.local/share; it stops the running copies itself and refuses while its terminal runs a command.',
         paths: [
@@ -249,8 +256,6 @@ final List<AppEntry> builtinCatalog = [
       dist: 'dist',
       prerequisites: [Prerequisite('bash'), Prerequisite('tar')],
     ),
-    removal: Support.unsupportedYet,
-    supportNote: 'its Flutter bundle needs whole-tree ownership in the receipt first (step 5)',
   ),
 
   // --- theme: maprisma-theme ---------------------------------------------------------------
@@ -267,6 +272,7 @@ final List<AppEntry> builtinCatalog = [
         install: ['tools/install-local'],
         flutter: FlutterEnv.dir,
         stopsOwnProcesses: true,
+        trees: [TreeRoot('{lib}/maprisma-theme', swap: true, note: 'the Flutter bundle with bin/ and share/, swapped in atomically')],
         prerequisites: [Prerequisite('flutter'), Prerequisite('dart'), Prerequisite('cargo'), _gtkIconCache, _desktopDb],
         note: 'FLUTTER is the folder with flutter in it; on KDE the script starts the tray daemon itself.',
         paths: [
@@ -313,8 +319,6 @@ final List<AppEntry> builtinCatalog = [
       folderPattern: r'^version: *([0-9.]+)',
     ),
     postSteps: ['gtk-update-icon-cache', 'update-desktop-database'],
-    removal: Support.unsupportedYet,
-    supportNote: 'its Flutter bundle needs whole-tree ownership in the receipt first (step 5)',
   ),
 
   // --- the rust monitors -------------------------------------------------------------------
@@ -390,6 +394,10 @@ final List<AppEntry> builtinCatalog = [
         install: ['./install.sh'],
         flutter: FlutterEnv.executable,
         optionalParts: {'settings window'},
+        trees: [
+          TreeRoot('{data}/maprisma-narrator/backend', staged: true, note: 'copied to backend.new, then renamed'),
+          TreeRoot('{data}/maprisma-narrator/settings', part: 'settings window', note: 'the Flutter bundle'),
+        ],
         prerequisites: [
           Prerequisite('cargo', note: 'without it, prebuilt binaries in target/release are installed'),
           Prerequisite('python3'),
@@ -420,10 +428,10 @@ final List<AppEntry> builtinCatalog = [
       DataPath('{home}/.config/kindle-reader', sharedWithOmarchy: true),
     ],
     runtime: [
-      RuntimePath('{home}/.config/systemd/user/ocrvox.service', marker: '# Managed by ubruckhaus.simple-reader', note: 'written by "Set up automatically"'),
-      RuntimePath('{home}/.config/systemd/user/ocrvox.service.d/read-aloud-runtime.conf', marker: '# Managed by ubruckhaus.simple-reader', note: 'drop-in; other drop-ins are not ours'),
-      RuntimePath('{bin}/simple-reader', marker: '# Managed by ubruckhaus.simple-reader', note: 'a prior one is backed up'),
-      RuntimePath('{homeShare}/applications/simple-reader.desktop', note: 'written by backend setup'),
+      RuntimePath('{home}/.config/systemd/user/ocrvox.service', marker: '# Managed by ubruckhaus.simple-reader', note: 'written by "Set up automatically"', stays: _readerStays),
+      RuntimePath('{home}/.config/systemd/user/ocrvox.service.d/read-aloud-runtime.conf', marker: '# Managed by ubruckhaus.simple-reader', note: 'drop-in; other drop-ins are not ours', stays: _readerStays),
+      RuntimePath('{bin}/simple-reader', marker: '# Managed by ubruckhaus.simple-reader', note: 'a prior one is backed up', stays: _readerStays),
+      RuntimePath('{homeShare}/applications/simple-reader.desktop', note: 'written by backend setup', stays: _readerStays),
     ],
     units: [
       UnitRef('ocrvox.service', runtime: true, file: '{home}/.config/systemd/user/ocrvox.service', note: 'the reader (kindle-reader/app/reader.py)'),
@@ -443,8 +451,7 @@ final List<AppEntry> builtinCatalog = [
       kdeTrayExe: '{bin}/maprisma-narrator-tray',
       iconName: 'audio-headphones',
     ),
-    removal: Support.unsupportedYet,
-    supportNote: 'removing the reader runtime (ocrvox, simple-reader) needs its own step (step 5)',
+    supportNote: 'the reader runtime (ocrvox.service, simple-reader, kindle-reader) stays on remove: it is shared with Omarchy\'s reader',
   ),
 
   // --- video translator --------------------------------------------------------------------
@@ -461,6 +468,10 @@ final List<AppEntry> builtinCatalog = [
         install: ['./install.sh'],
         flutter: FlutterEnv.executable,
         optionalParts: {'window'},
+        trees: [
+          TreeRoot('{data}/maprisma-video-translator/backend', staged: true, note: 'copied to backend.new, then renamed'),
+          TreeRoot('{data}/maprisma-video-translator/app', part: 'window', note: 'the Flutter bundle'),
+        ],
         prerequisites: [
           Prerequisite('cargo', note: 'without it, prebuilt binaries in target/release are installed'),
           Prerequisite('python3'),
@@ -490,8 +501,8 @@ final List<AppEntry> builtinCatalog = [
       DataPath('{data}/video-trans', sharedWithOmarchy: true, note: 'the private runtime'),
     ],
     runtime: [
-      RuntimePath('{bin}/video-trans', marker: '# Managed by ubruckhaus.video-trans', note: '"Set up now"; refreshed by install.sh when managed'),
-      RuntimePath('{apps}/video-trans.desktop', marker: 'X-Video-Trans-Managed=true', note: '"Set up now"'),
+      RuntimePath('{bin}/video-trans', marker: '# Managed by ubruckhaus.video-trans', note: '"Set up now"; refreshed by install.sh when managed', stays: _videoTransStays),
+      RuntimePath('{apps}/video-trans.desktop', marker: 'X-Video-Trans-Managed=true', note: '"Set up now"', stays: _videoTransStays),
     ],
     processes: [
       ProcessMatch(MatchKind.exe, '{bin}/maprisma-video-translator-applet'),
@@ -508,8 +519,7 @@ final List<AppEntry> builtinCatalog = [
       kdeTrayExe: '{bin}/maprisma-video-translator-tray',
       iconName: 'media-view-subtitles-symbolic',
     ),
-    removal: Support.unsupportedYet,
-    supportNote: 'its Flutter bundle and backend need whole-tree ownership in the receipt first (step 5)',
+    supportNote: 'the video-trans command and its desktop entry ("Set up now") stay on remove: shared with Omarchy\'s video-trans',
   ),
 
   // --- KDE: tiling and the icons widget ----------------------------------------------------
@@ -535,6 +545,10 @@ final List<AppEntry> builtinCatalog = [
           Prerequisite('python3'),
         ],
         note: 'Replaces Krohnkite and maprisma-active-frame (settings moved, Krohnkite backed up and removed).',
+        trees: [
+          TreeRoot('{data}/kwin/scripts/maprisma-tiling', wholeOnly: true, note: 'kpackagetool6 package'),
+          TreeRoot('{data}/kwin/scripts/omarchy-navigation', mayPreexist: true, wholeOnly: true, note: 'kpackagetool6 package; may be there before'),
+        ],
         paths: [
           InstalledPath('{data}/kwin/scripts/maprisma-tiling/metadata.json', PathKind.file, key: true),
           InstalledPath('{data}/kwin/scripts/maprisma-tiling/contents/ui/tiling.qml', PathKind.file, note: 'tiling.qml.in with the engine inside'),
@@ -546,16 +560,15 @@ final List<AppEntry> builtinCatalog = [
       ),
     ],
     data: [
-      DataPath('{data}/maprisma-tiling', note: 'kwinrc and Krohnkite backups'),
+      DataPath('{data}/maprisma-tiling', keep: true, note: 'kwinrc and Krohnkite backups (never deleted)'),
       DataPath('{state}/maprisma-tiling', note: 'shortcuts-backup.json for maprisma-tiling-shortcuts --restore'),
     ],
     runtime: [
       RuntimePath('{config}/kwinrc', note: '[Script-maprisma-tiling] keys (build = its hash), [Plugins] …Enabled'),
     ],
     processes: [ProcessMatch(MatchKind.script, '{bin}/maprisma-tiling-overlay', note: 'python, D-Bus activated')],
-    installation: Support.unsupportedYet,
-    removal: Support.unsupportedYet,
-    supportNote: 'the Krohnkite migration needs its own install and remove steps (step 5)',
+    removeRecipe: RemoveRecipe.kwinTiling,
+    supportNote: 'remove restores the shortcuts, unloads the scripts and deletes only its own kwinrc keys; the Krohnkite backup stays',
     note: 'No bar icon; its settings are in Maprisma Theme.',
   ),
   const AppEntry(
@@ -572,6 +585,7 @@ final List<AppEntry> builtinCatalog = [
         install: ['./install.sh'],
         desktops: _kde,
         prerequisites: [Prerequisite('kpackagetool6'), Prerequisite('python3')],
+        trees: [TreeRoot('{data}/plasma/plasmoids/com.maprisma.panel', wholeOnly: true, note: 'kpackagetool6 package')],
         paths: [
           InstalledPath('{data}/plasma/plasmoids/com.maprisma.panel/metadata.json', PathKind.file, key: true),
           InstalledPath('{data}/plasma/plasmoids/com.maprisma.panel/contents/ui/main.qml', PathKind.file),
@@ -585,8 +599,8 @@ final List<AppEntry> builtinCatalog = [
       RuntimePath('{config}/plasmarc', note: '[Theme] name while a generated theme is active'),
     ],
     processes: [ProcessMatch(MatchKind.script, '{bin}/maprisma-panel-color')],
-    removal: Support.unsupportedYet,
-    supportNote: 'removing the widget must switch away from its generated Plasma themes first (step 5)',
+    removeRecipe: RemoveRecipe.plasmaIcons,
+    supportNote: 'remove takes its widgets out of the panels and switches away from its generated Plasma style first',
     note: 'It is the bar for the others on KDE.',
   ),
 

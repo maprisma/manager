@@ -463,8 +463,10 @@ exit 0''');
     expect(job['state'], 'failed');
     expect(job['result']['code'], 'changed');
     expect(File(daemon()).existsSync(), isTrue);
-    await expectLater(c.call('apps.remove_plan', {'id': 'narrator'}), throwsA(isA<RouteError>().having((e) => e.code, 'code', 'unsupported_yet')));
-    await expectLater(c.call('jobs.start', {'app': 'tiling', 'kind': 'remove'}), throwsA(isA<RouteError>().having((e) => e.code, 'code', 'unsupported_yet')));
+    await expectLater(c.call('apps.remove_plan', {'id': 'manager'}), throwsA(isA<RouteError>().having((e) => e.code, 'code', 'unsupported_yet')));
+    // KDE-only apps: refused on COSMIC (their remove steps need Plasma)
+    await expectLater(c.call('jobs.start', {'app': 'tiling', 'kind': 'remove'}), throwsA(isA<RouteError>().having((e) => e.code, 'code', 'unavailable')));
+    await expectLater(c.call('apps.remove_plan', {'id': 'icons'}), throwsA(isA<RouteError>().having((e) => e.code, 'code', 'unavailable')));
     await expectLater(c.call('jobs.start', {'app': 'maprisma', 'kind': 'install'}), throwsA(isA<RouteError>().having((e) => e.code, 'code', 'unsupported_yet')));
   });
 
