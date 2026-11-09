@@ -73,37 +73,35 @@ if [[ -n $stage ]]; then
   mkdir -p "$stage/bundle" "$stage/tools" "$stage/packaging"
   cp -a "$bundle/." "$stage/bundle/"
   install -m755 "$root/tools/install-local" "$root/tools/self-update" "$stage/tools/"
+  install -m644 "$root/tools/procs.sh" "$stage/tools/"
   install -m644 "$root/packaging/com.maprisma.Manager.desktop" "$root/packaging/com.maprisma.Manager.svg" "$stage/packaging/"
   echo "Staged Maprisma Manager in $stage"
   exit 0
 fi
 
-# Every running copy: its program is (or was, "(deleted)") inside the install folder.
-running() {
-  local p exe
-  for p in /proc/[0-9]*; do
-    exe=$(readlink "$p/exe" 2>/dev/null) || continue
-    exe=${exe% (deleted)}
-    [[ $exe == "$lib/"* || $exe == "$lib".*/* ]] && echo "${p#/proc/}"
-  done
-  return 0
-}
+# The helper of a self-update may be swapping right now: never at the same time.
+source "$root/tools/procs.sh"
+if ! take_lock "${XDG_STATE_HOME:-$HOME/.local/state}/maprisma-manager/self-update"; then
+  echo "a self-update of Maprisma Manager is in progress: try again when it has finished" >&2
+  exit 1
+fi
 
 mkdir -p "$(dirname "$lib")"
 new=$(mktemp -d "$lib.new.XXXXXX")
 trap 'rm -rf -- "$new"' EXIT
 cp -a "$bundle/." "$new/"
 chmod 755 "$new"
-pids=$(running)
-if [[ -n $pids ]]; then
-  echo "Stopping: $(echo $pids)"
-  kill -TERM $pids 2>/dev/null || true
-  for _ in $(seq 1 50); do [[ -z $(running) ]] && break; sleep 0.1; done
-  left=$(running); [[ -n $left ]] && { kill -KILL $left 2>/dev/null || true; sleep 0.3; }
-fi
+stop_running 1
 old=""
-if [[ -e $lib ]]; then old=$(mktemp -d "$lib.old.XXXXXX"); rmdir "$old"; mv "$lib" "$old"; fi
-mv "$new" "$lib"
+if [[ -e $lib ]]; then
+  old=$(mktemp -d "$lib.old.XXXXXX"); rmdir "$old"
+  mv -- "$lib" "$old" || { echo "could not move $lib aside: nothing changed" >&2; exit 1; }
+fi
+if ! mv -- "$new" "$lib"; then
+  [[ -n $old ]] && mv -- "$old" "$lib"
+  echo "could not put the new build in place: the old one is back" >&2
+  exit 1
+fi
 trap - EXIT
 [[ -n $old ]] && rm -rf -- "$old"
 integrate

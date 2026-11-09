@@ -41,7 +41,9 @@ CORE
 chmod 755 "$stage/bundle/bin/maprisma-manager-core"
 [[ -e $ctl/no-core ]] && rm "$stage/bundle/bin/maprisma-manager-core"
 cp "$here/tools/real-install-local" "$stage/tools/install-local"
+[[ -e $ctl/bad-integrate ]] && printf '#!/bin/sh\n[ "$1" = --integrate ] && exit 1\nexit 0\n' > "$stage/tools/install-local"
 cp "$here/tools/self-update" "$stage/tools/self-update"
+cp "$here/tools/procs.sh" "$stage/tools/procs.sh"
 chmod 755 "$stage/tools/install-local" "$stage/tools/self-update"
 cp "$here/packaging/"* "$stage/packaging/"
 echo "staged build $build"
@@ -50,7 +52,7 @@ echo "staged build $build"
 const _tools = [
   'sh', 'bash', 'cp', 'mv', 'rm', 'mkdir', 'chmod', 'ln', 'cat', 'sleep', 'setsid', 'head', 'grep', 'mktemp',
   'readlink', 'ls', 'touch', 'env', 'dirname', 'basename', 'true', 'false', 'printf', 'rmdir', 'echo', 'date',
-  'seq', 'install', 'kill',
+  'seq', 'install', 'kill', 'flock', 'sed', 'cut',
 ];
 
 void main() {
@@ -80,6 +82,7 @@ void main() {
     w.writeFile(p.join(repo, 'tools/install-local'), _fakeInstall, mode: '755');
     File(p.join(_repoRoot, 'tools/install-local')).copySync(p.join(repo, 'tools/real-install-local'));
     File(p.join(_repoRoot, 'tools/self-update')).copySync(p.join(repo, 'tools/self-update'));
+    File(p.join(_repoRoot, 'tools/procs.sh')).copySync(p.join(repo, 'tools/procs.sh'));
     for (final f in ['com.maprisma.Manager.desktop', 'com.maprisma.Manager.svg']) {
       w.writeFile(p.join(repo, 'packaging', f), File(p.join(_repoRoot, 'packaging', f)).readAsStringSync());
     }
@@ -161,6 +164,8 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 400));
     expect(File(p.join(lib(), 'lib/libapp.so')).readAsStringSync(), 'lib 1\n');
     await expectLater(c.call('jobs.start', {'app': 'manager', 'kind': 'reinstall'}), throwsA(isA<RouteError>().having((e) => e.code, 'code', 'busy')));
+    // nothing else starts either while the window has to quit for it
+    await expectLater(c.call('jobs.start', {'app': 'wlan', 'kind': 'install'}), throwsA(isA<RouteError>().having((e) => e.code, 'code', 'busy')));
     // the window quits
     Directory(p.join(w.proc, '424242')).deleteSync(recursive: true);
     final s = await waitStatus(id, (s) => s == 'done' || s.startsWith('rolled') || s.startsWith('failed'));
@@ -207,6 +212,48 @@ void main() {
     expect(j['result']['code'], 'self_update_failed');
     expect(receipt()['version'], '0.1.1');
     expect(Directory(p.dirname(lib())).listSync().map((e) => p.basename(e.path)), ['maprisma-manager']);
+  });
+
+  test('linking the new build fails: rolled back before the new one starts, the old bundle back', () async {
+    final c = core();
+    expect((await run(c, 'install'))['state'], 'succeeded');
+    File(p.join(ctl, 'build')).writeAsStringSync('4');
+    File(p.join(ctl, 'bad-integrate')).writeAsStringSync('');
+    final job = await run(c, 'reinstall');
+    expect(job['state'], 'failed');
+    expect(job['result']['code'], 'self_update_failed');
+    expect(job['result']['message'], contains('linking the new build failed'));
+    expect(File(p.join(lib(), 'lib/libapp.so')).readAsStringSync(), 'lib 1\n');
+    expect(Directory(p.dirname(lib())).listSync().map((e) => p.basename(e.path)), ['maprisma-manager']);
+  });
+
+  test('another install holds the lock: the helper changes nothing', () async {
+    final c = core();
+    expect((await run(c, 'install'))['state'], 'succeeded');
+    Directory(selfDir()).createSync(recursive: true);
+    final holder = await Process.start('/usr/bin/flock', [p.join(selfDir(), 'lock'), '/usr/bin/sleep', '20']);
+    addTearDown(holder.kill);
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    File(p.join(ctl, 'build')).writeAsStringSync('5');
+    final job = await run(c, 'reinstall');
+    expect(job['state'], 'failed');
+    expect(job['result']['message'], contains('aborted'));
+    expect(File(p.join(lib(), 'lib/libapp.so')).readAsStringSync(), 'lib 1\n');
+  });
+
+  test('self-update-done also finishes a job whose window closed before it wrote its result', () async {
+    final c = core();
+    expect((await run(c, 'install'))['state'], 'succeeded');
+    final id = '20261109T120000Z-manager-update';
+    w.writeFile(p.join(w.paths.managerState, 'jobs', '$id.json'), jsonEncode({
+      'id': id, 'app': 'manager', 'kind': 'update', 'state': 'running', 'phase': 'commit', 'committed': true,
+      'owner': {'pid': 999999, 'start': 1}, 'log': p.join(w.paths.managerState, 'logs', '$id.log'),
+      'selfUpdate': {'state': 'waiting', 'inputs': receipt()['inputs']},
+    }));
+    final r = finishSelfUpdate(w.paths, id);
+    expect(r['state'], 'succeeded');
+    expect(r['selfUpdate'], 'done');
+    expect(receipt()['job'], id);
   });
 
   test('a stage without the core is refused before anything is touched', () async {

@@ -316,7 +316,28 @@ void main() {
       final text = center.readAsStringSync();
       expect(text.indexOf('WlanMonitor'), lessThan(text.indexOf('CosmicAppletTime')));
 
+      // LLM Monitor dragged from "Not in the bar" into the left area
+      final llm = find.descendant(of: find.byKey(const ValueKey('area-out')), matching: find.text('LLM Monitor'));
+      await tester.ensureVisible(llm);
+      await tester.pump();
+      final g = await tester.startGesture(tester.getCenter(llm));
+      await tester.pump();
+      await g.moveBy(const Offset(0, -8));
+      await tester.pump();
+      final leftArea = find.byKey(const ValueKey('area-left'));
+      await g.moveTo(tester.getBottomRight(leftArea) - const Offset(30, 20));
+      await tester.pump();
+      expect(tester.takeException(), isNull); // no duplicate keys while dragging
+      await g.up();
+      await settle(tester);
+      final wings = File(p.join(w.paths.config, 'cosmic/com.system76.CosmicPanel.Panel/v1/plugins_wings')).readAsStringSync();
+      expect(wings.indexOf('LlmMonitor'), lessThan(wings.indexOf('], [')));
+
       // someone else edits the panel meanwhile: the next move is refused, Reload shows it
+      await tester.ensureVisible(chip);
+      await tester.pump();
+      await tester.tap(chip);
+      await settle(tester, 2);
       center.writeAsStringSync('Some([\n    "com.system76.CosmicAppletTime",\n])');
       await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
       await settle(tester);
@@ -390,7 +411,8 @@ void main() {
 
   testWidgets('the details dialog: where it exists, the GitHub link, the installed build, prerequisites', (tester) async {
     await open(tester, 900);
-    await tester.tap(find.text('Maprisma WLAN Monitor'));
+    await tapAction(tester, 'wlan');
+    await tester.tap(find.text('Details…'));
     await settle(tester);
     expect(find.text('Where it exists'), findsOneWidget);
     expect(find.text('https://github.com/maprisma/wlan-monitor'), findsOneWidget);

@@ -307,9 +307,11 @@ final class JobEngine {
       }
     }
     if (_exclusive) throw RouteError('busy', 'a bar icon is being changed: try again in a moment');
-    if (appId == selfApp) {
-      final pending = pendingSelfUpdate(paths);
-      if (pending != null) throw RouteError('busy', 'the Manager\'s update ${pending.job} is still being put in place (helper pid ${pending.pid})');
+    // While the Manager's update waits to be swapped in, nothing new starts (the window that quits
+    // for it would leave the job behind).
+    final pending = pendingSelfUpdate(paths);
+    if (pending != null) {
+      throw RouteError('busy', 'the Manager\'s update ${pending.job} waits to be put in place (helper pid ${pending.pid}): close Maprisma Manager to finish it');
     }
     if (_runs.values.any((r) => r.job['app'] == appId && r.job['finished'] != true)) {
       throw RouteError('busy', 'a job for ${app.name} is already queued or running');

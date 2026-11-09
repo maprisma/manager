@@ -125,10 +125,12 @@ extension _SelfUpdate on JobEngine {
     r.log.note('stage checked: Maprisma Manager $newVersion in $stage');
 
     // the Manager windows the helper waits for (this one, when the job runs in the app)
+    // As written and as /proc reports it (a symlinked HOME or ~/.local/lib).
     final gui = p.join(paths.lib, 'maprisma-manager', 'maprisma-manager');
+    final guis = {gui, p.join(_canonical(p.dirname(gui)), 'maprisma-manager')};
     final waitFor = [
       for (final pr in ctx.processes())
-        if (pr.exe == gui && (ctx.uid == null || pr.uid == ctx.uid)) {'pid': pr.pid, 'start': pr.startTicks},
+        if (guis.contains(pr.exe) && (ctx.uid == null || pr.uid == ctx.uid) && pr.startTicks != null) {'pid': pr.pid, 'start': pr.startTicks},
     ];
     final restart = waitFor.isNotEmpty;
 
@@ -232,6 +234,17 @@ extension _SelfUpdate on JobEngine {
   }
 }
 
+String _canonical(String dir) {
+  try {
+    return Directory(dir).resolveSymbolicLinksSync();
+  } on FileSystemException {
+    // not there yet: its parent may be a link
+    final parent = p.dirname(dir);
+    if (parent == dir) return dir;
+    return p.join(_canonical(parent), p.basename(dir));
+  }
+}
+
 void _dropStage(String stage) {
   try {
     Directory(stage).deleteSync(recursive: true);
@@ -290,11 +303,13 @@ Map<String, dynamic> finishSelfUpdate(Paths paths, String id, {String? failed}) 
   final job = loadJob(paths, id);
   if (job == null) throw RouteError('not_found', 'no job $id');
   final app = findApp(selfApp)!;
-  final result = job['result'];
   final su = job['selfUpdate'];
-  if (job['app'] != selfApp || result is! Map || su is! Map || su['state'] != 'waiting') {
+  // The window may have been closed before the job wrote its result (it is `interrupted` then):
+  // what counts is the self-update that waits.
+  if (job['app'] != selfApp || su is! Map || su['state'] != 'waiting') {
     throw RouteError('finished', 'job $id has no self-update waiting');
   }
+  final result = job['result'] is Map ? job['result'] as Map : const {};
   final c = app.components.single;
   final log = File('${job['log']}');
   void note(String text) {
@@ -313,7 +328,15 @@ Map<String, dynamic> finishSelfUpdate(Paths paths, String id, {String? failed}) 
   if (failed == null) {
     _writeSelfReceipt(app, c, (su['inputs'] as List?) ?? const [], id, '${job['kind']}', paths: paths);
     job['selfUpdate'] = {...su, 'state': 'done', 'at': at};
-    job['result'] = {...result, 'selfUpdate': {...(result['selfUpdate'] as Map? ?? {}), 'state': 'done', 'at': at}};
+    job['state'] = 'succeeded';
+    job['result'] = {
+      ...result,
+      'ok': true,
+      'repair': false,
+      'selfUpdate': {...(result['selfUpdate'] as Map? ?? {}), 'state': 'done', 'at': at},
+    }
+      ..remove('code')
+      ..remove('message');
     note('self-update: the new build started and is ready; receipt written');
   } else {
     job['selfUpdate'] = {...su, 'state': 'rolled back', 'at': at, 'why': failed};

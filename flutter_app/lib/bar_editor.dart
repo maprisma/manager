@@ -130,8 +130,9 @@ class BarEditorPageState extends State<BarEditorPage> {
     final focus = _focus.putIfAbsent(id, () => FocusNode(debugLabel: id));
     final on = selected == id;
     final hidden = e['shown'] == false;
-    final body = Container(
-      key: _keys.putIfAbsent(id, GlobalKey.new),
+    // The measuring key only on the chip in the bar: the drag's feedback and placeholder are copies.
+    Widget box({Key? key}) => Container(
+      key: key,
       margin: const EdgeInsets.symmetric(horizontal: 3, vertical: 4),
       padding: const EdgeInsets.fromLTRB(6, 4, 10, 4),
       decoration: BoxDecoration(
@@ -158,6 +159,7 @@ class BarEditorPageState extends State<BarEditorPage> {
         ],
       ),
     );
+    final body = box(key: _keys.putIfAbsent(id, GlobalKey.new));
     final chip = Focus(
       focusNode: focus,
       onFocusChange: (f) {
@@ -183,8 +185,8 @@ class BarEditorPageState extends State<BarEditorPage> {
     return Draggable<Map>(
       data: {...e, 'fromArea': area},
       dragAnchorStrategy: pointerDragAnchorStrategy,
-      feedback: Material(color: Colors.transparent, child: Opacity(opacity: .85, child: body)),
-      childWhenDragging: Opacity(opacity: .3, child: body),
+      feedback: Material(color: Colors.transparent, child: Opacity(opacity: .85, child: box())),
+      childWhenDragging: Opacity(opacity: .3, child: box()),
       onDragEnd: (_) => setState(() => _dropAt = null),
       child: chip,
     );

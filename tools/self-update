@@ -53,37 +53,32 @@ say() { printf '%s %s\n' "$(date -u +%FT%TZ)" "$*"; }
 status() { printf '%s\n' "$1" > "$status_file.tmp" && mv -f "$status_file.tmp" "$status_file"; }
 unset MAPRISMA_MANAGER_JOB
 
+# The process helpers (the stage's copy: start_of, running_ids, signal_ids, stop_running, take_lock).
+# shellcheck source=procs.sh
+source "$stage/tools/procs.sh" || { status "failed: the stage has no procs.sh; nothing changed"; exit 1; }
+
+# One self-update at a time, and never while install-local or uninstall-local run.
+if ! take_lock "$state"; then
+  say "another self-update, install-local or uninstall-local holds the lock: nothing changed"
+  status "aborted: another install of the Manager is in progress; nothing changed"
+  exit 1
+fi
+
 # A process given as pid:start is gone when its /proc entry is missing, is another process (start
 # time) or is a zombie.
-alive() {
-  local pid=${1%%:*} start=${1#*:} st rest
-  st=$(cat "$proc/$pid/stat" 2>/dev/null) || return 1
-  rest=${st##*) }
-  # shellcheck disable=SC2086
-  set -- $rest
-  [[ $1 != Z && $1 != X && ${20} == "$start" ]]
-}
-
-# The processes whose program is inside the installed bundle (the new Manager after the swap).
-in_lib() {
-  local p exe
-  for p in "$proc"/[0-9]*; do
-    exe=$(readlink "$p/exe" 2>/dev/null) || continue
-    exe=${exe% (deleted)}
-    [[ $exe == "$lib/"* ]] && echo "${p##*/}"
-  done
-  return 0
-}
+alive() { [[ $(start_of "${1%%:*}") == "${1#*:}" ]]; }
 
 core_done() {
-  # the core that is installed now records the outcome in the job (receipt or failure)
+  # the core that is installed now records the outcome in the job (receipt or failure); tried 3 times
   (( restart )) || return 0
-  local core="$lib/bin/maprisma-manager-core"
-  if [[ -x $core ]]; then
-    "$core" self-update-done "$job" "$@" || say "self-update-done failed (exit $?)"
-  else
-    say "no core at $core to record the outcome"
-  fi
+  local core="$lib/bin/maprisma-manager-core" n
+  [[ -x $core ]] || { say "no core at $core to record the outcome"; return 1; }
+  for n in 1 2 3; do
+    "$core" self-update-done "$job" "$@" && return 0
+    say "self-update-done failed (try $n)"
+    sleep 1
+  done
+  return 1
 }
 
 start_gui() {
@@ -116,48 +111,49 @@ for w in "${waits[@]}"; do
 done
 (( ${#waits[@]} )) && say "the Manager has quit"
 
-# 2. the swap
-status "swapping $$"
-if [[ ! -x $stage/bundle/maprisma-manager || ! -x $stage/tools/install-local ]]; then
-  say "the stage is incomplete: nothing changed"
-  core_done --failed "the stage is incomplete; nothing changed"
-  status "failed: the stage is incomplete; nothing changed"
+fail_unchanged() {
+  say "$1: nothing changed"
+  core_done --failed "$1; nothing changed"
+  status "failed: $1; nothing changed"
   finish
   exit 1
-fi
+}
+
+# 2. the swap (every rename checked; the old bundle stays until the new one is ready and recorded)
+status "swapping $$"
+[[ -x $stage/bundle/maprisma-manager && -x $stage/tools/install-local ]] || fail_unchanged "the stage is incomplete"
 mkdir -p "$(dirname "$lib")" "$backup"
 for f in "$entry" "$icon"; do
   [[ -f $f ]] && cp -a -- "$f" "$backup/${f##*/}"
 done
-new=$(mktemp -d "$lib.new.XXXXXX") || { core_done --failed "no folder for the new bundle"; status "failed: no folder for the new bundle; nothing changed"; finish; exit 1; }
+new=$(mktemp -d "$lib.new.XXXXXX") || fail_unchanged "no folder for the new bundle"
 if ! cp -a "$stage/bundle/." "$new/"; then
   rm -rf -- "$new"
-  say "copying the new bundle failed: nothing changed"
-  core_done --failed "copying the new bundle failed; nothing changed"
-  status "failed: copying the new bundle failed; nothing changed"
-  finish
-  exit 1
+  fail_unchanged "copying the new bundle failed"
 fi
 chmod 755 "$new"
 prev=""
 if [[ -e $lib ]]; then
-  prev=$(mktemp -d "$lib.old.XXXXXX"); rmdir "$prev"
-  mv -- "$lib" "$prev"
+  prev=$(mktemp -d "$lib.old.XXXXXX") && rmdir "$prev" || { rm -rf -- "$new"; fail_unchanged "no name for the old bundle"; }
+  mv -- "$lib" "$prev" || { rm -rf -- "$new"; fail_unchanged "the old bundle could not be moved aside"; }
 fi
-mv -- "$new" "$lib"
+if ! mv -- "$new" "$lib"; then
+  rm -rf -- "$new"
+  if [[ -n $prev ]] && ! mv -- "$prev" "$lib"; then
+    say "the old bundle could not be put back: it is at $prev"
+    core_done --failed "the new bundle could not be put in place and the old one is at $prev"
+    status "failed: the old bundle could not be put back; it is at $prev"
+    exit 1
+  fi
+  fail_unchanged "the new bundle could not be put in place"
+fi
 say "swapped in (the old bundle is kept at ${prev:-nowhere: first install})"
-HOME=$HOME "$stage/tools/install-local" --integrate || say "install-local --integrate failed (exit $?)"
 
 rollback() {
-  local why=$1 pids
+  local why=$1 bad
   say "rolling back: $why"
-  pids=$(in_lib)
-  if [[ -n $pids ]]; then
-    say "ending the new build's processes: $(echo $pids)"
-    kill -TERM $pids 2>/dev/null || true
-    for _ in $(seq 1 50); do [[ -z $(in_lib) ]] && break; sleep 0.1; done
-    pids=$(in_lib); [[ -n $pids ]] && { kill -KILL $pids 2>/dev/null || true; sleep 0.3; }
-  fi
+  # the new build's processes (only the bundle itself: the old one is at $prev now)
+  stop_running 0
   if [[ -z $prev ]]; then
     say "there is no earlier build to go back to: the new one stays"
     core_done --failed "$why (no earlier build to go back to)"
@@ -165,20 +161,35 @@ rollback() {
     finish
     exit 1
   fi
-  local bad
-  bad=$(mktemp -d "$lib.old.XXXXXX"); rmdir "$bad"
-  mv -- "$lib" "$bad" && mv -- "$prev" "$lib" && rm -rf -- "$bad"
+  if [[ -e $lib ]]; then
+    bad=$(mktemp -d "$lib.old.XXXXXX") && rmdir "$bad" && mv -- "$lib" "$bad" || {
+      say "the new bundle could not be moved aside: the old one stays at $prev"
+      core_done --failed "$why; the rollback failed, the old bundle is at $prev"
+      status "failed: $why; the rollback failed, the old bundle is at $prev"
+      exit 1
+    }
+  fi
+  if ! mv -- "$prev" "$lib"; then
+    say "the old bundle could not be put back: it is at $prev (the new one at ${bad:-?})"
+    core_done --failed "$why; the rollback failed, the old bundle is at $prev"
+    status "failed: $why; the rollback failed, the old bundle is at $prev"
+    exit 1
+  fi
+  [[ -n ${bad:-} ]] && rm -rf -- "$bad"
   for f in "$entry" "$icon"; do
     if [[ -f $backup/${f##*/} ]]; then cp -a -- "$backup/${f##*/}" "$f"; fi
   done
   command -v gtk-update-icon-cache >/dev/null && gtk-update-icon-cache -f -t "$data/icons/hicolor" >/dev/null 2>&1
   say "the old build is back"
   (( restart )) && start_gui ""
-  core_done --failed "$why; the old build is back"
+  core_done --failed "$why; the old build is back" || say "the outcome could not be recorded in the job"
   status "rolled back: $why"
   finish
   exit 1
 }
+
+# the links, desktop entry and icon: required
+HOME=$HOME "$stage/tools/install-local" --integrate || rollback "linking the new build failed (install-local --integrate)"
 
 # 3. the new build proves itself
 if (( restart )); then
@@ -199,10 +210,14 @@ else
   say "the new core answers: $out"
 fi
 
-# 4. done
-[[ -n $prev ]] && rm -rf -- "$prev"
-core_done
-status "done"
+# 4. done: recorded first, then the old bundle goes (kept when the record failed)
+if core_done; then
+  [[ -n $prev ]] && rm -rf -- "$prev"
+  status "done"
+else
+  say "the outcome could not be recorded in the job: the old bundle is kept at ${prev:-nowhere}"
+  status "done: the outcome could not be recorded; the old bundle is kept at ${prev:-nowhere}"
+fi
 finish
 say "done"
 exit 0

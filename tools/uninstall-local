@@ -18,22 +18,14 @@ for arg in "$@"; do
     *) echo "usage: tools/uninstall-local [--delete-settings]" >&2; exit 2 ;;
   esac
 done
-running() {
-  local p exe
-  for p in /proc/[0-9]*; do
-    exe=$(readlink "$p/exe" 2>/dev/null) || continue
-    exe=${exe% (deleted)}
-    [[ $exe == "$lib/"* || $exe == "$lib".*/* ]] && echo "${p#/proc/}"
-  done
-  return 0
-}
-pids=$(running)
-if [[ -n $pids ]]; then
-  echo "Stopping: $(echo $pids)"
-  kill -TERM $pids 2>/dev/null || true
-  for _ in $(seq 1 50); do [[ -z $(running) ]] && break; sleep 0.1; done
-  left=$(running); [[ -n $left ]] && { kill -KILL $left 2>/dev/null || true; sleep 0.3; }
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+source "$root/tools/procs.sh"
+# Never while the self-update helper may be swapping (it would put the Manager back, or lose its rollback copy).
+if ! take_lock "${XDG_STATE_HOME:-$HOME/.local/state}/maprisma-manager/self-update"; then
+  echo "a self-update of Maprisma Manager is in progress: try again when it has finished" >&2
+  exit 1
 fi
+stop_running 1
 for l in "$bin/maprisma-manager" "$bin/maprisma-manager-core"; do
   # only our links (never a file someone put there)
   if [[ -L $l && $(readlink "$l") == "$lib/"* ]]; then rm -f -- "$l"; fi

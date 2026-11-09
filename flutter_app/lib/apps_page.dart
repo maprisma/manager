@@ -132,6 +132,18 @@ class AppsPageState extends State<AppsPage> {
     if (!mounted) return;
     final r = j.result;
     if (j.app == 'manager' && r['restart'] == true) {
+      // Jobs this window already started finish first (the core starts no new one meanwhile).
+      if (widget.jobs.busy) {
+        tell('Maprisma Manager restarts with the new build when the other jobs have finished');
+        void waitThem() {
+          if (widget.jobs.busy) return;
+          widget.jobs.removeListener(waitThem);
+          Timer(const Duration(milliseconds: 1500), () => widget.onRestart?.call());
+        }
+
+        widget.jobs.addListener(waitThem);
+        return;
+      }
       tell('Maprisma Manager restarts with the new build…');
       Timer(const Duration(milliseconds: 1500), () => widget.onRestart?.call());
       return;
@@ -415,7 +427,8 @@ class AppsPageState extends State<AppsPage> {
                 },
               ),
             ),
-            onTap: () => openDetails(a),
+            // As the Plugins page: a click opens it (its window); the details otherwise.
+            onTap: () => inst && a['open'] == true ? act(a, 'open') : openDetails(a),
           ),
         ),
       ),
