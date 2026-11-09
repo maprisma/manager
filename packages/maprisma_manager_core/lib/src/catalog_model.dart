@@ -411,8 +411,12 @@ final class AppEntry {
     this.supportNote,
     this.release,
     this.appIcon,
+    this.open,
     this.note,
   });
+
+  /// The command that opens its window (`apps.open`), null when it has none of its own.
+  final List<String>? open;
 
   final String id;
   final String name;

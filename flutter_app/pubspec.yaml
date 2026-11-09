@@ -1,0 +1,24 @@
+name: maprisma_manager
+description: "Maprisma Manager: install, update and remove the Maprisma apps, and their bar icons."
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.13.5
+
+dependencies:
+  flutter:
+    sdk: flutter
+  maprisma_manager_core:
+    path: ../packages/maprisma_manager_core
+  file_selector: ^1.1.0
+  flutter_svg: ^2.3.2
+  path: ^1.9.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true

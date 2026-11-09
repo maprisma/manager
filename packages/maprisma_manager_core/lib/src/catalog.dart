@@ -40,6 +40,7 @@ AppEntry _rustApp({
     id: id,
     name: name,
     kind: 'rust',
+    open: ['{bin}/$binary', '--window'],
     inputs: [Input(repo, github: github)],
     components: [
       Component(
@@ -88,6 +89,7 @@ final List<AppEntry> builtinCatalog = [
   // --- maprisma: the pacman package -------------------------------------------------------
   const AppEntry(
     id: 'maprisma',
+    open: ['/usr/bin/maprisma'],
     appIcon: 'com.maprisma.Maprisma',
     name: 'Maprisma',
     kind: 'pacman package maprisma-bin',
@@ -188,6 +190,7 @@ final List<AppEntry> builtinCatalog = [
   // --- launcher: maprisma-launcher + its COSMIC applet -------------------------------------
   const AppEntry(
     id: 'launcher',
+    open: ['{bin}/maprisma-launcher'],
     appIcon: 'com.maprisma.Launcher',
     name: 'Maprisma Launcher',
     kind: 'flutter',
@@ -268,6 +271,7 @@ final List<AppEntry> builtinCatalog = [
   // --- theme: maprisma-theme ---------------------------------------------------------------
   const AppEntry(
     id: 'theme',
+    open: ['{bin}/maprisma-theme'],
     appIcon: 'com.maprisma.Theme',
     name: 'Maprisma Theme',
     kind: 'flutter + rust',
@@ -396,6 +400,7 @@ final List<AppEntry> builtinCatalog = [
   // --- narrator ----------------------------------------------------------------------------
   const AppEntry(
     id: 'narrator',
+    open: ['{bin}/maprisma-narrator'],
     name: 'Maprisma Narrator',
     kind: 'rust + flutter',
     inputs: [Input('maprisma-narrator', github: 'maprisma/narrator')],
@@ -473,6 +478,7 @@ final List<AppEntry> builtinCatalog = [
   // --- video translator --------------------------------------------------------------------
   const AppEntry(
     id: 'video',
+    open: ['{bin}/maprisma-video-translator'],
     name: 'Maprisma Video Translator',
     kind: 'rust + flutter',
     inputs: [Input('maprisma-video-translator')],

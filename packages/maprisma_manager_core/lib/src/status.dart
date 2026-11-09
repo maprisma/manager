@@ -402,6 +402,7 @@ final class StatusReader {
       'bar': bar.stateOf(app),
       'running': running.length,
       'icon': appIconOf(paths, app),
+      'open': app.open != null && isExecutableFile(paths.expand(app.open!.first)),
       'dependsOn': app.dependsOn,
       'neededBy': neededBy,
       'support': {

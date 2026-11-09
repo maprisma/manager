@@ -77,6 +77,28 @@ final class CoreService {
       'icons.get': (params) => icons.get(params),
       'icons.set': (params) => icons.set(params),
       'icons.reset': (params) => icons.reset(params),
+      'apps.open': (params) async {
+        final app = findApp(_app(params))!;
+        final cmd = app.open;
+        if (cmd == null) throw RouteError('unavailable', '${app.name} has no window of its own');
+        final exe = ctx.paths.expand(cmd.first);
+        if (!isExecutableFile(exe)) throw RouteError('not_installed', '$exe is missing');
+        final ok = await jobs.startDetached(exe, cmd.skip(1).toList());
+        if (!ok) throw RouteError('internal', 'could not start $exe');
+        return {'id': app.id, 'opened': true};
+      },
+      // A GitHub page of an app (the details' link), opened with xdg-open.
+      'links.open': (params) async {
+        final url = params['url'];
+        if (url is! String || !RegExp(r'^https://github\.com/[A-Za-z0-9._-]+(/[A-Za-z0-9._/-]*)?$').hasMatch(url) || url.contains('..')) {
+          throw RouteError('bad_params', 'url (a https://github.com/ page)');
+        }
+        final open = ctx.runner.which('xdg-open');
+        if (open == null) throw RouteError('unavailable', 'xdg-open is missing');
+        final ok = await jobs.startDetached(open, [url]);
+        if (!ok) throw RouteError('internal', 'could not start xdg-open');
+        return {'url': url, 'opened': true};
+      },
       'apps.remove_plan': (params) async {
         final id = _app(params);
         final del = params['delete_settings'] ?? false;
