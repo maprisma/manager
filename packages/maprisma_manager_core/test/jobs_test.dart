@@ -127,6 +127,7 @@ exit 0''');
   CoreService core() {
     final c = CoreService(environment: env(), uid: currentUid())..followPanel = (_) async => {'panel': null, 'note': 'test'};
     c.jobs
+      ..appletWait = const Duration(milliseconds: 200)
       ..pollEvery = const Duration(milliseconds: 30)
       ..stopGrace = const Duration(seconds: 2)
       ..killAfter = const Duration(seconds: 2);
@@ -210,6 +211,9 @@ exit 0''');
     // bar.json re-applied: the applet is in the centre again
     final center = File(p.join(w.paths.config, 'cosmic/com.system76.CosmicPanel.Panel/v1/plugins_center')).readAsStringSync();
     expect(center, contains(_applet));
+    // in the panel but not running afterwards (no panel here): the panel restart was asked for
+    expect(text, contains('the applet did not start again: restarting the panel'));
+    expect(job['bar']?['panel'] ?? (job['result'] as Map)['bar']?['panel'], isNotNull);
     // status shows the receipt and the job
     final st = appOf(await c.call('apps.list'), 'fake');
     expect(st['build']['known'], isTrue);

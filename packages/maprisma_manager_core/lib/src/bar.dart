@@ -281,7 +281,7 @@ final class Bar {
               at: placed ? (area: Area.values.byName(results.first['area'] as String), index: results.first['index'] as int) : null,
               target: params['panel'] == null ? null : {'panel': shown});
         }
-        final follow = wroteAny ? await (this.follow ?? (b) => followPanel(ctx.processes, b))(before) : null;
+        final follow = wroteAny ? await (this.follow ?? (b) => followPanel(ctx.processes, b, kill: paths.proc == '/proc' ? null : (_) => false))(before) : null;
         return {'id': id, 'app': ?a?.id, 'placed': placed, 'panels': results, 'reload': ?follow};
       case DesktopId.kde:
         final procs = ctx.processes();
@@ -378,7 +378,7 @@ final class Bar {
           final w = await writeCosmic(paths, c, l);
           wroteAny |= w.written.isNotEmpty;
         }
-        final follow = wroteAny ? await (this.follow ?? (b) => followPanel(ctx.processes, b))(before) : null;
+        final follow = wroteAny ? await (this.follow ?? (b) => followPanel(ctx.processes, b, kill: paths.proc == '/proc' ? null : (_) => false))(before) : null;
         return {'changed': changed, 'reload': ?follow};
       case DesktopId.kde:
         final procs = ctx.processes();

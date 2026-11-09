@@ -204,6 +204,12 @@ final class JobEngine {
   Duration pollEvery = const Duration(milliseconds: 150);
   Duration killAfter = const Duration(seconds: 5);
   Duration stopGrace = const Duration(seconds: 5);
+
+  /// How long an applet may take to start again after an install (COSMIC).
+  Duration appletWait = const Duration(seconds: 3);
+
+  /// Restarts cosmic-panel when an applet didn't start again (tests replace it).
+  Future<Map<String, dynamic>> Function(List<ProcInfo> before)? panelRestart;
   int maxLog = maxLogBytes;
 
   String get dir => p.join(paths.managerState, 'jobs');
@@ -1029,7 +1035,40 @@ final class JobEngine {
       if (old.isNotEmpty) {
         await stopProcesses(old, signaller: signaller, procRoot: paths.proc, uid: ctx.uid, grace: stopGrace);
         out['restarted'] = [for (final pr in old) pr.pid];
-        r.log.note('ended the old applet (${old.map((pr) => pr.pid).join(', ')}); the panel starts the new one');
+        r.log.note('ended the old applet (${old.map((pr) => pr.pid).join(', ')})');
+      }
+      // cosmic-panel 1.11 does not start an applet again that ended (checked live 2026-11-09):
+      // when the applet is in a panel but not running, the panel is restarted once and checked.
+      final placed = cosmicInstances(paths).any((i) {
+        final c = CosmicPanelConfig.read(paths, i);
+        return c.error == null && c.layout.find(app.bar.cosmicApplet!) != null;
+      });
+      if (placed) {
+        bool running() {
+          final now = ctx.processes();
+          final ps = {for (final pr in cosmicPanels(now)) pr.pid};
+          return now.any((pr) => ps.contains(pr.ppid) && pr.exe != null && exe.contains(pr.exe));
+        }
+
+        final until = DateTime.now().add(appletWait);
+        while (!running() && DateTime.now().isBefore(until)) {
+          await Future<void>.delayed(const Duration(milliseconds: 250));
+        }
+        if (running()) {
+          r.log.note('the applet runs again');
+        } else {
+          r.log.note('the applet did not start again: restarting the panel');
+          // signals only against the real /proc (tests have a fake one)
+          final f = await (panelRestart ??
+              (b) => followPanel(ctx.processes, b, wait: Duration.zero, kill: paths.proc == '/proc' ? null : (_) => false))(ctx.processes());
+          out['panel'] = f;
+          final back = DateTime.now().add(appletWait * 3);
+          while (!running() && DateTime.now().isBefore(back)) {
+            await Future<void>.delayed(const Duration(milliseconds: 250));
+          }
+          out['applet_running'] = running();
+          r.log.note(running() ? 'panel restarted; the applet runs' : 'the applet is still not running (${f['error'] ?? 'panel restarted'})');
+        }
       }
     }
     if (ctx.desktop == DesktopId.kde && app.bar.kdeTrayExe != null && app.bar.kdeAutostart != null) {

@@ -85,6 +85,9 @@ final class CoreService {
   set followPanel(Future<Map<String, dynamic>> Function(List<ProcInfo> before)? f) {
     _followPanel = f;
     jobs.follow = f;
+    // the restart after an install that left an applet not running: replaced together, so a
+    // replaced follow-up never meets a real cosmic-panel
+    jobs.panelRestart = f;
   }
 
   Future<Map<String, dynamic>> _bar(Future<Map<String, dynamic>> Function(Bar b) f) => f(Bar(ctx)..follow = followPanel);
