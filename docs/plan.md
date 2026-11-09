@@ -115,13 +115,60 @@ the icon cache, restarts the bar icon, and applies the choice again after every 
 - `tools/install-local`: build and install into `~/.local/lib/maprisma-manager` (atomic swap, as the
   Launcher), link, desktop entry, icon.
 
-## Steps
+## Changes after the plan review (docs/reviews/codex-plan-review.md, all 14 findings verified)
 
-1. Core: catalog, status, receipts, git/update check, job runner with streamed log, install/update/remove,
-   CLI. Tests with fake repos, fake scripts and a temporary HOME.
-2. Bar icons: COSMIC RON and KDE (autostart, tray, widget zones). Tests on copies of real files.
-3. Flutter UI (the Plugins page's look) with the log sheet; tools/install-local; desktop entry and icon.
-4. Install, then live checks on COSMIC that change nothing lasting (status, update check, one bar icon
-   moved and moved back).
+- **Ownership:** a receipt per app records every installed path with its hash (or link target), the
+  inputs' commits and dirty state, and the files it displaced. Remove deletes only files whose hash still
+  matches; links are unlinked, never followed; anything changed or foreign is kept and listed. Data
+  shared with Omarchy (hue-lights, bluetooth-monitor, ubruckhaus-wlan-monitor, video-trans,
+  kindle-reader) is never part of "Also delete its settings".
+- **Wanted bar state** is kept by the Manager (`~/.local/state/maprisma-manager/bar.json`), snapshotted
+  before an install and applied again after it (installers rewrite autostart files; Theme starts its
+  daemon). Status shows separately: starts at login / running / visible.
+- **Processes:** systemd user units are stopped first; interpreted helpers are matched by their exact
+  script path in the argv (never by the interpreter); only the user's own processes; PID identity
+  (start time) checked again before KILL; build first, stop as late as possible.
+- **Jobs:** phases build (cancellable) → commit (not cancellable; pacman is never killed) → verify.
+  The job state is written to disk; an interrupted job is shown on the next start with Repair offered.
+  Jobs run in their own process group via `setsid`, not in a login shell.
+- **Postconditions** per app (all its key files, links resolving, Flutter parts present): an install
+  that skipped a part (Narrator/Video without cmake/ninja) is "partly installed". Per-app environment:
+  Theme gets `FLUTTER=<dir>`, Narrator/Video `FLUTTER=<executable>`.
+- **Update status** is three separate facts: the folder differs from the installed build; the
+  upstream (the branch's configured upstream, ancestry checked) has new commits; the build is unknown.
+- **Runtime-made things are not removed blindly:** Narrator's ocrvox unit and drop-ins, simple-reader,
+  Tiling's Krohnkite migration, Icons' generated Plasma themes each get their own remove step, which
+  is shown before it runs; unknown overrides are kept.
+- **COSMIC panel:** RON parsed (also `None` and missing keys), panel instances discovered (Panel, Dock),
+  unknown ids kept, a change applied to both files under a backup, re-read before writing. Whether the
+  installed cosmic-panel follows the files live is tested first (upstream issue #674); otherwise the
+  panel is restarted once per batch and checked.
+- **KDE:** zones written through `evaluateScript` as string lists on the chosen `com.maprisma.panel`
+  instance and read back. Maprisma Icons first gets a `hidden` list (the Launcher is a fixed entry
+  today and can't be taken out). Without the widget, an icon in the system tray may sit in its overflow:
+  shown as such.
+- **maprisma (pacman):** a package recipe is generated for the exact local archive (version, sha256),
+  built unprivileged, its metadata checked, installed with `pkexec /usr/bin/pacman -U --noconfirm
+  <file>`; authentication cancelled and a held pacman lock are reported. The add-ons ZIP must exist
+  and match the version (the Manager doesn't sign add-ons). Remove: `pkexec /usr/bin/pacman -R
+  --noconfirm maprisma-bin`, the provider service stopped and disabled first.
+- **Self-update:** stage and check the new bundle, copy a small helper to `~/.local/state/
+  maprisma-manager/`, start it detached, it waits for the Manager to exit, swaps, starts the new one and
+  waits for its "ready" file; no ready in 20 s → the old bundle comes back. Logged.
+- **More for the user:** Open, Reinstall/Repair, prerequisites (cargo, flutter, cmake, ninja,
+  kpackagetool6) per app, "restart needed" marks, offline and error states, dependency previews.
 
-Codex reviews the plan and every step (read-only); findings are verified before fixing.
+## Steps (in the review's order)
+
+1. Read-only: catalog, status per component, receipts read, git provenance, prerequisites; CLI `status`.
+2. Bar, proven on both desktops: COSMIC RON read/write + reload behaviour; KDE zones via
+   evaluateScript; Maprisma Icons' `hidden` list. Bar editor data (areas, order) and moves.
+3. Job engine: queue, phases, persisted state, logs, process handling, receipts with hashes.
+4. One simple Rust app end to end (WLAN Monitor): install, update, remove with ownership, bar state kept.
+5. The others: Flutter apps, Narrator/Video, Launcher (+ applet), Theme, then Tiling, Icons, maprisma
+   (pacman); icon changes (and the small own-icon-name changes in the apps' repos).
+6. Self-update; then the Flutter UI (list, bar editor, icon picker, log sheet) and tools/install-local.
+7. Checks on COSMIC live, KDE in a later Plasma session: interrupted installs, hidden icons kept, shared
+   data kept, concurrent config edits.
+
+Codex reviews every step (read-only); findings are verified before fixing.
