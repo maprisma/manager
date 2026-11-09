@@ -56,6 +56,29 @@ List<List<String>> ronStringLists(String text) {
   var i = 0;
   while (i < text.length) {
     final c = text[i];
+    if (c == '/' && i + 1 < text.length && text[i + 1] == '/') {
+      final end = text.indexOf('\n', i);
+      i = end < 0 ? text.length : end + 1;
+      continue;
+    }
+    if (c == '/' && i + 1 < text.length && text[i + 1] == '*') {
+      // RON block comments nest.
+      var depth = 0;
+      while (i < text.length) {
+        if (text.startsWith('/*', i)) {
+          depth++;
+          i += 2;
+        } else if (text.startsWith('*/', i)) {
+          depth--;
+          i += 2;
+          if (depth == 0) break;
+        } else {
+          i++;
+        }
+      }
+      if (depth != 0) throw const FormatException('unterminated comment');
+      continue;
+    }
     if (c == '[') {
       if (current != null) throw const FormatException('nested list');
       current = <String>[];
@@ -89,14 +112,18 @@ Map<String, dynamic> barState(AppEntry app, DesktopId desktop, Paths paths, Cosm
     case DesktopId.cosmic:
       final id = bar.cosmicApplet;
       if (id == null) return {'has': false, 'state': 'none'};
-      final zone = panel?.zoneOf(id);
+      if (panel == null || panel.error != null) {
+        // An unreadable panel config is not "out of the bar".
+        return {'has': true, 'id': id, 'state': 'unknown', 'error': panel?.error ?? 'panel not read', 'iconName': bar.iconName};
+      }
+      final zone = panel.zoneOf(id);
       return {'has': true, 'id': id, 'state': zone == null ? 'out' : 'in', 'zone': zone, 'iconName': bar.iconName};
     case DesktopId.kde:
       final id = bar.kdeId;
       if (id == null) return {'has': false, 'state': 'none'};
       if (bar.kdeKind == KdeBarKind.widgetEntry) {
         // Zones live in Maprisma Icons' config: read in step 2.
-        return {'has': true, 'id': id, 'kind': 'widgetEntry', 'state': 'unknown', 'iconName': bar.iconName};
+        return {'has': true, 'id': id, 'kind': 'widgetEntry', 'state': 'unknown', 'iconName': bar.kdeIconName ?? bar.iconName};
       }
       final autostart = bar.kdeAutostart == null ? null : paths.expand(bar.kdeAutostart!);
       final atLogin = autostart != null && File(autostart).existsSync() && !_hidden(File(autostart));
@@ -109,7 +136,7 @@ Map<String, dynamic> barState(AppEntry app, DesktopId desktop, Paths paths, Cosm
         'state': atLogin || running ? 'in' : 'out',
         'startsAtLogin': atLogin,
         'running': running,
-        'iconName': bar.iconName,
+        'iconName': bar.kdeIconName ?? bar.iconName,
       };
     case DesktopId.other:
       return {'has': false, 'state': 'none', 'reason': 'no bar icons on this desktop'};

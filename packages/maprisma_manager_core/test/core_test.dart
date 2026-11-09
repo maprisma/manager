@@ -89,6 +89,26 @@ void main() {
       expect(appOf(kde, 'wlan')['bar']['running'], isTrue);
     });
 
+    test('a file named after the script (an editor) is not the helper', () {
+      final paths = w.paths;
+      final script = '${paths.data}/maprisma-wlan-monitor/scripts/wlan-monitor.py';
+      w.process(30, exe: '/usr/bin/nvim', argv: ['nvim', '-R', script]);
+      w.process(31, exe: '/usr/bin/cat', argv: ['cat', '/etc/hosts', script]);
+      w.process(32, exe: '/usr/bin/python3', argv: ['python3', '-I', script, '--flag']);
+      w.process(33, exe: '/usr/bin/python3.14', argv: ['python3', '/tmp/other.py', script]);
+      expect(runningFor(findApp('wlan')!, paths, listProcesses(w.proc, uid: 1000)).map((m) => m['pid']), [32]);
+    });
+
+    test('an install reached through a symlink matches the physical path /proc shows', () {
+      final paths = w.paths;
+      final real = p.join(w.dir, 'physical-lib');
+      Directory(p.join(real, 'maprisma-theme/bin')).createSync(recursive: true);
+      Directory(paths.lib).parent.createSync(recursive: true);
+      Link(paths.lib).createSync(real);
+      w.process(40, exe: p.join(real, 'maprisma-theme/bin/maprisma-theme-core'));
+      expect(runningFor(findApp('theme')!, paths, listProcesses(w.proc, uid: 1000)), hasLength(1));
+    });
+
     test('a deleted executable still matches', () {
       final paths = w.paths;
       w.process(20, exe: '${paths.lib}/maprisma-launcher/maprisma-launcher (deleted)');

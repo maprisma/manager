@@ -51,17 +51,31 @@ final class Runner {
       return RunResult(126, '', e.message);
     }
     await process.stdin.close();
-    final out = process.stdout.transform(utf8.decoder).join();
-    final err = process.stderr.transform(utf8.decoder).join();
-    final int code;
+    final out = StringBuffer(), err = StringBuffer();
+    final outDone = process.stdout.transform(utf8.decoder).forEach(out.write);
+    final errDone = process.stderr.transform(utf8.decoder).forEach(err.write);
+    int code;
+    var timedOut = false;
     try {
       code = await process.exitCode.timeout(timeout);
     } on TimeoutException {
+      timedOut = true;
       process.kill(ProcessSignal.sigterm);
-      await process.exitCode;
-      return RunResult(124, await out, '${await err}\ntimed out');
+      try {
+        code = await process.exitCode.timeout(const Duration(seconds: 2));
+      } on TimeoutException {
+        process.kill(ProcessSignal.sigkill);
+        code = await process.exitCode.timeout(const Duration(seconds: 2), onTimeout: () => -9);
+      }
     }
-    return RunResult(code, await out, await err);
+    // A child that keeps the pipes open must not hold the answer back.
+    try {
+      await Future.wait([outDone, errDone]).timeout(const Duration(seconds: 2));
+    } on TimeoutException {
+      // keep what came
+    }
+    if (timedOut) return RunResult(124, '$out', '$err\ntimed out');
+    return RunResult(code, '$out', '$err');
   }
 }
 

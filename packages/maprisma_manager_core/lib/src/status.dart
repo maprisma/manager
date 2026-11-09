@@ -239,34 +239,44 @@ final class StatusReader {
     bool? sourceDiffers;
     final differReasons = <String>[];
     if (receipt != null) {
-      sourceDiffers = false;
+      var differs = false, unknown = false;
       for (final input in app.inputs) {
         final g = gitInfos[input.repo]!;
         final r = receipt.input(input.repo);
         if (r == null) {
-          sourceDiffers = true;
+          differs = true;
           differReasons.add('${input.repo}: not in the receipt');
-        } else if (!g.isRepo) {
+        } else if (!g.isRepo || g.head == null) {
+          unknown = true;
           differReasons.add('${input.repo}: no repo to compare');
         } else if (r.commit != g.head) {
-          sourceDiffers = true;
+          differs = true;
           differReasons.add('${input.repo}: built ${_short(r.commit)}, folder at ${_short(g.head)}');
-        } else if (g.dirty || r.dirty) {
+        } else if (g.dirty == true || r.dirty) {
           // Same commit, but uncommitted changes on either side: not provably the same build.
-          sourceDiffers = true;
-          differReasons.add('${input.repo}: ${g.dirty ? 'uncommitted changes in the folder' : 'built from uncommitted changes'}');
+          differs = true;
+          differReasons.add('${input.repo}: ${g.dirty == true ? 'uncommitted changes in the folder' : 'built from uncommitted changes'}');
+        } else if (g.dirty == null) {
+          unknown = true;
+          differReasons.add('${input.repo}: its state is unknown (${g.error})');
         }
       }
+      // Unknown when nothing differs provably but something could not be compared.
+      sourceDiffers = differs ? true : (unknown ? null : false);
     }
     int? upstreamNew;
     final upstreamNotes = <String>[];
     for (final input in app.inputs) {
       final g = gitInfos[input.repo]!;
       if (g.upstream == null) continue;
-      final n = g.newUpstreamCommits ?? 0;
+      final n = g.newUpstreamCommits;
+      if (n == null) {
+        upstreamNotes.add('${input.repo}: could not compare with ${g.upstream}');
+        continue;
+      }
       upstreamNew = (upstreamNew ?? 0) + n;
       if (g.relation == Relation.diverged) upstreamNotes.add('${input.repo}: diverged from ${g.upstream}');
-      if (n > 0 && g.dirty) upstreamNotes.add('${input.repo}: uncommitted changes, no pull');
+      if (n > 0 && g.dirty != false) upstreamNotes.add('${input.repo}: uncommitted changes, no pull');
     }
 
     final env = <String, String?>{};
@@ -329,8 +339,8 @@ final class StatusReader {
           for (final u in app.units)
             {
               ...u.toJson(),
-              'file': pathInfo('{units}/${u.name}')['exists'],
-              'enabledBy': _wantedBy(paths.units, u.name),
+              'file': pathInfo(u.fileTemplate)['exists'],
+              'enabledBy': _wantedBy(p.dirname(paths.expand(u.fileTemplate)), u.name),
             },
         ],
         'data': [for (final d in app.data) {...d.toJson(), ...pathInfo(d.path)}],

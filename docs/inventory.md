@@ -212,6 +212,11 @@ The catalog (`packages/maprisma_manager_core/lib/src/catalog.dart`) is the exact
 - **`$HOME/.local/share` vs `XDG_DATA_HOME`:** the rust installers, Narrator, Video and Theme use
   `XDG_DATA_HOME`; Launcher's `install-local` and Narrator's backend setup (`kindle-reader`,
   `simple-reader`) hardcode `$HOME/.local/share`. Binaries always go to `$HOME/.local/bin`.
+- **Narrator's backend setup hardcodes `~/.config`** (not `XDG_CONFIG_HOME`): `~/.config/kindle-reader/`
+  and `~/.config/systemd/user/ocrvox.service{,.d}` (`setup_backend.py:19`, `bridge.py:176`).
+- **Launcher's KDE shortcuts** (`maprisma-launcher-<n>-<hash>.desktop`) go to `XDG_DATA_HOME/applications`
+  (`desktopDirectories`), unlike install-local's own entries in `$HOME/.local/share/applications`.
+- **Theme's KDE tray icon** is `com.maprisma.Theme` (the COSMIC applet uses `C`Theme-symbolic).
 - **Narrator's processes:** "ocrvox" is the `ocrvox.service` unit running the shared reader
   (`~/.local/share/kindle-reader/venv/bin/python …/app/reader.py`, plus its `kokoro_tts.py --worker`
   and an `mpv`). The unit isn't linked in any `.wants` here (not enabled). The marker line on this

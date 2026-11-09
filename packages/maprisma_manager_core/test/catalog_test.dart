@@ -55,7 +55,7 @@ void main() {
       '{config}/video-trans',
       '{data}/video-trans',
       '{homeShare}/kindle-reader',
-      '{config}/kindle-reader',
+      '{home}/.config/kindle-reader',
     });
     for (final a in catalog) {
       for (final d in a.data) {

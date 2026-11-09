@@ -58,15 +58,27 @@ final class Receipt {
     if (rawInputs is! List || rawInputs.isEmpty) throw const FormatException('inputs');
     final inputs = <ReceiptInput>[];
     for (final i in rawInputs) {
-      if (i is! Map || i['repo'] is! String || (i['commit'] != null && i['commit'] is! String) || i['dirty'] is! bool) {
+      if (i is! Map || !_nonEmpty(i['repo']) || !_isCommit(i['commit']) || i['dirty'] is! bool) {
         throw const FormatException('inputs entry');
       }
-      inputs.add(ReceiptInput(i['repo'], i['commit'], i['dirty'], i['fingerprint'] is String ? i['fingerprint'] : null));
+      if (i['fingerprint'] != null && !_nonEmpty(i['fingerprint'])) throw const FormatException('fingerprint');
+      if (inputs.any((x) => x.repo == i['repo'])) throw const FormatException('duplicate input');
+      inputs.add(ReceiptInput(i['repo'], i['commit'], i['dirty'], i['fingerprint']));
     }
-    List<Map<String, dynamic>> maps(String key) {
+    List<Map<String, dynamic>> maps(String key, bool Function(Map e) valid) {
       final v = data[key] ?? const [];
-      if (v is! List || v.any((e) => e is! Map || e['path'] is! String)) throw FormatException(key);
+      if (v is! List || v.any((e) => e is! Map || !_nonEmpty(e['path']) || !valid(e))) throw FormatException(key);
       return [for (final e in v) Map<String, dynamic>.from(e as Map)];
+    }
+
+    // Each owned path is exactly one of: a file with its hash, a link with its target, a folder.
+    bool owned(Map e) {
+      final kinds = [
+        if (e.containsKey('sha256')) e['sha256'] is String && RegExp(r'^[0-9a-f]{64}$').hasMatch(e['sha256']),
+        if (e.containsKey('link')) _nonEmpty(e['link']),
+        if (e.containsKey('dir')) e['dir'] == true,
+      ];
+      return kinds.length == 1 && kinds.single;
     }
 
     return Receipt(
@@ -74,8 +86,8 @@ final class Receipt {
       at: at,
       version: data['version'] is String ? data['version'] : null,
       inputs: inputs,
-      paths: maps('paths'),
-      displaced: maps('displaced'),
+      paths: maps('paths', owned),
+      displaced: maps('displaced', (e) => _nonEmpty(e['backup'])),
     );
   }
 }
@@ -92,3 +104,6 @@ final class Receipt {
     return (receipt: null, error: 'unreadable receipt: ${e.osError?.message ?? e.message}');
   }
 }
+
+bool _nonEmpty(Object? v) => v is String && v.isNotEmpty;
+bool _isCommit(Object? v) => v is String && RegExp(r'^[0-9a-f]{40}([0-9a-f]{24})?$').hasMatch(v);

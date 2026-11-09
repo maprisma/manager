@@ -183,7 +183,9 @@ final List<AppEntry> catalog = [
         note: 'install-local hardcodes \$HOME/.local/share; it stops the running copies itself and refuses while its terminal runs a command.',
         paths: [
           InstalledPath('{lib}/maprisma-launcher/maprisma-launcher', PathKind.executable, key: true),
-          InstalledPath('{lib}/maprisma-launcher/data/flutter_assets', PathKind.dir),
+          InstalledPath('{lib}/maprisma-launcher/maprisma-launcher-windows', PathKind.executable, note: 'cosmic-windows helper'),
+          InstalledPath('{lib}/maprisma-launcher/lib/libapp.so', PathKind.file),
+          InstalledPath('{lib}/maprisma-launcher/data/flutter_assets/version.json', PathKind.file),
           InstalledPath('{bin}/maprisma-launcher', PathKind.link, target: '{lib}/maprisma-launcher/maprisma-launcher'),
           InstalledPath('{homeShare}/applications/com.maprisma.Launcher.desktop', PathKind.file),
           InstalledPath('{homeShare}/applications/com.maprisma.Launcher.Toggle.desktop', PathKind.file),
@@ -210,7 +212,8 @@ final List<AppEntry> catalog = [
       DataPath('{data}/maprisma-launcher'),
     ],
     runtime: [
-      RuntimePath('{homeShare}/applications/maprisma-launcher-*.desktop', glob: true, note: 'KDE shortcuts written by the app'),
+      // The app writes these to XDG_DATA_HOME (desktopDirectories), unlike install-local.
+      RuntimePath('{apps}/maprisma-launcher-*.desktop', glob: true, note: 'KDE shortcuts written by the app'),
       RuntimePath('{config}/cosmic/com.system76.CosmicSettings.Shortcuts/v1/custom', note: 'COSMIC shortcut entries (inside a shared file)'),
     ],
     processes: [
@@ -246,7 +249,9 @@ final List<AppEntry> catalog = [
           InstalledPath('{lib}/maprisma-theme/bin/maprisma-theme-core', PathKind.executable),
           InstalledPath('{lib}/maprisma-theme/bin/maprisma-theme-helper', PathKind.executable),
           InstalledPath('{lib}/maprisma-theme/bin/maprisma-theme-applet', PathKind.executable),
+          InstalledPath('{lib}/maprisma-theme/lib/libapp.so', PathKind.file),
           InstalledPath('{lib}/maprisma-theme/share/maprisma-theme/themes', PathKind.dir),
+          InstalledPath('{lib}/maprisma-theme/share/maprisma-theme/templates', PathKind.dir),
           InstalledPath('{bin}/maprisma-theme', PathKind.link, target: '{lib}/maprisma-theme/maprisma-theme'),
           InstalledPath('{bin}/maprisma-theme-core', PathKind.link, target: '{lib}/maprisma-theme/bin/maprisma-theme-core'),
           InstalledPath('{bin}/maprisma-theme-helper', PathKind.link, target: '{lib}/maprisma-theme/bin/maprisma-theme-helper'),
@@ -273,6 +278,7 @@ final List<AppEntry> catalog = [
       kdeAutostart: '{autostart}/com.maprisma.Theme.Daemon.desktop',
       kdeTrayExe: '{lib}/maprisma-theme/bin/maprisma-theme-core',
       iconName: '${_c}Theme-symbolic',
+      kdeIconName: 'com.maprisma.Theme', // the daemon's SNI IconName (daemon.dart)
     ),
     version: VersionSource(
       installedJson: '{lib}/maprisma-theme/data/flutter_assets/version.json',
@@ -366,11 +372,13 @@ final List<AppEntry> catalog = [
           InstalledPath('{bin}/maprisma-narrator-applet', PathKind.executable, key: true),
           InstalledPath('{bin}/maprisma-narrator-tray', PathKind.executable),
           InstalledPath('{bin}/maprisma-narrator-desktop', PathKind.executable),
-          InstalledPath('{data}/maprisma-narrator/backend', PathKind.dir),
+          InstalledPath('{data}/maprisma-narrator/backend/bridge.py', PathKind.file),
+          InstalledPath('{data}/maprisma-narrator/backend/setup_backend.py', PathKind.file),
           InstalledPath('{apps}/${_c}Narrator.desktop', PathKind.file),
           InstalledPath('{apps}/com.maprisma.Narrator.Desktop.desktop', PathKind.file),
           InstalledPath('{autostart}/com.maprisma.Narrator.Tray.desktop', PathKind.file),
           InstalledPath('{data}/maprisma-narrator/settings/maprisma-narrator', PathKind.executable, part: 'settings window'),
+          InstalledPath('{data}/maprisma-narrator/settings/lib/libapp.so', PathKind.file, part: 'settings window'),
           InstalledPath('{bin}/maprisma-narrator', PathKind.link,
               target: '{data}/maprisma-narrator/settings/maprisma-narrator', part: 'settings window'),
           InstalledPath('{apps}/com.maprisma.Narrator.desktop', PathKind.file, part: 'settings window'),
@@ -379,15 +387,18 @@ final List<AppEntry> catalog = [
     ],
     data: [
       DataPath('{homeShare}/kindle-reader', sharedWithOmarchy: true, note: 'the reader runtime (venv, models)'),
-      DataPath('{config}/kindle-reader', sharedWithOmarchy: true),
+      // setup_backend.py and bridge.py hardcode ~/.config (no XDG_CONFIG_HOME).
+      DataPath('{home}/.config/kindle-reader', sharedWithOmarchy: true),
     ],
     runtime: [
-      RuntimePath('{units}/ocrvox.service', marker: '# Managed by ubruckhaus.simple-reader', note: 'written by "Set up automatically"'),
-      RuntimePath('{units}/ocrvox.service.d/read-aloud-runtime.conf', marker: '# Managed by ubruckhaus.simple-reader', note: 'drop-in; other drop-ins are not ours'),
+      RuntimePath('{home}/.config/systemd/user/ocrvox.service', marker: '# Managed by ubruckhaus.simple-reader', note: 'written by "Set up automatically"'),
+      RuntimePath('{home}/.config/systemd/user/ocrvox.service.d/read-aloud-runtime.conf', marker: '# Managed by ubruckhaus.simple-reader', note: 'drop-in; other drop-ins are not ours'),
       RuntimePath('{bin}/simple-reader', marker: '# Managed by ubruckhaus.simple-reader', note: 'a prior one is backed up'),
       RuntimePath('{homeShare}/applications/simple-reader.desktop', note: 'written by backend setup'),
     ],
-    units: [UnitRef('ocrvox.service', runtime: true, note: 'the reader (kindle-reader/app/reader.py)')],
+    units: [
+      UnitRef('ocrvox.service', runtime: true, file: '{home}/.config/systemd/user/ocrvox.service', note: 'the reader (kindle-reader/app/reader.py)'),
+    ],
     processes: [
       ProcessMatch(MatchKind.exe, '{bin}/maprisma-narrator-applet'),
       ProcessMatch(MatchKind.exe, '{bin}/maprisma-narrator-tray'),
@@ -429,10 +440,13 @@ final List<AppEntry> catalog = [
           InstalledPath('{bin}/maprisma-video-translator-applet', PathKind.executable, key: true),
           InstalledPath('{bin}/maprisma-video-translator-tray', PathKind.executable),
           InstalledPath('{bin}/maprisma-video-translator-captions', PathKind.executable),
-          InstalledPath('{data}/maprisma-video-translator/backend', PathKind.dir),
+          InstalledPath('{data}/maprisma-video-translator/backend/bridge.sh', PathKind.file),
+          InstalledPath('{data}/maprisma-video-translator/backend/bridge.py', PathKind.file),
+          InstalledPath('{data}/maprisma-video-translator/backend/backend.py', PathKind.file),
           InstalledPath('{apps}/${_c}VideoTranslator.desktop', PathKind.file),
           InstalledPath('{autostart}/com.maprisma.VideoTranslator.Tray.desktop', PathKind.file),
           InstalledPath('{data}/maprisma-video-translator/app/maprisma-video-translator', PathKind.executable, part: 'window'),
+          InstalledPath('{data}/maprisma-video-translator/app/lib/libapp.so', PathKind.file, part: 'window'),
           InstalledPath('{bin}/maprisma-video-translator', PathKind.link,
               target: '{data}/maprisma-video-translator/app/maprisma-video-translator', part: 'window'),
           InstalledPath('{apps}/com.maprisma.VideoTranslator.desktop', PathKind.file, part: 'window'),
@@ -487,8 +501,9 @@ final List<AppEntry> catalog = [
         ],
         note: 'Replaces Krohnkite and maprisma-active-frame (settings moved, Krohnkite backed up and removed).',
         paths: [
-          InstalledPath('{data}/kwin/scripts/maprisma-tiling', PathKind.dir, key: true),
-          InstalledPath('{data}/kwin/scripts/omarchy-navigation', PathKind.dir, note: 'may exist before (not necessarily ours)'),
+          InstalledPath('{data}/kwin/scripts/maprisma-tiling/metadata.json', PathKind.file, key: true),
+          InstalledPath('{data}/kwin/scripts/maprisma-tiling/contents/ui/tiling.qml', PathKind.file, note: 'tiling.qml.in with the engine inside'),
+          InstalledPath('{data}/kwin/scripts/omarchy-navigation/metadata.json', PathKind.file, note: 'may exist before (not necessarily ours)'),
           InstalledPath('{bin}/maprisma-tiling-overlay', PathKind.executable),
           InstalledPath('{bin}/maprisma-tiling-shortcuts', PathKind.executable),
           InstalledPath('{data}/dbus-1/services/org.maprisma.TilingOverlay.service', PathKind.file),
@@ -520,7 +535,8 @@ final List<AppEntry> catalog = [
         desktops: _kde,
         prerequisites: [Prerequisite('kpackagetool6'), Prerequisite('python3')],
         paths: [
-          InstalledPath('{data}/plasma/plasmoids/com.maprisma.panel', PathKind.dir, key: true),
+          InstalledPath('{data}/plasma/plasmoids/com.maprisma.panel/metadata.json', PathKind.file, key: true),
+          InstalledPath('{data}/plasma/plasmoids/com.maprisma.panel/contents/ui/main.qml', PathKind.file),
           InstalledPath('{bin}/maprisma-panel-color', PathKind.executable),
         ],
       ),

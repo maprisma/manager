@@ -37,6 +37,7 @@ final class World {
     'MAPRISMA_MANAGER_PROC': proc,
     'GIT_CONFIG_GLOBAL': gitConfig,
     'GIT_CONFIG_NOSYSTEM': '1',
+    'GIT_ALLOW_PROTOCOL': 'file',
     ...extra,
   };
 
@@ -86,11 +87,16 @@ final class World {
 
   /// git in [cwd], isolated from the user's configuration.
   ProcessResult git(String cwd, List<String> args) {
-    final r = Process.runSync('git', args, workingDirectory: cwd, environment: {
+    // Only this environment: an inherited GIT_DIR, GIT_WORK_TREE or GIT_CONFIG_* could send
+    // these writes into another checkout. Local file transports only.
+    final r = Process.runSync(p.join(fakeBin, 'git'), args, workingDirectory: cwd, includeParentEnvironment: false, environment: {
+      'PATH': Platform.environment['PATH'] ?? '/usr/bin:/bin',
       'GIT_CONFIG_GLOBAL': gitConfig,
       'GIT_CONFIG_NOSYSTEM': '1',
       'HOME': home,
       'GIT_TERMINAL_PROMPT': '0',
+      'GIT_ALLOW_PROTOCOL': 'file',
+      'LC_ALL': 'C',
     });
     if (r.exitCode != 0) throw StateError('git ${args.join(' ')}: ${r.stderr}');
     return r;
@@ -141,7 +147,7 @@ final class World {
   void dispose() => Directory(dir).deleteSync(recursive: true);
 }
 
-void chmod(String path, String mode) => Process.runSync('chmod', [mode, path]);
+void chmod(String path, String mode) => Process.runSync('/usr/bin/chmod', [mode, path], includeParentEnvironment: false);
 
 String? _realWhich(String c) {
   for (final d in (Platform.environment['PATH'] ?? '/usr/bin').split(':')) {

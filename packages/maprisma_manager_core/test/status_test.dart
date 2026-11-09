@@ -120,7 +120,11 @@ void main() {
         'id': 'wlan',
         'at': '2026-11-09T10:00:00Z',
         'inputs': [{'repo': 'maprisma-wlan-monitor', 'commit': w.head('maprisma-wlan-monitor'), 'dirty': false}],
-        'paths': [{'path': '/x', 'sha256': 'ab'}],
+        'paths': [
+          {'path': '/x', 'sha256': 'abababababababababababababababababababababababababababababababab'},
+          {'path': '/l', 'link': '/t'},
+          {'path': '/d', 'dir': true},
+        ],
       });
       final a = appOf(await list(), 'wlan');
       expect(a['build']['known'], isTrue);
@@ -135,7 +139,7 @@ void main() {
       receipt({
         'id': 'wlan',
         'at': '2026-11-09T10:00:00Z',
-        'inputs': [{'repo': 'maprisma-wlan-monitor', 'commit': 'deadbeef', 'dirty': false}],
+        'inputs': [{'repo': 'maprisma-wlan-monitor', 'commit': 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef', 'dirty': false}],
       });
       var a = appOf(await list(), 'wlan');
       expect(a['updates']['sourceDiffers'], isTrue);
@@ -154,11 +158,35 @@ void main() {
 
     test('a broken receipt is reported, not trusted', () async {
       w.install('wlan');
-      receipt({'id': 'other', 'at': 'x'});
+      final good = {'repo': 'maprisma-wlan-monitor', 'commit': 'a' * 40, 'dirty': false};
+      for (final (bad, why) in [
+        ({'id': 'other', 'at': '2026-11-09T10:00:00Z', 'inputs': [good]}, 'id does not match the file'),
+        ({'id': 'wlan', 'at': 'x', 'inputs': [good]}, 'at'),
+        ({'id': 'wlan', 'at': '2026-11-09T10:00:00Z', 'inputs': [{...good, 'commit': null}]}, 'inputs entry'),
+        ({'id': 'wlan', 'at': '2026-11-09T10:00:00Z', 'inputs': [good, good]}, 'duplicate input'),
+        ({'id': 'wlan', 'at': '2026-11-09T10:00:00Z', 'inputs': [good], 'paths': [{'path': '/x'}]}, 'paths'),
+        ({'id': 'wlan', 'at': '2026-11-09T10:00:00Z', 'inputs': [good], 'paths': [{'path': '/x', 'sha256': 'ab', 'dir': true}]}, 'paths'),
+        ({'id': 'wlan', 'at': '2026-11-09T10:00:00Z', 'inputs': [good], 'displaced': [{'path': '/x'}]}, 'displaced'),
+      ]) {
+        receipt(bad);
+        final a = appOf(await list(), 'wlan');
+        expect(a['build']['known'], isFalse, reason: why);
+        expect(a['build']['error'], 'invalid receipt: $why');
+        expect(a['updates']['buildUnknown'], isTrue);
+      }
+    });
+
+    test('a receipt but no repo to compare: unknown, not "same"', () async {
+      w.install('wlan');
+      receipt({
+        'id': 'wlan',
+        'at': '2026-11-09T10:00:00Z',
+        'inputs': [{'repo': 'maprisma-wlan-monitor', 'commit': 'a' * 40, 'dirty': false}],
+      });
       final a = appOf(await list(), 'wlan');
-      expect(a['build']['known'], isFalse);
-      expect(a['build']['error'], contains('invalid receipt'));
-      expect(a['updates']['buildUnknown'], isTrue);
+      expect(a['build']['known'], isTrue);
+      expect(a['updates']['sourceDiffers'], isNull);
+      expect(a['updates']['sourceReasons'].single, contains('no repo to compare'));
     });
   });
 
@@ -190,10 +218,19 @@ void main() {
       expect(appOf(r, 'maprisma')['bar']['state'], 'none');
     });
 
-    test('RON lists: None and empty', () {
+    test('RON lists: None, empty, comments', () {
       expect(ronStringLists('None'), isEmpty);
       expect(ronStringLists('Some(([], []))'), [<String>[], <String>[]]);
+      expect(ronStringLists('// ["x"]\nSome([ /* "y" /* ] */ */ "a", // "b"\n "c"])'), [['a', 'c']]);
       expect(() => ronStringLists('Some(["a"'), throwsFormatException);
+    });
+
+    test('an unreadable panel config is "unknown", not "out"', () async {
+      final dir = p.join(w.paths.config, 'cosmic/com.system76.CosmicPanel.Panel/v1');
+      w.writeFile(p.join(dir, 'plugins_wings'), 'Some(([ "io.github.ubruckhaus.CosmicMaprismaHome"');
+      final bar = appOf(await list(), 'home')['bar'];
+      expect(bar['state'], 'unknown');
+      expect(bar['error'], contains('plugins_wings'));
     });
 
     test('KDE: a tray starts at login unless its autostart file is Hidden', () async {
@@ -203,6 +240,8 @@ void main() {
       f.writeAsStringSync('[Desktop Entry]\nHidden=true\n');
       expect(appOf(await list('KDE'), 'wlan')['bar'], containsPair('state', 'out'));
       expect(appOf(await list('KDE'), 'launcher')['bar']['kind'], 'widgetEntry');
+      expect(appOf(await list('KDE'), 'theme')['bar']['iconName'], 'com.maprisma.Theme');
+      expect(appOf(await list('COSMIC'), 'theme')['bar']['iconName'], 'io.github.ubruckhaus.CosmicMaprismaTheme-symbolic');
     });
 
     test('other desktops have no bar icons', () async {
@@ -212,9 +251,10 @@ void main() {
 
   test('runtime files: marked ours by their marker line', () async {
     w.writeFile(p.join(w.paths.bin, 'video-trans'), '#!/usr/bin/env bash\n# Managed by ubruckhaus.video-trans\n');
-    w.writeFile(p.join(w.paths.units, 'ocrvox.service'), '# Managed by ubruckhaus.simple-reader (Screen Narrator)\n');
-    Directory(p.join(w.paths.units, 'graphical-session.target.wants')).createSync(recursive: true);
-    Link(p.join(w.paths.units, 'graphical-session.target.wants/ocrvox.service')).createSync('../ocrvox.service');
+    final units = p.join(w.home, '.config/systemd/user'); // Narrator's setup hardcodes ~/.config
+    w.writeFile(p.join(units, 'ocrvox.service'), '# Managed by ubruckhaus.simple-reader (Screen Narrator)\n');
+    Directory(p.join(units, 'graphical-session.target.wants')).createSync(recursive: true);
+    Link(p.join(units, 'graphical-session.target.wants/ocrvox.service')).createSync('../ocrvox.service');
     final v = (await w.core().call('apps.get', {'id': 'video'}))['app'];
     expect((v['runtime'] as List).firstWhere((r) => r['path'].endsWith('/video-trans'))['markedOurs'], isTrue);
     final n = (await w.core().call('apps.get', {'id': 'narrator'}))['app'];
@@ -222,3 +262,4 @@ void main() {
     expect((n['units'] as List).single['enabledBy'], ['graphical-session.target']);
   });
 }
+

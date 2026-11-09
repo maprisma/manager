@@ -90,25 +90,49 @@ bool processMatches(ProcessMatch m, String path, ProcInfo proc) {
       return first.startsWith('$base.') && p.split(p.relative(exe, from: parent)).length > 1;
     case MatchKind.script:
     case MatchKind.scriptUnder:
-      for (final arg in proc.argv.skip(1)) {
-        if (!p.isAbsolute(arg)) continue;
-        final n = p.normalize(arg);
-        if (m.kind == MatchKind.script ? p.equals(n, path) : p.isWithin(path, n)) return true;
-      }
-      return false;
+      // The script is what the interpreter runs: its first argument that is not an option
+      // (`python3 -I <script>`, `bash <script>`). A file named later (an editor, `cat`) is not.
+      // …and the process is an interpreter, so `nvim -R <script>` is not the helper.
+      final prog = p.basename(proc.exe ?? (proc.argv.isEmpty ? '' : proc.argv.first));
+      if (!_interpreter.hasMatch(prog)) return false;
+      final arg = proc.argv.skip(1).firstWhere((a) => !a.startsWith('-'), orElse: () => '');
+      if (!p.isAbsolute(arg)) return false;
+      final n = p.normalize(arg);
+      return m.kind == MatchKind.script ? p.equals(n, path) : p.isWithin(path, n);
   }
 }
+
+final _interpreter = RegExp(r'^(python[0-9.]*|bash|sh|dash|zsh)$');
 
 /// The app's running processes: [{pid, exe, argv0, match}].
 List<Map<String, dynamic>> runningFor(AppEntry app, Paths paths, List<ProcInfo> procs) {
   final out = <Map<String, dynamic>>[];
+  // The lexical path and, when it exists, the physical one: /proc shows resolved paths
+  // (a symlinked HOME or install folder); a deleted executable only matches lexically.
+  final targets = [
+    for (final m in app.processes)
+      for (final path in {paths.expand(m.path), ?_resolved(paths.expand(m.path))}) (m, path),
+  ];
   for (final proc in procs) {
-    for (final m in app.processes) {
-      if (processMatches(m, paths.expand(m.path), proc)) {
+    for (final (m, path) in targets) {
+      if (processMatches(m, path, proc)) {
         out.add({'pid': proc.pid, 'exe': proc.exe, 'argv': proc.argv.take(3).toList(), 'match': m.kind.name, 'startTicks': proc.startTicks});
         break;
       }
     }
   }
   return out;
+}
+
+String? _resolved(String path) {
+  try {
+    final type = FileSystemEntity.typeSync(path);
+    if (type == FileSystemEntityType.notFound) return null;
+    final r = type == FileSystemEntityType.directory
+        ? Directory(path).resolveSymbolicLinksSync()
+        : File(path).resolveSymbolicLinksSync();
+    return r == path ? null : r;
+  } on FileSystemException {
+    return null;
+  }
 }

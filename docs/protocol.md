@@ -57,8 +57,8 @@ App:
 | `build` | `{known, receipt?: {id, at, version?, inputs, paths, displaced}, error?}`; `known` = a valid receipt exists. |
 | `updates` | The three facts: `buildUnknown` (installed, no receipt); `sourceDiffers` (`true`/`false`, `null` without a receipt) with `sourceReasons`; `upstreamNew` (commits the configured upstream has that HEAD hasn't, as of the last fetch; `null` = no input has an upstream) with `upstreamNotes` (diverged, dirty: no pull). |
 | `versions` | `{installed, folder}` where known (pacman, a Flutter bundle's `version.json`; the repo's version line). |
-| `repos[]` | Per input repo: `{repo, folder, present, isRepo, branch, detached, head, dirty, dirtyTracked, untracked, upstream, upstreamRemote, upstreamUrl, ahead, behind, relation, lastFetch, error?, cloneUrl, available}`. `relation`: `upToDate`, `behind`, `ahead`, `diverged` (by ancestry), `unknown` (no upstream). `available`: `here`, `cloneable`, `not available here`. |
-| `bar` | COSMIC: `{has, id, state: in/out, zone: left/center/right}` (read from the `Panel` instance's `plugins_wings`/`plugins_center`). KDE tray: `{has, id, kind: tray, state, startsAtLogin, running}` (autostart file not `Hidden=true`; the tray process). KDE widget entry (Launcher): `state: unknown` until step 2. No icon: `{has: false, state: none}`. |
+| `repos[]` | Per input repo (`dirty` is `null` when git status failed; `error` says what could not be read): `{repo, folder, present, isRepo, branch, detached, head, dirty, dirtyTracked, untracked, upstream, upstreamRemote, upstreamUrl, ahead, behind, relation, lastFetch, error?, cloneUrl, available}`. `relation`: `upToDate`, `behind`, `ahead`, `diverged` (by ancestry), `unknown` (no upstream). `available`: `here`, `cloneable`, `not available here`. |
+| `bar` | COSMIC: `{has, id, state: in/out/unknown, zone: left/center/right, error?}` (read from the `Panel` instance's `plugins_wings`/`plugins_center`; a file that doesn't parse gives `unknown` with the error). KDE tray: `{has, id, kind: tray, state, startsAtLogin, running}` (autostart file not `Hidden=true`; the tray process). `iconName` is the one the desktop shows (Theme's KDE tray: `com.maprisma.Theme`). KDE widget entry (Launcher): `state: unknown` until step 2. No icon: `{has: false, state: none}`. |
 | `running` | How many of the user's processes belong to it (by `/proc/<pid>/exe`, or the script path in argv for interpreted helpers). |
 | `dependsOn`, `neededBy`, `env` | Dependencies; `env.FLUTTER` as the installer wants it (Theme: the folder, Narrator/Video: the executable; `PATH+` for those that take flutter from PATH). |
 
@@ -66,14 +66,17 @@ App:
 
 `{desktop, projectsDir, …, app}`: the App above plus `components[].{install, kind, desktops, checks,
 prerequisites: [{command, found, path, part?, optional?, note?}], dependsOn, optionalParts, catalogNote}`,
-`processes` (pid, exe, argv, match, startTicks), `processMatches`, `units` (`{name, runtime, file,
+`processes` (pid, exe, argv, match, startTicks), `processMatches`, `units` (`{name, runtime, unitFile, file,
 enabledBy}`), `data` (`{path, exists, sharedWithOmarchy, neverDelete}`), `runtime` (files made at
 runtime: `{path, exists, glob?, matches?, marker?, markedOurs?}`), `postSteps`, `barIcon`, `note`.
 
 ### `git.fetch` `{id?, force?}`
 
 Fetches the configured upstream's remote of each input repo of app `id` (all apps without it). A repo
-fetched or tried within 30 minutes is skipped unless `force` is `true`.
+fetched within 30 minutes (`FETCH_HEAD`), or tried by this core process within 30 minutes, is skipped
+unless `force` is `true`. Failed attempts are remembered in memory only (step 1 writes no state), so a
+new CLI process retries an offline fetch. Inspection never uses a transport (`protocol.allow=never`,
+no lazy fetch, no fsmonitor); only this route does.
 
 `{force, repos: [{repo, fetched, skipped?: recent/no upstream/missing/not a repo, error?, behind?, relation?, lastFetch?}]}`
 

@@ -16,8 +16,8 @@ final class GitInfo {
     this.isRepo = false,
     this.branch,
     this.head,
-    this.dirtyTracked = 0,
-    this.untracked = 0,
+    this.dirtyTracked,
+    this.untracked,
     this.upstream,
     this.upstreamRemote,
     this.upstreamUrl,
@@ -36,9 +36,10 @@ final class GitInfo {
   /// null = detached HEAD.
   final String? branch;
   final String? head;
-  final int dirtyTracked;
-  final int untracked;
-  bool get dirty => dirtyTracked > 0 || untracked > 0;
+  /// null = git status failed (unknown, never "clean").
+  final int? dirtyTracked;
+  final int? untracked;
+  bool? get dirty => dirtyTracked == null || untracked == null ? null : dirtyTracked! > 0 || untracked! > 0;
 
   /// e.g. `origin/main`; null = none configured.
   final String? upstream;
@@ -51,7 +52,11 @@ final class GitInfo {
   final String? error;
 
   /// Commits the upstream has that HEAD hasn't, when HEAD can fast-forward to them.
-  int? get newUpstreamCommits => relation == Relation.behind ? behind : (relation == Relation.diverged ? behind : null);
+  int? get newUpstreamCommits => switch (relation) {
+    Relation.behind || Relation.diverged => behind,
+    Relation.upToDate || Relation.ahead => 0,
+    Relation.unknown => null,
+  };
 
   Map<String, dynamic> toJson() => {
     'repo': repo,
@@ -77,12 +82,23 @@ final class GitInfo {
 
 const _gitEnv = {'GIT_TERMINAL_PROMPT': '0', 'GIT_OPTIONAL_LOCKS': '0', 'LC_ALL': 'C', 'GIT_ASKPASS': 'true', 'SSH_ASKPASS': 'true'};
 
+/// Read-only inspection: no fsmonitor hook, no lazy fetch of missing objects (partial clones),
+/// no transport at all.
+const _readOnlyEnv = {..._gitEnv, 'GIT_NO_LAZY_FETCH': '1'};
+const _readOnlyConfig = ['-c', 'core.fsmonitor=false', '-c', 'protocol.allow=never'];
+
 final class Git {
   Git(this.runner);
   final Runner runner;
 
   Future<RunResult> _git(String folder, List<String> args, {Duration timeout = const Duration(seconds: 20)}) =>
-      runner.run(['git', '-C', folder, ...args], extraEnv: _gitEnv, timeout: timeout);
+      runner.run(['git', ..._readOnlyConfig, '-C', folder, ...args], extraEnv: _readOnlyEnv, timeout: timeout);
+
+  /// Whether [a] is an ancestor of [b]: null when git failed (exit codes other than 0 and 1).
+  Future<bool?> _isAncestor(String folder, String a, String b) async {
+    final r = await _git(folder, ['merge-base', '--is-ancestor', a, b]);
+    return r.code == 0 ? true : (r.code == 1 ? false : null);
+  }
 
   Future<GitInfo> inspect(String repo, String folder) async {
     if (!Directory(folder).existsSync()) return GitInfo(repo: repo, folder: folder, present: false);
@@ -100,10 +116,14 @@ final class Git {
     ]);
     final branch = results[0].ok ? results[0].stdout.trim() : null;
     final head = results[1].ok ? results[1].stdout.trim() : null;
-    var tracked = 0, untracked = 0;
-    for (final line in results[2].stdout.split('\n')) {
-      if (line.length < 3) continue;
-      line.startsWith('??') ? untracked++ : tracked++;
+    int? tracked, untracked;
+    final errors = <String>[];
+    if (results[2].ok) {
+      final lines = [for (final l in results[2].stdout.split('\n')) if (l.length >= 3) l];
+      untracked = lines.where((l) => l.startsWith('??')).length;
+      tracked = lines.length - untracked;
+    } else {
+      errors.add('git status failed');
     }
     final upstream = results[3].ok ? results[3].stdout.trim() : null;
     DateTime? lastFetch;
@@ -130,14 +150,17 @@ final class Git {
         ahead = int.tryParse(parts[0]);
         behind = int.tryParse(parts[1]);
       }
-      final headInUp = (await _git(folder, ['merge-base', '--is-ancestor', 'HEAD', '@{upstream}'])).code == 0;
-      final upInHead = (await _git(folder, ['merge-base', '--is-ancestor', '@{upstream}', 'HEAD'])).code == 0;
+      final headInUp = await _isAncestor(folder, 'HEAD', '@{upstream}');
+      final upInHead = await _isAncestor(folder, '@{upstream}', 'HEAD');
       relation = switch ((headInUp, upInHead)) {
         (true, true) => Relation.upToDate,
         (true, false) => Relation.behind,
         (false, true) => Relation.ahead,
         (false, false) => Relation.diverged,
+        _ => Relation.unknown,
       };
+      if (relation == Relation.unknown) errors.add('could not compare with $upstream');
+      if (ahead == null || behind == null) errors.add('could not count commits against $upstream');
     }
     return GitInfo(
       repo: repo,
@@ -155,12 +178,16 @@ final class Git {
       behind: behind,
       relation: relation,
       lastFetch: lastFetch,
+      error: errors.isEmpty ? null : errors.join('; '),
     );
   }
 
   /// Fetches the upstream's remote (only that one). The caller decides about throttling.
-  Future<RunResult> fetch(String folder, String remote) =>
-      _git(folder, ['fetch', '--quiet', '--prune', remote], timeout: const Duration(seconds: 60));
+  Future<RunResult> fetch(String folder, String remote) => runner.run(
+    ['git', '-c', 'core.fsmonitor=false', '-C', folder, 'fetch', '--quiet', '--prune', remote],
+    extraEnv: _gitEnv,
+    timeout: const Duration(seconds: 60),
+  );
 }
 
 bool _same(String a, String b) {

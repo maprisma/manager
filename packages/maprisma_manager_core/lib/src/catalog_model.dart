@@ -96,14 +96,18 @@ final class ProcessMatch {
 
 /// A systemd user unit belonging to the app (stopped before its processes).
 final class UnitRef {
-  const UnitRef(this.name, {this.runtime = false, this.note});
+  const UnitRef(this.name, {this.runtime = false, this.file, this.note});
   final String name;
+
+  /// Where its unit file is (template); default `{units}/<name>`.
+  final String? file;
+  String get fileTemplate => file ?? '{units}/$name';
 
   /// Written at runtime (e.g. by the app or its setup), not by the installer.
   final bool runtime;
   final String? note;
 
-  Map<String, dynamic> toJson() => {'name': name, if (runtime) 'runtime': true, if (note != null) 'note': note};
+  Map<String, dynamic> toJson() => {'name': name, if (runtime) 'runtime': true, 'unitFile': fileTemplate, 'note': ?note};
 }
 
 enum KdeBarKind {
@@ -115,7 +119,15 @@ enum KdeBarKind {
 }
 
 final class BarIcon {
-  const BarIcon({this.cosmicApplet, this.kdeId, this.kdeKind = KdeBarKind.tray, this.kdeAutostart, this.kdeTrayExe, this.iconName});
+  const BarIcon({
+    this.cosmicApplet,
+    this.kdeId,
+    this.kdeKind = KdeBarKind.tray,
+    this.kdeAutostart,
+    this.kdeTrayExe,
+    this.iconName,
+    this.kdeIconName,
+  });
 
   /// The COSMIC applet id (the panel config lists it), e.g. io.github.ubruckhaus.CosmicMaprismaHome.
   final String? cosmicApplet;
@@ -133,6 +145,9 @@ final class BarIcon {
   /// The icon name the applet/tray loads (an own name can be replaced; plan "Changing an icon").
   final String? iconName;
 
+  /// The KDE tray's icon name when it differs from [iconName].
+  final String? kdeIconName;
+
   bool get none => cosmicApplet == null && kdeId == null;
 
   Map<String, dynamic> toJson() => {
@@ -141,7 +156,8 @@ final class BarIcon {
     if (kdeId != null) 'kdeKind': kdeKind.name,
     if (kdeAutostart != null) 'kdeAutostart': kdeAutostart,
     if (kdeTrayExe != null) 'kdeTrayExe': kdeTrayExe,
-    if (iconName != null) 'iconName': iconName,
+    'iconName': ?iconName,
+    'kdeIconName': ?kdeIconName,
   };
 }
 
