@@ -121,6 +121,7 @@ enum KdeBarKind {
 final class BarIcon {
   const BarIcon({
     this.cosmicApplet,
+    this.cosmicAppletExe,
     this.kdeId,
     this.kdeKind = KdeBarKind.tray,
     this.kdeAutostart,
@@ -131,6 +132,9 @@ final class BarIcon {
 
   /// The COSMIC applet id (the panel config lists it), e.g. io.github.ubruckhaus.CosmicMaprismaHome.
   final String? cosmicApplet;
+
+  /// The applet's program (template): cosmic-panel starts it as its child.
+  final String? cosmicAppletExe;
 
   /// The KDE id: the tray's SNI Id, or the widget entry's id.
   final String? kdeId;
@@ -152,6 +156,7 @@ final class BarIcon {
 
   Map<String, dynamic> toJson() => {
     'cosmicApplet': cosmicApplet,
+    'cosmicAppletExe': ?cosmicAppletExe,
     'kdeId': kdeId,
     if (kdeId != null) 'kdeKind': kdeKind.name,
     if (kdeAutostart != null) 'kdeAutostart': kdeAutostart,

@@ -7,8 +7,11 @@ import 'paths.dart';
 
 /// A running process of the user's, as /proc shows it.
 final class ProcInfo {
-  ProcInfo(this.pid, this.uid, this.exe, this.argv, this.startTicks);
+  ProcInfo(this.pid, this.uid, this.exe, this.argv, this.startTicks, {this.ppid});
   final int pid;
+
+  /// The parent's pid (field 4 of `/proc/<pid>/stat`).
+  final int? ppid;
   final int? uid;
 
   /// `/proc/<pid>/exe` with " (deleted)" stripped; null when unreadable.
@@ -58,16 +61,17 @@ List<ProcInfo> listProcesses(String procRoot, {int? uid}) {
     } on FileSystemException {
       // gone or unreadable
     }
-    int? start;
+    int? start, ppid;
     try {
       final stat = File(p.join(entry.path, 'stat')).readAsStringSync();
       // comm may hold spaces and parentheses: the fields start after the last ')'.
       final fields = stat.substring(stat.lastIndexOf(')') + 2).split(' ');
       if (fields.length > 19) start = int.tryParse(fields[19]);
+      if (fields.length > 1) ppid = int.tryParse(fields[1]);
     } on Object {
       start = null;
     }
-    out.add(ProcInfo(pid, owner, exe, argv, start));
+    out.add(ProcInfo(pid, owner, exe, argv, start, ppid: ppid));
   }
   return out;
 }

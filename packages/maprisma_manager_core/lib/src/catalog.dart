@@ -66,6 +66,7 @@ AppEntry _rustApp({
     ],
     bar: BarIcon(
       cosmicApplet: appId,
+      cosmicAppletExe: '{bin}/$binary',
       kdeId: binary,
       kdeAutostart: '{autostart}/$appId.Tray.desktop',
       kdeTrayExe: '{bin}/$binary-tray',
@@ -156,6 +157,7 @@ final List<AppEntry> catalog = [
     ],
     bar: BarIcon(
       cosmicApplet: _c,
+      cosmicAppletExe: '{bin}/maprisma-applet',
       kdeId: 'maprisma-control',
       kdeAutostart: '{autostart}/com.maprisma.Control.Tray.desktop',
       kdeTrayExe: '{bin}/maprisma-control-tray',
@@ -220,7 +222,7 @@ final List<AppEntry> catalog = [
       ProcessMatch(MatchKind.exeUnder, '{lib}/maprisma-launcher', note: 'also the dock (--dock) and maprisma-launcher-windows'),
       ProcessMatch(MatchKind.exe, '{bin}/maprisma-launcher-applet'),
     ],
-    bar: BarIcon(cosmicApplet: '${_c}Launcher', kdeId: 'maprisma-launcher', kdeKind: KdeBarKind.widgetEntry, iconName: 'com.maprisma.Launcher'),
+    bar: BarIcon(cosmicApplet: '${_c}Launcher', cosmicAppletExe: '{bin}/maprisma-launcher-applet', kdeId: 'maprisma-launcher', kdeKind: KdeBarKind.widgetEntry, iconName: 'com.maprisma.Launcher'),
     version: VersionSource(
       installedJson: '{lib}/maprisma-launcher/data/flutter_assets/version.json',
       folderFile: 'flutter_app/pubspec.yaml',
@@ -274,6 +276,7 @@ final List<AppEntry> catalog = [
     processes: [ProcessMatch(MatchKind.exeUnder, '{lib}/maprisma-theme', note: 'app, core daemon, helper, applet')],
     bar: BarIcon(
       cosmicApplet: '${_c}Theme',
+      cosmicAppletExe: '{bin}/maprisma-theme-applet',
       kdeId: 'maprisma-theme',
       kdeAutostart: '{autostart}/com.maprisma.Theme.Daemon.desktop',
       kdeTrayExe: '{lib}/maprisma-theme/bin/maprisma-theme-core',
@@ -408,6 +411,7 @@ final List<AppEntry> catalog = [
     ],
     bar: BarIcon(
       cosmicApplet: '${_c}Narrator',
+      cosmicAppletExe: '{bin}/maprisma-narrator-applet',
       kdeId: 'com.maprisma.Narrator.Tray',
       kdeAutostart: '{autostart}/com.maprisma.Narrator.Tray.desktop',
       kdeTrayExe: '{bin}/maprisma-narrator-tray',
@@ -470,6 +474,7 @@ final List<AppEntry> catalog = [
     ],
     bar: BarIcon(
       cosmicApplet: '${_c}VideoTranslator',
+      cosmicAppletExe: '{bin}/maprisma-video-translator-applet',
       kdeId: 'maprisma-video-translator',
       kdeAutostart: '{autostart}/com.maprisma.VideoTranslator.Tray.desktop',
       kdeTrayExe: '{bin}/maprisma-video-translator-tray',

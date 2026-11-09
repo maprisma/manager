@@ -2,151 +2,144 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import 'bar.dart';
+import 'bar_cosmic.dart';
+import 'bar_kde.dart';
 import 'catalog_model.dart';
-import 'paths.dart';
+import 'context.dart';
 import 'procs.dart';
 
-/// The COSMIC panel's applet lists, read only (step 2 parses and writes them properly).
-final class CosmicPanel {
-  CosmicPanel(this.left, this.center, this.right, {this.error});
-  final List<String> left;
-  final List<String> center;
-  final List<String> right;
-  final String? error;
+export 'ron.dart' show ronStringLists;
 
-  /// left / center / right, or null when the id is not in the panel.
-  String? zoneOf(String id) => left.contains(id)
-      ? 'left'
-      : center.contains(id)
-      ? 'center'
-      : right.contains(id)
-      ? 'right'
-      : null;
+/// What the status needs of the bar, read once per apps.list.
+final class BarSnapshot {
+  BarSnapshot._(this.ctx, this.bar, this.procs, this.panels, this.widget, this.widgetError, this.wanted);
 
-  static CosmicPanel read(Paths paths, {String panel = 'Panel'}) {
-    final dir = p.join(paths.config, 'cosmic/com.system76.CosmicPanel.$panel/v1');
-    String? error;
-    List<List<String>> lists(String name) {
-      final f = File(p.join(dir, name));
-      if (!f.existsSync()) return const [];
-      try {
-        return ronStringLists(f.readAsStringSync());
-      } on FormatException catch (e) {
-        error = '$name: ${e.message}';
-        return const [];
-      }
-    }
-
-    final wings = lists('plugins_wings');
-    final center = lists('plugins_center');
-    return CosmicPanel(
-      wings.isNotEmpty ? wings[0] : const [],
-      center.isNotEmpty ? center[0] : const [],
-      wings.length > 1 ? wings[1] : const [],
-      error: error,
-    );
-  }
-}
-
-/// The string lists in a RON value like `Some(([ "a", ], [ "b" ]))` or `Some([ … ])`, in order;
-/// `None` gives none.
-List<List<String>> ronStringLists(String text) {
-  final out = <List<String>>[];
-  List<String>? current;
-  var i = 0;
-  while (i < text.length) {
-    final c = text[i];
-    if (c == '/' && i + 1 < text.length && text[i + 1] == '/') {
-      final end = text.indexOf('\n', i);
-      i = end < 0 ? text.length : end + 1;
-      continue;
-    }
-    if (c == '/' && i + 1 < text.length && text[i + 1] == '*') {
-      // RON block comments nest.
-      var depth = 0;
-      while (i < text.length) {
-        if (text.startsWith('/*', i)) {
-          depth++;
-          i += 2;
-        } else if (text.startsWith('*/', i)) {
-          depth--;
-          i += 2;
-          if (depth == 0) break;
-        } else {
-          i++;
+  static Future<BarSnapshot> read(Ctx ctx, List<ProcInfo> procs) async {
+    final bar = Bar(ctx);
+    final panels = <String, CosmicPanelConfig>{};
+    KdeWidget? widget;
+    String? widgetError;
+    switch (ctx.desktop) {
+      case DesktopId.cosmic:
+        for (final i in cosmicInstances(ctx.paths)) {
+          panels[i] = CosmicPanelConfig.read(ctx.paths, i);
         }
-      }
-      if (depth != 0) throw const FormatException('unterminated comment');
-      continue;
+      case DesktopId.kde:
+        try {
+          widget = (await bar.kdeWidget(null)).widget;
+          if (widget == null) widgetError = 'Maprisma Icons is not in a panel';
+        } on RouteError catch (e) {
+          widgetError = e.message ?? e.code;
+        }
+      case DesktopId.other:
+        break;
     }
-    if (c == '[') {
-      if (current != null) throw const FormatException('nested list');
-      current = <String>[];
-    } else if (c == ']') {
-      if (current == null) throw const FormatException('unbalanced ]');
-      out.add(current);
-      current = null;
-    } else if (c == '"') {
-      final b = StringBuffer();
-      i++;
-      while (i < text.length && text[i] != '"') {
-        if (text[i] == '\\' && i + 1 < text.length) i++;
-        b.write(text[i]);
-        i++;
-      }
-      if (i >= text.length) throw const FormatException('unterminated string');
-      if (current == null) throw const FormatException('string outside a list');
-      current.add(b.toString());
+    return BarSnapshot._(ctx, bar, procs, panels, widget, widgetError, WantedBar.load(ctx.paths));
+  }
+
+  final Ctx ctx;
+  final Bar bar;
+  final List<ProcInfo> procs;
+  final Map<String, CosmicPanelConfig> panels;
+  final KdeWidget? widget;
+  final String? widgetError;
+  final WantedBar wanted;
+
+  /// The bar state of one app: in/out/unknown, where, and separately whether it starts at login,
+  /// runs and is visible (null where that can't be told).
+  Map<String, dynamic> stateOf(AppEntry app) {
+    final b = app.bar;
+    final paths = ctx.paths;
+    final wanted = this.wanted.of(ctx.desktop, app.id);
+    if (b.none) return {'has': false, 'state': 'none'};
+    switch (ctx.desktop) {
+      case DesktopId.cosmic:
+        final id = b.cosmicApplet;
+        if (id == null) return {'has': false, 'state': 'none'};
+        final broken = panels.values.where((c) => c.error != null).firstOrNull;
+        if (panels.isEmpty || broken != null) {
+          // An unreadable panel config is not "out of the bar".
+          return {'has': true, 'id': id, 'state': 'unknown', 'error': broken?.error ?? 'no panel', 'iconName': b.iconName, 'wanted': ?wanted};
+        }
+        String? panel, zone;
+        for (final e in panels.entries) {
+          final at = e.value.layout.find(id);
+          if (at != null) {
+            panel = e.key;
+            zone = at.area.name;
+            break;
+          }
+        }
+        final running = _appletRunning(app);
+        return {
+          'has': true,
+          'id': id,
+          'state': zone == null ? 'out' : 'in',
+          'zone': zone,
+          'panel': ?panel,
+          // cosmic-panel starts its applets: in the panel = starts at login.
+          'startsAtLogin': zone != null,
+          'running': running,
+          'visible': zone != null && running,
+          'iconName': b.iconName,
+          'wanted': ?wanted,
+        };
+      case DesktopId.kde:
+        final id = b.kdeId;
+        if (id == null) return {'has': false, 'state': 'none'};
+        final w = widget;
+        final shown = w == null ? null : bar.kdeShown(w, procs);
+        final zone = shown?.find(id)?.area.name;
+        final hiddenInWidget = w != null && w.hidden.contains(id);
+        if (b.kdeKind == KdeBarKind.widgetEntry) {
+          return {
+            'has': true,
+            'id': id,
+            'kind': 'widgetEntry',
+            'state': w == null ? 'unknown' : (zone == null ? 'out' : 'in'),
+            'zone': ?zone,
+            'visible': w == null ? null : zone != null,
+            if (w == null) 'error': widgetError,
+            'iconName': b.kdeIconName ?? b.iconName,
+            'wanted': ?wanted,
+          };
+        }
+        final autostart = b.kdeAutostart == null ? null : paths.expand(b.kdeAutostart!);
+        final atLogin = autostart != null && File(autostart).existsSync() && !desktopHidden(autostart);
+        final running = bar.trayRunning(app, procs);
+        return {
+          'has': true,
+          'id': id,
+          'kind': 'tray',
+          'state': (atLogin || running) && !hiddenInWidget ? 'in' : 'out',
+          'zone': ?zone,
+          'startsAtLogin': atLogin,
+          'running': running,
+          // In Maprisma Icons: shown when running and not hidden. In the system tray it may sit in
+          // the overflow: unknown.
+          'visible': w == null ? (running ? null : false) : running && zone != null,
+          if (w == null) 'where': 'systemTray',
+          'iconName': b.kdeIconName ?? b.iconName,
+          'wanted': ?wanted,
+        };
+      case DesktopId.other:
+        return {'has': false, 'state': 'none', 'reason': 'no bar icons on this desktop'};
     }
-    i++;
   }
-  if (current != null) throw const FormatException('unterminated list');
-  return out;
-}
 
-/// The bar state of one app on the current desktop, as far as step 1 reads it.
-Map<String, dynamic> barState(AppEntry app, DesktopId desktop, Paths paths, CosmicPanel? panel, List<ProcInfo> procs) {
-  final bar = app.bar;
-  if (bar.none) return {'has': false, 'state': 'none'};
-  switch (desktop) {
-    case DesktopId.cosmic:
-      final id = bar.cosmicApplet;
-      if (id == null) return {'has': false, 'state': 'none'};
-      if (panel == null || panel.error != null) {
-        // An unreadable panel config is not "out of the bar".
-        return {'has': true, 'id': id, 'state': 'unknown', 'error': panel?.error ?? 'panel not read', 'iconName': bar.iconName};
-      }
-      final zone = panel.zoneOf(id);
-      return {'has': true, 'id': id, 'state': zone == null ? 'out' : 'in', 'zone': zone, 'iconName': bar.iconName};
-    case DesktopId.kde:
-      final id = bar.kdeId;
-      if (id == null) return {'has': false, 'state': 'none'};
-      if (bar.kdeKind == KdeBarKind.widgetEntry) {
-        // Zones live in Maprisma Icons' config: read in step 2.
-        return {'has': true, 'id': id, 'kind': 'widgetEntry', 'state': 'unknown', 'iconName': bar.kdeIconName ?? bar.iconName};
-      }
-      final autostart = bar.kdeAutostart == null ? null : paths.expand(bar.kdeAutostart!);
-      final atLogin = autostart != null && File(autostart).existsSync() && !_hidden(File(autostart));
-      final exe = bar.kdeTrayExe == null ? null : paths.expand(bar.kdeTrayExe!);
-      final running = exe != null && procs.any((pr) => pr.exe != null && p.equals(pr.exe!, exe));
-      return {
-        'has': true,
-        'id': id,
-        'kind': 'tray',
-        'state': atLogin || running ? 'in' : 'out',
-        'startsAtLogin': atLogin,
-        'running': running,
-        'iconName': bar.kdeIconName ?? bar.iconName,
-      };
-    case DesktopId.other:
-      return {'has': false, 'state': 'none', 'reason': 'no bar icons on this desktop'};
-  }
-}
-
-bool _hidden(File desktopFile) {
-  try {
-    return desktopFile.readAsLinesSync().any((l) => l.trim().toLowerCase() == 'hidden=true');
-  } on FileSystemException {
-    return false;
+  /// The applet runs as a child of a cosmic-panel.
+  bool _appletRunning(AppEntry app) {
+    final t = app.bar.cosmicAppletExe;
+    if (t == null) return false;
+    final exe = ctx.paths.expand(t);
+    String? resolved;
+    try {
+      resolved = File(exe).resolveSymbolicLinksSync();
+    } on FileSystemException {
+      resolved = null;
+    }
+    final panels = {for (final pr in cosmicPanels(procs)) pr.pid};
+    return procs.any((pr) => panels.contains(pr.ppid) && pr.exe != null && (p.equals(pr.exe!, exe) || (resolved != null && p.equals(pr.exe!, resolved))));
   }
 }

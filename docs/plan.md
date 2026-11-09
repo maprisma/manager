@@ -158,11 +158,32 @@ the icon cache, restarts the bar icon, and applies the choice again after every 
 - **More for the user:** Open, Reinstall/Repair, prerequisites (cargo, flutter, cmake, ninja,
   kpackagetool6) per app, "restart needed" marks, offline and error states, dependency previews.
 
+## COSMIC panel live reload (tested 2026-11-09, cosmic-panel 1.11.0-1.1, step 2)
+
+Checked on this machine by hand and then through the Manager (`maprisma-manager-core bar …`), with the
+original files backed up and restored byte for byte at the end:
+
+- Reordering inside `plugins_center` (WLAN Monitor one to the left and back), taking WLAN Monitor out and
+  putting it back, and moving it between the files (centre → end of the left wing → centre) were all
+  applied **live**, within about a second, after an atomic write (temp file + rename): screenshots showed
+  the new order each time.
+- cosmic-panel keeps running (same PID) but rebuilds the panel: **every** applet process of that panel
+  is ended and started again (all 19 got new PIDs), not only the one that moved. A removed applet's
+  process ends and stays gone.
+- So upstream issue pop-os/cosmic-panel#674 does not apply to this version: no panel restart is needed.
+  The Manager still checks after each write that a child of cosmic-panel started again within 5 s; if
+  none did (an older panel), it restarts the panel once by PID (TERM; COSMIC's session starts it again)
+  and checks it came back. A batch (`bar.apply`) writes once per panel and checks once.
+- Moving between the two files writes two files, so the panel rebuilds twice; the file that loses the
+  entry is written first, so an applet is never in the panel twice.
+
 ## Steps (in the review's order)
 
 1. Read-only: catalog, status per component, receipts read, git provenance, prerequisites; CLI `status`.
 2. Bar, proven on both desktops: COSMIC RON read/write + reload behaviour; KDE zones via
    evaluateScript; Maprisma Icons' `hidden` list. Bar editor data (areas, order) and moves.
+   **Done** (COSMIC tested live; KDE against a fake plasmashell only, a Plasma session is needed to
+   check it for real; Maprisma Icons' `hidden` list is committed in maprisma-panel, not installed).
 3. Job engine: queue, phases, persisted state, logs, process handling, receipts with hashes.
 4. One simple Rust app end to end (WLAN Monitor): install, update, remove with ownership, bar state kept.
 5. The others: Flutter apps, Narrator/Video, Launcher (+ applet), Theme, then Tiling, Icons, maprisma

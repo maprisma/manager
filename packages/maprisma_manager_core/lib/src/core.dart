@@ -1,8 +1,10 @@
 import 'dart:convert';
 
+import 'bar.dart';
 import 'catalog.dart';
 import 'context.dart';
 import 'paths.dart';
+import 'procs.dart';
 import 'protocol.dart';
 import 'run.dart';
 import 'status.dart';
@@ -48,11 +50,21 @@ final class CoreService {
         return {..._header(status.ctx), 'app': (await status.apps(only: id, detail: true)).single};
       },
       'git.fetch': _fetch,
+      'bar.get': (params) => Bar(ctx).get(params),
+      'bar.place': (params) => _bar((b) => b.place(params)),
+      'bar.move': (params) => _bar((b) => b.move(params)),
+      'bar.remove': (params) => _bar((b) => b.remove(params)),
+      'bar.apply': (params) => _bar((b) => b.applyWanted()),
     };
   }
 
   late final Ctx ctx;
   late final Map<String, Handler> routes;
+
+  /// Waits for cosmic-panel after a write; tests replace it.
+  Future<Map<String, dynamic>> Function(List<ProcInfo> before)? followPanel;
+
+  Future<Map<String, dynamic>> _bar(Future<Map<String, dynamic>> Function(Bar b) f) => f(Bar(ctx)..follow = followPanel);
 
   /// A `desktop` param shows the status as another desktop would see it.
   Ctx _withDesktop(Map<String, dynamic> params) {

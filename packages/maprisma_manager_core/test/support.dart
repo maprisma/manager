@@ -135,12 +135,12 @@ final class World {
   String head(String repo) => (git(p.join(projects, repo), ['rev-parse', 'HEAD']).stdout as String).trim();
 
   /// A fake `/proc/<pid>` owned by [uid].
-  void process(int pid, {String? exe, List<String> argv = const [], int uid = 1000}) {
+  void process(int pid, {String? exe, List<String> argv = const [], int uid = 1000, int ppid = 1, int start = 4242}) {
     final d = p.join(proc, '$pid');
     Directory(d).createSync(recursive: true);
     File(p.join(d, 'status')).writeAsStringSync('Name:\tx\nUid:\t$uid\t$uid\t$uid\t$uid\n');
     File(p.join(d, 'cmdline')).writeAsStringSync(argv.map((a) => '$a\u0000').join());
-    File(p.join(d, 'stat')).writeAsStringSync('$pid (x y) S 1 1 1 0 -1 0 0 0 0 0 0 0 0 0 20 0 1 0 4242 0 0');
+    File(p.join(d, 'stat')).writeAsStringSync('$pid (x y) S $ppid 1 1 0 -1 0 0 0 0 0 0 0 0 0 20 0 1 0 $start 0 0');
     if (exe != null) Link(p.join(d, 'exe')).createSync(exe);
   }
 

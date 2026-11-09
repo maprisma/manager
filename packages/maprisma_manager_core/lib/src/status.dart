@@ -204,10 +204,10 @@ final class StatusReader {
       await Future.wait([for (final r in repos) ctx.git.inspect(r, ctx.repoFolder(r)).then((g) => MapEntry(r, g))]),
     );
     final procs = ctx.processes();
-    final panel = ctx.desktop == DesktopId.cosmic ? CosmicPanel.read(paths) : null;
+    final bar = await BarSnapshot.read(ctx, procs);
     final out = <Map<String, dynamic>>[];
     for (final app in apps) {
-      out.add(await _app(app, gitInfos, procs, panel, detail));
+      out.add(await _app(app, gitInfos, procs, bar, detail));
     }
     return out;
   }
@@ -216,7 +216,7 @@ final class StatusReader {
     AppEntry app,
     Map<String, GitInfo> gitInfos,
     List<ProcInfo> procs,
-    CosmicPanel? panel,
+    BarSnapshot bar,
     bool detail,
   ) async {
     final components = [for (final c in app.components) await component(app, c)];
@@ -327,7 +327,7 @@ final class StatusReader {
             'available': gitInfos[input.repo]!.present ? 'here' : (input.remote != null ? 'cloneable' : 'not available here'),
           },
       ],
-      'bar': barState(app, ctx.desktop, paths, panel, procs),
+      'bar': bar.stateOf(app),
       'running': running.length,
       'dependsOn': app.dependsOn,
       'neededBy': neededBy,

@@ -5,13 +5,17 @@ import 'context.dart';
 import 'core.dart';
 
 const usage = '''usage: maprisma-manager-core status [--json] [--desktop cosmic|kde|other] [<id>]
-       maprisma-manager-core fetch [--force] [<id>]''';
+       maprisma-manager-core fetch [--force] [<id>]
+       maprisma-manager-core bar [--json] [--panel <name>]
+       maprisma-manager-core bar <id> left|center|right|out [--index <n>] [--panel <name>]
+       maprisma-manager-core bar apply''';
 
 /// `maprisma-manager-core <command>`: a human table by default, JSON with --json.
 Future<int> runCli(List<String> args, {CoreService? service, IOSink? out}) async {
   final sink = out ?? stdout;
   var json = false, force = false;
-  String? desktop;
+  String? desktop, panel;
+  int? index;
   final rest = <String>[];
   for (var i = 0; i < args.length; i++) {
     final a = args[i];
@@ -21,6 +25,10 @@ Future<int> runCli(List<String> args, {CoreService? service, IOSink? out}) async
       force = true;
     } else if (a == '--desktop' && i + 1 < args.length) {
       desktop = args[++i];
+    } else if (a == '--panel' && i + 1 < args.length) {
+      panel = args[++i];
+    } else if (a == '--index' && i + 1 < args.length && int.tryParse(args[i + 1]) != null) {
+      index = int.parse(args[++i]);
     } else if (a.startsWith('--desktop=')) {
       desktop = a.substring('--desktop='.length);
     } else if (a.startsWith('-')) {
@@ -60,6 +68,36 @@ Future<int> runCli(List<String> args, {CoreService? service, IOSink? out}) async
             sink.writeln('${(repo['repo'] as String).padRight(28)} $what');
           }
         }
+      case ['bar']:
+        final r = await core.call('bar.get', {'panel': ?panel});
+        sink.writeln(json ? const JsonEncoder.withIndent('  ').convert(r) : barText(r));
+      case ['bar', 'apply']:
+        final r = await core.call('bar.apply');
+        sink.writeln(json ? const JsonEncoder.withIndent('  ').convert(r) : 'changed: ${(r['changed'] as List).isEmpty ? 'nothing' : (r['changed'] as List).join(', ')}');
+      case ['bar', final id, final where]:
+        final Map<String, dynamic> r;
+        if (where == 'out') {
+          r = await core.call('bar.remove', {'app': id, 'panel': ?panel});
+        } else if (['left', 'center', 'centre', 'right'].contains(where)) {
+          r = await core.call('bar.place', {'app': id, 'area': where, 'index': ?index, 'panel': ?panel});
+        } else {
+          stderr.writeln(usage);
+          return 2;
+        }
+        if (json) {
+          sink.writeln(const JsonEncoder.withIndent('  ').convert(r));
+        } else {
+          final after = await core.call('bar.get', {'panel': ?panel});
+          sink.writeln(barText(after));
+          final reload = r['reload'] as Map<String, dynamic>?;
+          if (reload != null) {
+            sink.writeln(reload['reacted'] == true
+                ? 'The panel took the change.'
+                : reload['restarted'] == true
+                ? 'The panel was restarted${reload['back'] == true ? ' and is back' : ', but did not come back'}.'
+                : '${reload['note'] ?? reload['error'] ?? ''}');
+          }
+        }
       default:
         stderr.writeln(usage);
         return 2;
@@ -69,6 +107,46 @@ Future<int> runCli(List<String> args, {CoreService? service, IOSink? out}) async
     stderr.writeln('error: ${e.code}${e.message == null ? '' : ' (${e.message})'}');
     return 1;
   }
+}
+
+/// The human view of bar.get: one line per area, ours marked with their app id.
+String barText(Map<String, dynamic> r) {
+  final lines = <String>[];
+  final where = switch (r['kind']) {
+    'cosmicPanel' => 'COSMIC panel "${r['panel']}"',
+    'maprismaIcons' => 'Maprisma Icons (widget ${r['widget']})',
+    'systemTray' => 'KDE system tray',
+    _ => 'no bar',
+  };
+  lines.add(where);
+  if (r['error'] != null) lines.add('error: ${r['error']}');
+  if (r['note'] != null) lines.add('${r['note']}');
+  final areas = r['areas'] as Map<String, dynamic>?;
+  if (areas != null) {
+    for (final a in ['left', 'center', 'right']) {
+      final entries = (areas[a] as List).cast<Map<String, dynamic>>();
+      final names = [for (final e in entries) e['ours'] == true ? '[${e['app']}]' : _short(e['id'] as String)];
+      lines.add('${a.padRight(7)} ${names.isEmpty ? '-' : names.join('  ')}');
+    }
+    final out = (r['out'] as List? ?? const []).cast<Map<String, dynamic>>();
+    lines.add('out     ${out.isEmpty ? '-' : out.map((e) => e['app']).join('  ')}');
+  }
+  final trays = r['trays'] as List?;
+  if (r['kind'] == 'systemTray' && trays != null) {
+    for (final t in trays.cast<Map<String, dynamic>>()) {
+      lines.add('${(t['app'] as String).padRight(10)} ${t['startsAtLogin'] == true ? 'starts at login' : 'hidden'}${t['running'] == true ? ', running' : ''}');
+    }
+  }
+  return lines.join('\n');
+}
+
+/// `com.system76.CosmicAppletTime` → `Time`; other ids as they are.
+String _short(String id) {
+  const prefixes = ['com.system76.CosmicApplet', 'com.system76.CosmicPanel', 'com.system76.Cosmic'];
+  for (final pre in prefixes) {
+    if (id.startsWith(pre) && id.length > pre.length) return id.substring(pre.length);
+  }
+  return id;
 }
 
 /// The human view of apps.list.

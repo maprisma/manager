@@ -1,7 +1,11 @@
 /// Maprisma Manager's core: the catalog, status, git provenance and the routes.
 library;
 
+export 'src/bar.dart';
+export 'src/bar_cosmic.dart';
+export 'src/bar_kde.dart';
 export 'src/bar_read.dart';
+export 'src/ron.dart';
 export 'src/catalog.dart';
 export 'src/cli.dart';
 export 'src/context.dart';
