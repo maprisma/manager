@@ -84,6 +84,28 @@ launcher's applet → launcher) and its bar icon per desktop.
   widget the icon goes to the system tray.
 - Other desktops: no bar icon actions.
 
+### Position and order (asked 2026-11-09: "change the position incl. left, center, right area")
+
+A bar editor shows the three areas (left / centre / right) as rows of icon chips in their real order, the
+desktop's own icons included (COSMIC's clock, network …; KDE's clock entry), so a Maprisma icon can be
+placed between them. Drag within an area or into another; the menu has "Move left/right" and "Move to
+left/centre/right". COSMIC: the order in `plugins_wings` / `plugins_center`; KDE: the order in Maprisma
+Icons' zones. Foreign entries are never removed or reordered except by the user's own drag.
+
+### Changing an icon (asked 2026-11-09: "change an existing bar icon")
+
+Applets (libcosmic `icon::from_name`) and trays (SNI `icon_name`) load their icon by name from the icon
+theme. An app whose bar icon has a name of its own (`io.github.ubruckhaus.CosmicMaprisma*-symbolic`,
+file in `~/.local/share/icons/hicolor/scalable/apps`) can get another icon: the Manager writes the chosen
+SVG (a system icon by name, or a file the user picks, checked as SVG and size-limited) over that file,
+keeps the original in `~/.local/state/maprisma-manager/icons/` for "Reset to the original icon", refreshes
+the icon cache, restarts the bar icon, and applies the choice again after every install/update.
+- Apps that use a system or shared name today (Video Translator `media-view-subtitles-symbolic`,
+  Narrator `audio-headphones`, Control `com.maprisma.Maprisma`, Launcher/Theme `com.maprisma.*`) first get
+  an own bar icon name in their repo (a small change each, separate commits there).
+- Apps with live status icons (Bluetooth, Hue switch names by state) only get their default icon replaced;
+  the status variants stay.
+
 ## Parts
 
 - `packages/maprisma_manager_core` (Dart): catalog, status, git, receipts, jobs, bar (COSMIC, KDE),
