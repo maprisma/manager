@@ -347,7 +347,10 @@ void main() {
       flag('pacman-fail');
       job = await run(c, 'maprisma', 'update');
       expect(job['result']['code'], 'pacman_failed');
+      // pacman may have written files before it failed: repair stays offered (Codex 5b #7)
+      expect(job['result']['repair'], isTrue);
       expect(installedVersion(), '0.13.1-9');
+      expect(File(t('unit-active')).existsSync(), isTrue);
     });
 
     test('the folder build when it is newer; the signed add-ons must exist; source can be chosen', () async {
@@ -412,6 +415,31 @@ void main() {
       expect(after['blocked'], contains('not installed'));
     });
 
+    test('a pkexec of an interrupted job that still runs blocks every new job (never signalled)', () async {
+      final sleeper = await Process.start('/usr/bin/sleep', ['30']);
+      addTearDown(sleeper.kill);
+      final st = File('/proc/${sleeper.pid}/stat').readAsStringSync();
+      final start = int.parse(st.substring(st.lastIndexOf(')') + 2).split(' ')[19]);
+      final id = '20261109T000000Z-maprisma-update';
+      w.writeFile(p.join(w.paths.managerState, 'jobs/$id.json'), jsonEncode({
+        'id': id, 'app': 'maprisma', 'kind': 'update', 'state': 'running', 'phase': 'commit', 'committed': true,
+        'owner': {'pid': 999999, 'start': 1}, 'pkexec': {'pid': sleeper.pid, 'start': start}, 'log': p.join(w.dir, 'x.log'),
+      }));
+      final c = core();
+      await expectLater(c.call('jobs.start', {'app': 'wlan', 'kind': 'install'}),
+          throwsA(isA<RouteError>().having((e) => e.message, 'message', contains('pkexec/pacman of the interrupted job'))));
+      expect((await c.call('jobs.get', {'id': id}))['result']['orphan'], isTrue);
+    });
+
+    test('never the system systemctl with a test root', () async {
+      installedOld();
+      makeRelease('0.14.2');
+      File(p.join(w.fakeBin, 'systemctl')).deleteSync();
+      final job = await run(core(), 'maprisma', 'update');
+      expect(job['result']['code'], anyOf('unsafe', 'missing_prerequisite'));
+      expect(job['result']['message'], contains('systemctl'));
+    });
+
     test('never the system pkexec with a test root', () async {
       installedOld();
       makeRelease('0.14.2');
@@ -461,6 +489,9 @@ void main() {
       expect(svgProblem(b('<svg/>')), contains('not an SVG'));
       expect(svgProblem(b('<svg xmlns="http://www.w3.org/2000/svg">')), contains('not well-formed'));
       expect(svgProblem([0xff, 0xfe]), contains('UTF-8'));
+      // CSS escapes that would hide a reference (Codex 5b #4)
+      expect(svgProblem(b(r'<svg xmlns="http://www.w3.org/2000/svg"><path style="fill:u\72l(https://x/y#g)"/></svg>')), contains('CSS escape'));
+      expect(svgProblem(b(r'<svg xmlns="http://www.w3.org/2000/svg"><style>@\69mport "https://x/y.css";</style></svg>')), contains('CSS escape'));
       expect(svgProblem(List.filled(maxIconBytes + 1, 32)), contains('larger'));
     });
 
@@ -525,6 +556,11 @@ void main() {
       await expectLater(c.call('icons.set', {'app': 'wlan', 'icon': 'no-such-symbolic'}), throwsA(isA<RouteError>().having((e) => e.code, 'code', 'not_found')));
       await expectLater(c.call('icons.set', {'app': 'wlan', 'icon': '../x'}), throwsA(isA<RouteError>().having((e) => e.code, 'code', 'bad_params')));
       expect(File(iconFile()).readAsStringSync(), _svgA);
+      // an interrupted change (icon.json lost): the original is never replaced by a choice (Codex 5b #5)
+      File(p.join(w.paths.managerState, 'icons/wlan/icon.json')).deleteSync();
+      await c.call('icons.set', {'app': 'wlan', 'icon': 'media-view-subtitles-symbolic'});
+      expect(File(kept).readAsBytesSync(), original);
+      File(p.join(w.paths.managerState, 'icons/wlan/icon.json')).deleteSync();
       final reset = await c.call('icons.reset', {'app': 'wlan'});
       expect(reset['reset'], isTrue);
       expect(File(iconFile()).readAsBytesSync(), original);
@@ -599,6 +635,22 @@ printf '<svg xmlns="http://www.w3.org/2000/svg"><rect width="1" height="1"/></sv
       await c.call('icons.reset', {'app': 'iconfake'});
       expect(File(file).readAsBytesSync(), original);
       expect((receipt('iconfake')['paths'] as List).firstWhere((e) => e['path'] == file)['sha256'], sha256Bytes(original));
+    });
+
+    test('a bar icon change and a job exclude each other (Codex 5b #6)', () async {
+      themes();
+      installWlan();
+      final c = core();
+      final lock = await File(p.join(w.paths.managerState, 'jobs/lock')).create(recursive: true);
+      // another Manager holds the jobs' lock
+      final other = await Process.start('/usr/bin/python3', ['-I', '-c', 'import fcntl,sys,time\nf=open(sys.argv[1],"a")\nfcntl.lockf(f,fcntl.LOCK_EX)\nprint("locked",flush=True)\ntime.sleep(10)', lock.path]);
+      addTearDown(other.kill);
+      await other.stdout.transform(utf8.decoder).firstWhere((l) => l.contains('locked'));
+      await expectLater(c.call('icons.set', {'app': 'wlan', 'icon': 'audio-headphones-symbolic'}),
+          throwsA(isA<RouteError>().having((e) => e.code, 'code', 'busy')));
+      other.kill();
+      await other.exitCode;
+      expect((await c.call('icons.set', {'app': 'wlan', 'icon': 'audio-headphones-symbolic'}))['choice']['name'], 'audio-headphones-symbolic');
     });
 
     test('CLI: icon <id>, icon <id> <name>, icon <id> --reset', () async {

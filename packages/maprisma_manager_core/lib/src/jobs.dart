@@ -299,6 +299,7 @@ final class JobEngine {
         throw RouteError('unavailable', '${app.name} is not for ${ctx.desktop.name}');
       }
     }
+    if (_exclusive) throw RouteError('busy', 'a bar icon is being changed: try again in a moment');
     if (_runs.values.any((r) => r.job['app'] == appId && r.job['finished'] != true)) {
       throw RouteError('busy', 'a job for ${app.name} is already queued or running');
     }
@@ -482,7 +483,8 @@ final class JobEngine {
     // A script whose Manager is gone may still be writing (an interrupted job's orphan).
     final orphan = loadJobs(paths).where((j) => j['state'] == 'interrupted' && orphanRunning(j)).firstOrNull;
     if (orphan != null) {
-      throw RouteError('busy', 'the script of the interrupted job ${orphan['id']} still runs (pid ${(orphan['script'] as Map)['pid']}); wait for it to end');
+      final who = (orphan['pkexec'] ?? orphan['script']) as Map;
+      throw RouteError('busy', 'the ${orphan['pkexec'] != null ? 'pkexec/pacman' : 'script'} of the interrupted job ${orphan['id']} still runs (pid ${who['pid']}); wait for it to end');
     }
     final raf = f.openSync(mode: FileMode.append);
     try {
@@ -1671,6 +1673,22 @@ final class JobEngine {
     return r;
   }
 
+  bool _exclusive = false;
+
+  /// Runs [f] holding the jobs' lock (no job of this or another Manager runs meanwhile, none
+  /// starts): `busy` when a job runs. Bar icon changes (icons.dart).
+  Future<T> exclusive<T>(Future<T> Function() f) async {
+    if (_exclusive || _lock != null || _pumping) throw RouteError('busy', 'a job runs: try again when it has ended');
+    _acquire();
+    _exclusive = true;
+    try {
+      return await f();
+    } finally {
+      _exclusive = false;
+      if (!_pumping && _queue.isEmpty) _release();
+    }
+  }
+
   /// [_nudgeApplet] for the bar icon change (icons.dart).
   Future<Map<String, dynamic>> nudgeApplet(String id) => _nudgeApplet(id);
 
@@ -1937,7 +1955,7 @@ Map<String, dynamic>? loadJob(Paths paths, String id) {
   if (alive) return job;
   final orphan = orphanRunning(job);
   final script = job['script'];
-  if (orphan && script is Map && paths.proc == '/proc') {
+  if (orphan && script is Map && script['pgid'] is int && paths.proc == '/proc') {
     // A script paused at the commit boundary must not stay paused without its Manager.
     Signaller().group(script['pgid'] as int, sigCont);
   }
@@ -1948,7 +1966,7 @@ Map<String, dynamic>? loadJob(Paths paths, String id) {
     ..['result'] = {
       'ok': false,
       'code': 'interrupted',
-      'message': 'the Manager that ran it ended in the ${job['phase']} phase${orphan ? '; its script still runs (pid ${script['pid']})' : ''}',
+      'message': 'the Manager that ran it ended in the ${job['phase']} phase${orphan ? '; ${job['pkexec'] != null ? 'pkexec/pacman' : 'its script'} still runs (pid ${((job['pkexec'] ?? script) as Map)['pid']})' : ''}',
       'repair': job['phase'] != 'queued',
       'committed': committed,
       if (orphan) 'orphan': true,
@@ -1964,6 +1982,9 @@ Map<String, dynamic>? loadJob(Paths paths, String id) {
 /// The job's script (or what is left of its process group) still runs: for an interrupted job,
 /// nothing else may change the app until it has ended.
 bool orphanRunning(Map<String, dynamic> job) {
+  // pkexec (or the pacman it became, the same pid): waited for, never signalled
+  final pk = job['pkexec'];
+  if (pk is Map && pk['pid'] is int && pk['start'] is int && sameProcess(pk['pid'] as int, pk['start'] as int)) return true;
   final script = job['script'];
   if (script is! Map || script['pgid'] is! int) return false;
   final pg = script['pgid'] as int;

@@ -174,7 +174,7 @@ extension _Pacman on JobEngine {
     final c = app.components.firstWhere((c) => c.kind == InstallKind.pacman);
     r.component = c;
     _phase(r, 'prepare', component: c);
-    for (final t in ['makepkg', 'pacman', 'pkexec']) {
+    for (final t in ['makepkg', 'pacman', 'pkexec', if (app.units.isNotEmpty) 'systemctl']) {
       _tool(t);
     }
     final installed = await _installedPackage();
@@ -225,13 +225,21 @@ extension _Pacman on JobEngine {
     _checkLock();
     final units = await _unitStates(app);
     _commitPacman(r, 'pkexec pacman -U');
-    await _stopApp(r);
-    final code = await _pkexecPacman(r, ['-U', '--noconfirm', pkg.file]);
+    final int code;
+    try {
+      await _stopApp(r);
+      code = await _pkexecPacman(r, ['-U', '--noconfirm', pkg.file]);
+    } on Object {
+      await _restoreUnits(r, units, enable: false);
+      rethrow;
+    }
     if (code != 0) {
       await _restoreUnits(r, units, enable: false);
-      final now = await _installedPackage();
-      if (now == installed) r.committed = false; // nothing changed
-      throw _pacmanFailure(r, code, 'installing $want');
+      final failure = _pacmanFailure(r, code, 'installing $want');
+      // only a failure before pacman's transaction changed nothing (pacman may have written files
+      // before it failed: then repair stays offered)
+      if (_beforeTransaction(failure)) r.committed = false;
+      throw failure;
     }
 
     _phase(r, 'verify');
@@ -255,6 +263,8 @@ extension _Pacman on JobEngine {
 
     _phase(r, 'finish');
     final started = await _restoreUnits(r, units, enable: false);
+    final notStarted = [for (final e in units.entries) if ((e.value.active || e.value.enabled) && !started.contains(e.key)) e.key];
+    if (notStarted.isNotEmpty) (r.job['warnings'] ??= <String>[]).add('not started again: ${notStarted.join(', ')}');
     final receiptJson = <String, dynamic>{
       'schema': 1,
       'id': app.id,
@@ -290,6 +300,7 @@ extension _Pacman on JobEngine {
       'before': installed.isEmpty ? null : installed,
       'stopped': r.job['stopped'] ?? const [],
       if (started.isNotEmpty) 'unitsStarted': started,
+      if (notStarted.isNotEmpty) 'unitsNotStarted': notStarted,
       'receipt': p.join(paths.receipts, '${app.id}.json'),
     };
   }
@@ -422,12 +433,15 @@ extension _Pacman on JobEngine {
     r.log.note('phase: commit ($what; not cancellable from here)');
   }
 
+  /// The password dialog or pacman's lock refused: pacman changed nothing.
+  bool _beforeTransaction(JobFailure f) => const {'auth_cancelled', 'auth_timeout', 'pacman_locked'}.contains(f.code);
+
   JobFailure _pacmanFailure(_Run r, int code, String what) {
     final out = r.recent.toString();
     if (code == -126) return JobFailure('auth_timeout', 'the password dialog was not answered within ${pkexecWait.inSeconds} s: $what not started; nothing was changed');
     if (code == 126 || code == 127) return JobFailure('auth_cancelled', 'authentication was cancelled or refused (pkexec exit $code): $what not started; nothing was changed');
     if (out.contains('unable to lock database')) return JobFailure('pacman_locked', 'pacman\'s database is locked ($pacmanLockFile): nothing was changed');
-    return JobFailure('pacman_failed', 'pacman failed (exit $code) $what${r.committed ? '' : '; nothing was changed'}');
+    return JobFailure('pacman_failed', 'pacman failed (exit $code) $what: repair (reinstall) when files were changed');
   }
 
   /// `pkexec /usr/bin/pacman <args>`: pkexec shows the password dialog, then becomes pacman (the
@@ -521,6 +535,7 @@ extension _Pacman on JobEngine {
     }
     if (plan.blocked != null) throw JobFailure('blocked', plan.blocked!);
     _tool('pkexec');
+    if (app.units.isNotEmpty) _tool('systemctl');
     final installed = await _installedPackage();
     _checkCancel(r);
     _checkLock();
@@ -537,12 +552,19 @@ extension _Pacman on JobEngine {
         r.log.note('systemctl --user disable ${e.key}: ${s.ok ? 'ok' : 'failed (${s.stderr.trim()})'}');
       }
     }
-    await _stopApp(r);
-    final code = await _pkexecPacman(r, ['-R', '--noconfirm', pacmanPackage]);
+    final int code;
+    try {
+      await _stopApp(r);
+      code = await _pkexecPacman(r, ['-R', '--noconfirm', pacmanPackage]);
+    } on Object {
+      await _restoreUnits(r, units, enable: true);
+      rethrow;
+    }
     if (code != 0) {
       await _restoreUnits(r, units, enable: true);
-      if (await _installedPackage() == installed) r.committed = false;
-      throw _pacmanFailure(r, code, 'removing $pacmanPackage');
+      final failure = _pacmanFailure(r, code, 'removing $pacmanPackage');
+      if (_beforeTransaction(failure)) r.committed = false;
+      throw failure;
     }
 
     _phase(r, 'verify');

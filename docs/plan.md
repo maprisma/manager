@@ -101,8 +101,15 @@ SVG (a system icon by name, or a file the user picks, checked as SVG and size-li
 keeps the original in `~/.local/state/maprisma-manager/icons/` for "Reset to the original icon", refreshes
 the icon cache, restarts the bar icon, and applies the choice again after every install/update.
 - Apps that use a system or shared name today (Video Translator `media-view-subtitles-symbolic`,
-  Narrator `audio-headphones`, Control `com.maprisma.Maprisma`, Launcher/Theme `com.maprisma.*`) first get
-  an own bar icon name in their repo (a small change each, separate commits there).
+  Narrator `audio-headphones` (its applet: `audio-headphones-symbolic`), Control `com.maprisma.Maprisma`,
+  Launcher/Theme `com.maprisma.*`) first get an own bar icon name in their repo (a small change each,
+  separate commits there). Done in step 5b for Video Translator, Narrator and Control
+  (`io.github.ubruckhaus.CosmicMaprisma{VideoTranslator,Narrator,}-symbolic`, SVGs installed by their
+  install.sh); Launcher and Theme's KDE tray keep their app icon names (not changeable yet).
+- Correction (step 5b, read in the repos): not every applet loads its bar icon by name. WLAN Monitor's
+  COSMIC applet draws a built-in copy of its radar (`include_bytes!`, coloured by signal) and Hue Lights'
+  a built-in bulb by state, so a changed icon shows there in the KDE tray and the menus only;
+  Bluetooth's COSMIC panel shows the connected device's kind. `icons.get` says so (`note`, `shows`).
 - Apps with live status icons (Bluetooth, Hue switch names by state) only get their default icon replaced;
   the status variants stay.
 
@@ -233,7 +240,14 @@ maprisma/maprisma). Local only: control, home, theme, video, tiling, icons, the 
    ownership of bundle folders; docs/protocol.md "Owned folders", "KDE steps"; reinstalled live on
    COSMIC through the Manager: control, launcher + applet, theme, bluetooth, home, hue, llm, narrator,
    video, plus a remove/install round trip of home; Tiling and Icons against fake KDE tools only).
-   5b: maprisma (pacman); icon changes.
+   **5b done**: maprisma (pacman: release or folder build, generated recipe, makepkg, pkexec pacman;
+   docs/protocol.md "Maprisma (pacman)"); `icons.get/set/reset` (docs/protocol.md "Bar icons"); own bar
+   icon names for Video Translator, Narrator and Control.
+   Live 2026-11-09: Control, Narrator and Video reinstalled through the Manager with their new icon
+   names (applets back by their panel files, panel files byte-identical, no panel restart); the WLAN
+   icon changed and reset (byte-identical). The Maprisma upgrade to 0.14.2 got as far as pkexec: the
+   password dialog wasn't answered (`auth_timeout`, nothing changed); still to be done with someone at
+   the dialog.
 6. Self-update; then the Flutter UI (list, bar editor, icon picker, log sheet) and tools/install-local.
 7. Checks on COSMIC live, KDE in a later Plasma session: interrupted installs, hidden icons kept, shared
    data kept, concurrent config edits.

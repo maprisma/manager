@@ -68,6 +68,8 @@ String? svgProblem(List<int> bytes) {
     'animate', 'set', 'animatemotion', 'animatetransform', 'animatecolor', 'discard', 'handler', 'listener', 'a',
   };
   String? cssProblem(String css) {
+    // CSS escapes (`u\72l(`, `@\69mport`) could hide a reference: refused, icons don't need them
+    if (css.contains('\\')) return 'a CSS escape (backslash)';
     final c = css.toLowerCase();
     if (c.contains('@import')) return '@import';
     if (c.contains('javascript:') || c.contains('expression(')) return 'script in a style';
@@ -361,59 +363,79 @@ final class IconService {
     if (jobs.activeFor(app.id)) throw RouteError('busy', 'a job for ${app.name} runs: try again when it has ended');
   }
 
+  /// The bytes the Manager wrote as a choice (the recorded one and `chosen.svg`): a file with
+  /// one of them is ours, anything else is the installer's.
+  Set<String> _ours(_IconState st) => {
+    if (st.choice?['sha256'] is String) st.choice!['sha256'] as String,
+    if (File(st.chosen).existsSync()) sha256File(st.chosen),
+  };
+
   Future<Map<String, dynamic>> set(Map<String, dynamic> params) async {
     final app = _app(params);
     _checkFree(app);
     final icon = _resolve(params['icon']);
     final file = iconFile(app)!;
-    final written = await withStateLock(paths, () async {
-      if (FileSystemEntity.typeSync(file, followLinks: false) != FileSystemEntityType.file) {
-        throw RouteError('not_installed', '$file is missing (or not a file): install ${app.name} first');
-      }
-      final st = _IconState.load(paths, app.id);
-      final now = File(file).readAsBytesSync();
-      final nowSha = _sha(now);
-      final chosenSha = st.choice?['sha256'];
-      Directory(st.dir).createSync(recursive: true);
-      // The file is the original unless it is our earlier choice (an installer outside the
-      // Manager may have put a new default there).
-      if (nowSha != chosenSha || !File(st.original).existsSync()) {
-        atomicWriteBytes(st.original, now);
-        st.data['original'] = {'sha256': nowSha, 'at': ctx.clock().toUtc().toIso8601String()};
-      }
-      final sha = _sha(icon.bytes);
-      atomicWriteBytes(st.chosen, icon.bytes);
-      atomicWriteBytes(file, icon.bytes);
-      st.data['iconName'] = app.bar.iconName;
-      st.data['file'] = file;
-      st.data['choice'] = {...icon.choice, 'sha256': sha, 'at': ctx.clock().toUtc().toIso8601String()};
-      st.save();
-      _receiptFollows(app, file, sha);
-      return st.data['choice'] as Map<String, dynamic>;
+    // no job starts meanwhile (the jobs' lock), the files under the state lock
+    return jobs.exclusive(() async {
+      final written = await withStateLock(paths, () async {
+        if (FileSystemEntity.typeSync(file, followLinks: false) != FileSystemEntityType.file) {
+          throw RouteError('not_installed', '$file is missing (or not a file): install ${app.name} first');
+        }
+        final st = _IconState.load(paths, app.id);
+        final now = File(file).readAsBytesSync();
+        final nowSha = _sha(now);
+        Directory(st.dir).createSync(recursive: true);
+        // The file is the installer's unless it is a choice of ours; a kept original is replaced
+        // only by another installer's file (a new default), never by a choice. Each step is saved
+        // before the next, so an interruption never costs the original.
+        final hasOriginal = File(st.original).existsSync();
+        if (!_ours(st).contains(nowSha) && (!hasOriginal || sha256File(st.original) != nowSha)) {
+          atomicWriteBytes(st.original, now);
+          st.data['original'] = {'sha256': nowSha, 'at': ctx.clock().toUtc().toIso8601String()};
+          st.save();
+        } else if (!hasOriginal) {
+          throw RouteError('changed', '$file is an earlier choice but the original is missing: reinstall ${app.name}, then try again');
+        }
+        final sha = _sha(icon.bytes);
+        atomicWriteBytes(st.chosen, icon.bytes);
+        st.data['iconName'] = app.bar.iconName;
+        st.data['file'] = file;
+        st.data['choice'] = {...icon.choice, 'sha256': sha, 'at': ctx.clock().toUtc().toIso8601String()};
+        st.save();
+        atomicWriteBytes(file, icon.bytes);
+        _receiptFollows(app, file, sha);
+        return st.data['choice'] as Map<String, dynamic>;
+      });
+      final refreshed = await _refresh(app);
+      return {'app': app.id, 'iconName': app.bar.iconName, 'file': file, 'choice': written, 'original': _IconState.load(paths, app.id).original, ...refreshed};
     });
-    final refreshed = await _refresh(app);
-    return {'app': app.id, 'iconName': app.bar.iconName, 'file': file, 'choice': written, 'original': _IconState.load(paths, app.id).original, ...refreshed};
   }
 
   Future<Map<String, dynamic>> reset(Map<String, dynamic> params) async {
     final app = _app(params);
     _checkFree(app);
     final file = iconFile(app)!;
-    final out = await withStateLock(paths, () async {
-      final st = _IconState.load(paths, app.id);
-      if (st.choice == null && !File(st.original).existsSync()) return {'reset': false, 'note': 'the icon is the original'};
-      final now = File(file).existsSync() ? sha256File(file) : null;
-      if (File(st.original).existsSync() && (now == null || now == st.choice?['sha256'])) {
-        final bytes = File(st.original).readAsBytesSync();
-        atomicWriteBytes(file, bytes);
-        _receiptFollows(app, file, _sha(bytes));
-      }
-      // the file is the installer's again: nothing of ours is kept
-      Directory(st.dir).deleteSync(recursive: true);
-      return {'reset': true, 'sha256': File(file).existsSync() ? sha256File(file) : null};
+    return jobs.exclusive(() async {
+      final out = await withStateLock(paths, () async {
+        final st = _IconState.load(paths, app.id);
+        final hasOriginal = File(st.original).existsSync();
+        if (!Directory(st.dir).existsSync() || (st.choice == null && !hasOriginal && !File(st.chosen).existsSync())) {
+          return {'reset': false, 'note': 'the icon is the original'};
+        }
+        final now = File(file).existsSync() ? sha256File(file) : null;
+        if (now == null || _ours(st).contains(now)) {
+          if (!hasOriginal) throw RouteError('changed', 'the kept original of ${app.name}\'s icon is missing: reinstall ${app.name}');
+          final bytes = File(st.original).readAsBytesSync();
+          atomicWriteBytes(file, bytes);
+          _receiptFollows(app, file, _sha(bytes));
+        }
+        // the file is the installer's again (restored, or a newer default): nothing of ours is kept
+        Directory(st.dir).deleteSync(recursive: true);
+        return {'reset': true, 'sha256': File(file).existsSync() ? sha256File(file) : null};
+      });
+      final refreshed = out['reset'] == true ? await _refresh(app) : const <String, dynamic>{};
+      return {'app': app.id, 'iconName': app.bar.iconName, 'file': file, ...out, ...refreshed};
     });
-    final refreshed = out['reset'] == true ? await _refresh(app) : const <String, dynamic>{};
-    return {'app': app.id, 'iconName': app.bar.iconName, 'file': file, ...out, ...refreshed};
   }
 
   /// After an install or update of [app]: a choice is written again over the installer's file

@@ -20,10 +20,13 @@ in its commit phase, or its script has started writing the app's files), `finish
 job runs in another Manager process: only that one can cancel it). Job results (`result.code`) add
 `app_busy` (the installer refused because the app is busy, nothing changed: Launcher while its terminal
 runs a command), `blocked` (a remove that can't run now: the plan's `blocked` says why), `step_failed`
-(a required remove step failed before any file was deleted).
+(a required remove step failed before any file was deleted); Maprisma's pacman steps add
+`pacman_locked`, `auth_cancelled`, `auth_timeout`, `pacman_failed`, `missing_addons`, `bad_package`,
+`build_failed`, `unsafe` (a system pkexec/pacman/makepkg with a test root). Icons: `bad_icon` (not an SVG
+the Manager writes: the message says why), `not_installed` (the app's icon file is missing).
 
 Writes: `git.fetch` (remote-tracking refs, when asked), `github.refresh` (`github.json`), the `bar.*`
-changes, and the jobs (`jobs.start`: install, update, reinstall, remove, release; a job may clone a
+changes, `icons.set`/`icons.reset` (the app's icon file, `icons/<app>/`), and the jobs (`jobs.start`: install, update, reinstall, remove, release; a job may clone a
 missing folder from GitHub and download release assets into `~/.cache/maprisma-manager/downloads/`). `apps.list` / `apps.get` / `jobs.*` reads mark
 an unfinished job of a Manager that is gone as `interrupted` in its state file.
 
@@ -222,8 +225,8 @@ With a valid receipt, a file goes only while its sha256 is the receipt's (an aut
 `Hidden=` line left out: hiding the icon is not a change), a link only while it points where it did
 (unlinked, never followed), a folder only when empty; catalog paths not in the receipt stay. Without
 a receipt (installed before the Manager, or a broken one) the catalog's paths go, each marked
-`unverified`; a link only when it points where the installer points it. Refused with `unsupported_yet`
-for Maprisma (pacman, step 5b) and the Manager (step 6); `unavailable` for an app of another desktop
+`unverified`; a link only when it points where the installer points it. Maprisma (pacman): below,
+"Maprisma (pacman)". Refused with `unsupported_yet` for the Manager (step 6); `unavailable` for an app of another desktop
 (Tiling and Icons are removed only on KDE: their steps need Plasma).
 
 **Owned folders** (step 5a; the catalog's `trees`: Launcher's and Theme's bundles in `~/.local/lib`,
@@ -349,7 +352,7 @@ Phases of install/update/reinstall:
    (Launcher only) passes `--force`, which ends that command.
 
 A **release** job (`kind: release`, `options.tag?`; only apps whose catalog has a release spec:
-Launcher; Maprisma's pacman release is `unsupported_yet` until step 5, other apps `unavailable`)
+Launcher, and Maprisma as below; other apps `unavailable`)
 installs one component (Launcher: `app`) from a GitHub release instead of building: in **prepare** the
 installer's folder is cloned when missing, the release is read (the tag asked for from GitHub, else the
 latest from the cache, refreshed when older than 30 minutes; `no_release`, `github_failed`), its tarball
@@ -376,12 +379,66 @@ shared roots removed; displaced files with `restore` put back where the path is 
 `delete_settings` the app's own data, never Omarchy-shared data) → **verify** → **finish** (post steps,
 receipt dropped).
 
+### Maprisma (pacman)
+
+`maprisma` is the package `maprisma-bin` (`jobs_pacman.dart`). install/update/reinstall/release:
+
+1. **prepare**: makepkg, pacman, pkexec and systemctl found (with a test root a system one is refused:
+   `unsafe`). The
+   source: `kind: release` or `options.source: release` → the GitHub release (`options.tag`, else the
+   latest); `options.source: folder` → a folder build; otherwise the newer of the latest release and
+   the folder's `MAPRISMA_VERSION` (`addons.py`), the release when both are the same (no folder or no
+   release: the other one). `update` with the installed version at least that one: `up_to_date`,
+   nothing built.
+2. The archive: a release's tarball downloaded and checked as for the Launcher; a folder build checks
+   `maprisma-addons/dist/adapters-<version>.zip` (`missing_addons`: the Manager doesn't sign add-ons),
+   runs `python3 tools/build-release.py --addons <maprisma-addons>` (**build**, cancellable; it replaces
+   `dist/maprisma-<version>-x86_64.tar.gz` and its `.sha256`, as the script always does) and takes the
+   new tarball (its `.sha256` must match).
+3. **build** (cancellable): the recipe `~/.cache/maprisma-manager/pkg/<version>/PKGBUILD` (the folder is
+   made afresh; never through a link) modelled on aur-maprisma-bin: the same name, files,
+   dependencies, provides/conflicts; `source=("maprisma-$pkgver-x86_64.tar.gz::file://<the archive>")`
+   (an archive path with other characters is copied into the folder first), its sha256, `pkgver` = the
+   version, `pkgrel` = one above the installed one for the same version, else 1. `makepkg --nodeps
+   --noconfirm --cleanbuild --force` with PKGDEST/SRCDEST/BUILDDIR/… in that folder (`--nodeps`: the
+   recipe has only runtime dependencies, which pacman checks when it installs); `makepkg --packagelist`
+   names the package; `pacman -Qip` must say `maprisma-bin`, `<version>-<pkgrel>`, `x86_64`, and `pacman
+   -Qlp` must list `/usr/lib/maprisma/maprisma`, `lib/maprisma-core`, `/usr/bin/maprisma`
+   (`bad_package`).
+4. **commit** (from here not cancellable): `/var/lib/pacman/db.lck` present → `pacman_locked` before
+   anything is stopped. The provider service's state (active, enabled) is read, it is stopped
+   (`systemctl --user stop`, when active), Maprisma's processes (exe under `/usr/lib/maprisma`) are
+   stopped, then `pkexec /usr/bin/pacman -U --noconfirm <package>` runs: pkexec shows the password
+   dialog; while the process is still named `pkexec` after `pkexecWait` (5 minutes) it is ended
+   (`auth_timeout`); once it has become pacman (the same pid) it is waited for without a limit and
+   never signalled (it runs as root). Exit 126/127: `auth_cancelled`; pacman's "unable to lock
+   database": `pacman_locked`; else `pacman_failed`. On any of these (and on any exception) the
+   service is started again; `repair` is false only for `auth_cancelled`, `auth_timeout` and
+   `pacman_locked` (pacman changed nothing), true for any other failure. The job records `pkexec: {pid,
+   start}`: when the Manager ends meanwhile, the interrupted job is `orphan` while that process (pkexec,
+   or the pacman it became) lives, and every `jobs.start` is `busy` until it has ended; it is never
+   signalled.
+5. **verify**: `pacman -Q maprisma-bin` is `<version>-<pkgrel>`, `/usr/lib/maprisma/data/flutter_assets/version.json`
+   says the version, the catalog's paths are there.
+6. **finish**: the service is started when it was active or enabled (one that doesn't start is a
+   warning and `result.unitsNotStarted`, not a failure); the receipt: `source` `{kind:
+   release, tag, asset, sha256, url}` or `{kind: folder, archive: {file, sha256}}`, `package: {name,
+   version, file, sha256, recipe}`, `inputs` (a folder build: both repos' commits; a release: the folder
+   when there is one, else none), the catalog paths.
+
+Remove: `apps.remove_plan` gives `goes: [{path: "maprisma-bin", kind: package, version}]`, `steps`
+(stop and disable each unit, `pkexec /usr/bin/pacman -R --noconfirm maprisma-bin`), `data` (Maprisma's
+own folders, only with `delete_settings`), `dependents` (Control); `blocked` when it isn't installed or
+pkexec is missing. The job (lock checked, commit) stops and disables the provider service, stops the
+processes, runs pkexec pacman -R; a cancelled dialog enables and starts the service again; verify:
+`pacman -Q` finds nothing; then the settings (when asked) and the receipt go.
+
 ### `jobs.start` `{app, kind, options?}`
 
 `options`: remove `{delete_settings?, dependents_ok?, revision?}`; release `{tag?}` (also accepted as a
 top-level `tag`; `[A-Za-z0-9][A-Za-z0-9._+-]*`, else `bad_params`); install/update/reinstall of the
 Launcher `{force?: bool}` (its install-local's `--force`; only when the user chose it; other apps:
-`bad_params`). Answers the job (short form) at once;
+`bad_params`); Maprisma `{source?: release/folder, tag?}`. Answers the job (short form) at once;
 it runs in the background of the core. `unavailable` for an app not for this desktop.
 
 ### `jobs.get` `{id}` / `jobs.list` `{app?, limit?}`
@@ -401,6 +458,54 @@ the text ends at a full line (a line longer than one read comes in pieces, cut a
 Poll with `from = next`. In-process, `CoreService.jobs.lines(id)` streams
 the lines and `jobs.done(id)` completes with the job.
 
+## Bar icons
+
+### `icons.get` `{app, query?, limit?}`
+
+```
+{app, name, iconName, kdeIconName?, file, exists, sha256, changeable, why?, note?, shows: {cosmic, kde},
+ current: original/changed/…, choice?: {kind: name/file, name?, theme?, from, sha256, at},
+ original: {kept, file?, sha256?}, theme: {name, source, chain}, query, total, truncated,
+ choices: [{name, file, theme}]}
+```
+
+Changeable only when the bar icon has a name of its own (`io.github.ubruckhaus.CosmicMaprisma*-symbolic`)
+whose file (`<data>/icons/hicolor/scalable/apps/<name>.svg`) the app's installer writes; otherwise `why`
+(Launcher's `com.maprisma.Launcher`, Theme's KDE tray `com.maprisma.Theme`, apps without a bar icon).
+`note`/`shows` tell where a change is seen: WLAN Monitor's and Hue Lights' COSMIC applets draw a built-in
+copy (`shows.cosmic: false`: the change shows in the KDE tray and the menus); Bluetooth's COSMIC panel
+shows the connected device's kind; Narrator's KDE tray shows it while idle; Control's applet draws the
+file in its own colours (Maprisma's logo; a symbolic icon shows dark grey there). The choices: every
+`*-symbolic.svg` of the current icon theme (COSMIC: `com.system76.CosmicTk/v1/icon_theme`, default
+`Cosmic`; KDE: `kdeglobals [Icons] Theme`, default `breeze`; other: GTK's), what it inherits (`Inherits=`,
+at most 12) and hicolor, in `<data>/icons`, `~/.icons`, `XDG_DATA_DIRS/icons`; the first theme with a name
+wins, a scalable one first; `query` matches part of the name (any case); `limit` 100, at most 500.
+
+### `icons.set` `{app, icon}` / `icons.reset` `{app}`
+
+`icon`: a theme icon's name (any `.svg` of the chain, symbolic or not) or an absolute path (`~/` allowed)
+of an SVG file. It must be UTF-8 XML, at most 256 KiB, rooted in `<svg>` in the SVG namespace, without a
+DOCTYPE/entities, processing instructions, `script`, `foreignObject`, `image`, `iframe`/`embed`/`object`,
+`audio`/`video`, `a`, animation elements, `on*` attributes, `javascript:`, `@import`, CSS escapes (any
+backslash in a style or attribute), and every `href` and `url(…)` must point inside the file (`#id`):
+else `bad_icon` (nothing is changed). Refused while any job runs (`busy`: the change holds the jobs'
+lock, so no job starts meanwhile) and for an app that isn't installed (`not_installed`). Under the state lock, each step
+saved before the next: the file as it is now is kept as `~/.local/state/maprisma-manager/icons/<app>/original.svg`
+unless it is ours (the recorded choice or `chosen.svg`) or already the original; then the choice goes to
+`chosen.svg` and `icon.json`; then atomically over the app's file; and the receipt's entry for the file follows (so a remove still takes it). Then
+`gtk-update-icon-cache -q -t <data>/icons/hicolor` and the bar icon: COSMIC: when the applet is in a
+panel, its panel file is written without it and back with its exact bytes (the panel rebuilds and
+starts the applet with the new icon; as after installs, never a panel restart); KDE: a running tray
+that starts at login is ended and started again (`setsid`). `{app, iconName, file, choice, original,
+iconCache, bar}`.
+
+`icons.reset` writes `original.svg` back over the file when the file is ours (or missing; `changed` when
+the original is missing then), drops the app's `icons/<app>/` folder, refreshes as above: `{reset: true, sha256}`, or `{reset: false, note}` when
+there is nothing to reset.
+
+After every install/update/reinstall/release of the app (finish, before the post steps): a choice is
+written again over the installer's new file, which becomes the kept original (logged).
+
 ## CLI
 
 ```
@@ -411,9 +516,10 @@ maprisma-manager-core github [--force] [<id>]
 maprisma-manager-core bar [--json] [--panel <name>]
 maprisma-manager-core bar <id> left|center|right|out [--index <n>] [--panel <name>]
 maprisma-manager-core bar apply
-maprisma-manager-core install|update|reinstall <id>
+maprisma-manager-core install|update|reinstall <id> [--force] [--source release|folder]
 maprisma-manager-core release <id> [<tag>]
 maprisma-manager-core remove <id> [--delete-settings] [--yes]
+maprisma-manager-core icon <id> [<name>|<file>|--reset] [--search <text>] [--json]
 maprisma-manager-core jobs [<app>]
 maprisma-manager-core log <job>
 ```
@@ -431,7 +537,9 @@ remote isn't the upstream); `status <id>` adds per input the folder (path, branc
 GitHub URL (public/private, which remote, the facts' age), the latest release with its URL and the
 comparison with the GitHub branch; `--json` prints `apps.list` (or `apps.get` with an id). `sources`
 lists every app and input with its folder (or `missing`), GitHub URL (or `local only`) and latest
-release. `github` runs `github.refresh`. `release` runs a release job like `install`.
+release. `github` runs `github.refresh`. `release` runs a release job like `install`. `icon <id>`
+prints `icons.get` (40 choices, `--search` filters), `icon <id> <name|file>` runs `icons.set`, `--reset`
+`icons.reset`.
 
 ## Receipts (written by install jobs after verify)
 
@@ -456,7 +564,8 @@ keeps the backups across jobs (the oldest backup of a path wins).
 "sha256", "url"}` for a release install (its `inputs` then name the folder whose installer ran); a
 receipt without `source` (before step 4b) is a folder build.
 
-A receipt whose `id` doesn't match its file name, with missing `at`/`inputs`, or a malformed `source`,
+A receipt whose `id` doesn't match its file name, with missing `at`/`inputs` (empty `inputs` only for a
+release install: Maprisma's package without a folder), or a malformed `source`,
 is reported in `build.error` and not trusted.
 
 Owned folders (step 5a): `"trees": [{"root": "/home/u/.local/lib/maprisma-launcher", "files": 21, "links": 0,
