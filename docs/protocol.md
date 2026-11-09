@@ -17,7 +17,10 @@ config changed since it was read: read again and retry), `unreadable` (a panel f
 runs a job; a job for that app is already queued); for jobs: `unsupported_yet` (the app's install or
 remove needs a step of its own that comes later; the catalog says why), `not_cancellable` (the job is
 in its commit phase, or its script has started writing the app's files), `finished`, `not_owner` (the
-job runs in another Manager process: only that one can cancel it).
+job runs in another Manager process: only that one can cancel it). Job results (`result.code`) add
+`app_busy` (the installer refused because the app is busy, nothing changed: Launcher while its terminal
+runs a command), `blocked` (a remove that can't run now: the plan's `blocked` says why), `step_failed`
+(a required remove step failed before any file was deleted).
 
 Writes: `git.fetch` (remote-tracking refs, when asked), `github.refresh` (`github.json`), the `bar.*`
 changes, and the jobs (`jobs.start`: install, update, reinstall, remove, release; a job may clone a
@@ -203,12 +206,16 @@ its plan says; pass `revision` to refuse a plan that changed since it was shown)
 
 ```
 {app, name, receipt: valid/none/broken, receiptError?, verified, revision,
- goes:  [{path, kind: file/link/dir, sha256?/link?, normalized?, onlyIfEmpty?, unverified?}],
- stays: [{path, why}],            changed since the install / not what the Manager installed / not in the receipt / …
- data:  [{path, goes, why?}],     user data: goes only with delete_settings; Omarchy-shared data never
- runtime: [{path, why}],          made at runtime: not removed by this step
+ goes:  [{path, kind: file/link/dir, sha256?/link?, normalized?, onlyIfEmpty?, unverified?}
+         | {path, kind: tree, files, links, bytes, derived?, leftover?, whole}],
+ stays: [{path, why, runtime?, marked?}],   changed since the install / not what the Manager installed / not in the receipt / …
+ data:  [{path, goes, why?}],     user data: goes only with delete_settings; Omarchy-shared data and `keep` data never
+ runtime: [{path, why, markedOurs?}],   made at runtime: not removed by this step
  restores: [{path, backup, reason}], backupsKept: [...],
- dependents: [{id, name}], units, running, bar: {has, id?, takenOut?}, postSteps}
+ dependents: [{id, name}], units, running, bar: {has, id?, takenOut?}, postSteps,
+ steps?: [{id, title, commands?, when: before/after, required?}],   the app's own steps (KDE apps)
+ generated?: [{path, kind: generated, why}], notes?: [...],
+ blocked?}                        why the remove can't run now (the job fails with `blocked`)
 ```
 
 With a valid receipt, a file goes only while its sha256 is the receipt's (an autostart file's
@@ -216,9 +223,50 @@ With a valid receipt, a file goes only while its sha256 is the receipt's (an aut
 (unlinked, never followed), a folder only when empty; catalog paths not in the receipt stay. Without
 a receipt (installed before the Manager, or a broken one) the catalog's paths go, each marked
 `unverified`; a link only when it points where the installer points it. Refused with `unsupported_yet`
-for Maprisma (pacman), Narrator (reader runtime), Tiling (Krohnkite migration), Icons (generated
-Plasma themes), Launcher, Theme and Video Translator (their Flutter bundles need whole-tree ownership
-in the receipt first) and the Manager (step 6).
+for Maprisma (pacman, step 5b) and the Manager (step 6); `unavailable` for an app of another desktop
+(Tiling and Icons are removed only on KDE: their steps need Plasma).
+
+**Owned folders** (step 5a; the catalog's `trees`: Launcher's and Theme's bundles in `~/.local/lib`,
+Narrator's `backend`/`settings`, Video Translator's `backend`/`app`, Tiling's two KWin script packages,
+Icons' plasmoid): the receipt has a manifest of every entry below the folder (below). A file goes only
+while its sha256 is the manifest's, a link only while it points where it did (never followed);
+Python's byte-code caches (`__pycache__/*.pyc`) go as derived; anything else stays and is listed
+(at most 100 per folder, then a count); then the folders left empty, deepest first, and the folder
+itself when empty. The catalog's paths inside such a folder are handled only by its manifest. Left
+by an interrupted installer: `<folder>.new.XXXXXX` / `<folder>.old.XXXXXX` (atomic swaps: Launcher,
+Theme) and `<folder>.new` (staging copies: Narrator, Video) go (`leftover: true`) only when they hold
+nothing but the manifest's files, else they stay. A folder stays as a whole (`why` says so) when the
+receipt has no manifest for it, it was too big to own (`overflow`), it was there before the Manager
+first installed the app and may not be only its own (`preexisting`: Tiling's omarchy-navigation), or
+it is a package (`wholeOnly`: KWin scripts, the plasmoid) with any changed entry. Without a receipt an
+app with owned folders isn't removed at all (`blocked`: "Reinstall … first").
+
+**Runtime things that outlive the app** are listed under `stays` with the reason (`runtime: true`,
+`marked: true` when its marker line shows it is the app's): Narrator's `ocrvox.service`, its
+`read-aloud-runtime.conf` drop-in, `simple-reader` and its desktop entry (made by the reader's setup,
+shared with Omarchy's reader) and Video Translator's `video-trans` command and desktop entry ("Set up
+now", shared with Omarchy's video-trans). The Manager doesn't remove them: their owner is the shared
+reader / video-trans setup, and an unchanged copy can't be told from one the user adjusted.
+
+**KDE steps** (`steps`, shown before they run; `kde_remove.dart`):
+- Tiling: `maprisma-tiling-shortcuts --restore` (required: a failure stops the remove before any file
+  goes), `qdbus6 org.kde.KWin /Scripting …unloadScript <script>`, `kwriteconfig6 --file kwinrc … --delete`
+  for `[Plugins] <script>Enabled` and each key of `[Script-maprisma-tiling]` (nothing else in kwinrc),
+  `kpackagetool6 -t KWin/Script -r <script>` for a package that goes; after the files: `qdbus6
+  org.kde.KWin /KWin reconfigure` and D-Bus `ReloadConfig` (the overlay service file is gone).
+  omarchy-navigation is unloaded/disabled/removed only when it goes (installed by the Manager,
+  unchanged). The Krohnkite backup (`~/.local/share/maprisma-tiling/krohnkite-backup.tar.gz`, with
+  the old kwinrc groups) stays with how to get Krohnkite back; that data folder is never deleted.
+- Icons: every `com.maprisma.panel` widget is removed from the panels (`evaluateScript`; required),
+  a generated `maprisma-panel-*` Plasma style in plasmarc is switched back to the style the install
+  found (`saved.plasmaTheme` in the receipt, else `default`; `plasma-apply-desktoptheme`, required),
+  `kpackagetool6 -t Plasma/Applet -r com.maprisma.panel`; after the files the generated styles
+  (`desktoptheme/maprisma-panel-{a,b}`, only when their metadata names maprisma-panel-color and they
+  hold only its files, never the active one) and the colour cache (`~/.cache/maprisma-panel`, only
+  `state.json`) are deleted. No plasmashell / qdbus6 / kpackagetool6: `blocked`.
+
+A remove first records where the icon is (bar.json, when the user never placed it through the
+Manager; COSMIC: area, index and panel), so installing the app again puts it back at the same place.
 
 Never touched: a path outside the shared install folders (`~/.local/bin`, `~/.local/lib`, the data,
 config, applications, icons, autostart … folders) or reached through a symlinked folder below them
@@ -293,7 +341,12 @@ Phases of install/update/reinstall:
    -q <apps>`), the bar state from bar.json applied (`bar.apply`), the bar icon's old process ended
    (COSMIC: an applet of cosmic-panel running from before; the panel starts the new one) or the KDE tray
    started again (`setsid`, when its autostart file isn't hidden; kept stopped when it is), backups of
-   files the script left as they were dropped, then the receipt written (below).
+   files the script left as they were dropped, then the receipt written (below). Units stopped at the
+   commit are started again (`systemctl --user start`, `result.unitsStarted`: Narrator's reader).
+   Components run in dependency order (Launcher: `app`, then the COSMIC `applet`). A script that
+   exits non-zero before the commit with the component's busy text in its output (Launcher's
+   install-local: "is running a command in its terminal") fails with `app_busy`; `options.force`
+   (Launcher only) passes `--force`, which ends that command.
 
 A **release** job (`kind: release`, `options.tag?`; only apps whose catalog has a release spec:
 Launcher; Maprisma's pacman release is `unsupported_yet` until step 5, other apps `unavailable`)
@@ -326,7 +379,9 @@ receipt dropped).
 ### `jobs.start` `{app, kind, options?}`
 
 `options`: remove `{delete_settings?, dependents_ok?, revision?}`; release `{tag?}` (also accepted as a
-top-level `tag`; `[A-Za-z0-9][A-Za-z0-9._+-]*`, else `bad_params`). Answers the job (short form) at once;
+top-level `tag`; `[A-Za-z0-9][A-Za-z0-9._+-]*`, else `bad_params`); install/update/reinstall of the
+Launcher `{force?: bool}` (its install-local's `--force`; only when the user chose it; other apps:
+`bad_params`). Answers the job (short form) at once;
 it runs in the background of the core. `unavailable` for an app not for this desktop.
 
 ### `jobs.get` `{id}` / `jobs.list` `{app?, limit?}`
@@ -403,3 +458,12 @@ receipt without `source` (before step 4b) is a folder build.
 
 A receipt whose `id` doesn't match its file name, with missing `at`/`inputs`, or a malformed `source`,
 is reported in `build.error` and not trusted.
+
+Owned folders (step 5a): `"trees": [{"root": "/home/u/.local/lib/maprisma-launcher", "files": 21, "links": 0,
+"dirs": 8, "bytes": …, "entries": [{"p": "lib/libapp.so", "sha256": "…", "mode": "644"}, {"p": "x", "link": "…"},
+{"p": "data", "dir": true}, …], "digest": "<sha256 of the entries' JSON>", "preexisting"?: true}]` (at most
+20000 entries, else `{"root", "overflow": true, "files"}`; `__pycache__` left out); a receipt whose entries
+aren't relative normalized paths or whose digest differs is broken. `"saved": {"plasmaTheme": "…"}` (Icons):
+the Plasma style before a generated one, kept across reinstalls. A release install carries the other
+components' trees over like their paths. Files inside an owned folder are never backed up to
+`displaced/` (the installer replaces the folder as a whole).

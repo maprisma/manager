@@ -224,8 +224,6 @@ final class JobEngine {
   /// How long an applet may take to start again after an install (COSMIC).
   Duration appletWait = const Duration(seconds: 3);
 
-  /// Restarts cosmic-panel when an applet didn't start again (tests replace it).
-  Future<Map<String, dynamic>> Function(List<ProcInfo> before)? panelRestart;
   int maxLog = maxLogBytes;
 
   String get dir => p.join(paths.managerState, 'jobs');
@@ -1562,17 +1560,22 @@ final class JobEngine {
         if (running()) {
           r.log.note('the applet runs again');
         } else {
-          r.log.note('the applet did not start again: restarting the panel');
-          // signals only against the real /proc (tests have a fake one)
-          final f = await (panelRestart ??
-              (b) => followPanel(ctx.processes, b, wait: Duration.zero, kill: paths.proc == '/proc' ? null : (_) => false))(ctx.processes());
+          // Never a restart of cosmic-panel: cosmic-session starts a killed panel again with a
+          // delay that doubles with every restart (65 s after a dozen, seen 2026-11-09).
+          r.log.note('the applet did not start again: its panel file is written without it and back (the panel rebuilds)');
+          Map<String, dynamic> f;
+          try {
+            f = await _nudgeApplet(app.bar.cosmicApplet!);
+          } on RouteError catch (e) {
+            f = {'error': '${e.code}: ${e.message}'};
+          }
           out['panel'] = f;
           final back = DateTime.now().add(appletWait * 3);
           while (!running() && DateTime.now().isBefore(back)) {
             await Future<void>.delayed(const Duration(milliseconds: 250));
           }
           out['applet_running'] = running();
-          r.log.note(running() ? 'panel restarted; the applet runs' : 'the applet is still not running (${f['error'] ?? 'panel restarted'})');
+          r.log.note(running() ? 'the panel started the applet again' : 'the applet is still not running${f['error'] == null ? '' : ' (${f['error']})'}');
         }
       }
     }
@@ -1594,6 +1597,46 @@ final class JobEngine {
       }
     }
     return out;
+  }
+
+  /// Has cosmic-panel start an applet again that it didn't restart (an ended applet stays gone):
+  /// the panel file that lists it is written once without it and then back with its exact bytes,
+  /// under the state lock; the panel rebuilds after each write (cosmic-panel 1.11, step 2) and
+  /// the panel process keeps running. A concurrent change between the writes is never
+  /// overwritten (then the wanted state is applied instead). Needs the user's file (a panel on its
+  /// system default isn't written for this).
+  Future<Map<String, dynamic>> _nudgeApplet(String id) async {
+    // never a kill of the panel here: no reaction is only reported
+    final follow = this.follow ?? (b) => followPanel(ctx.processes, b, kill: (_) => false);
+    final r = await withStateLock(paths, () async {
+      for (final instance in cosmicInstances(paths)) {
+        final c = CosmicPanelConfig.read(paths, instance);
+        final at = c.error == null ? c.layout.find(id) : null;
+        if (at == null) continue;
+        final file = at.area == Area.center ? c.center : c.wings;
+        final original = file.userText;
+        if (original == null) return {'panel': instance, 'error': 'the panel uses its system default: not written'};
+        final l = c.layout.copy()..remove(id);
+        final before = ctx.processes();
+        await writeCosmic(paths, c, l);
+        final out = await follow(before);
+        final c2 = CosmicPanelConfig.read(paths, instance);
+        final file2 = at.area == Area.center ? c2.center : c2.wings;
+        if (c2.error != null || c2.layout.find(id) != null || !c2.layout.sameAs(l)) {
+          return {'panel': instance, 'out': out, 'error': 'the panel file changed meanwhile', 'apply': true};
+        }
+        final before2 = ctx.processes();
+        if (file2.userText != (at.area == Area.center ? c.render(l).center : c.render(l).wings)) {
+          return {'panel': instance, 'out': out, 'error': 'the panel file changed meanwhile', 'apply': true};
+        }
+        atomicWrite(file.userPath, original);
+        final back = await follow(before2);
+        return {'panel': instance, 'file': file.name, 'out': out, 'back': back};
+      }
+      return {'error': 'not in a panel'};
+    });
+    if (r['apply'] == true) await (Bar(ctx)..follow = follow).applyWanted();
+    return r;
   }
 
   /// Starts a program in its own session, detached from this one (KDE trays).

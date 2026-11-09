@@ -209,10 +209,14 @@ exit 0''');
     expect([for (final e in rec['displaced'] as List) e['path']], [helper()]);
     expect((rec['displaced'] as List).every((e) => e['restore'] == false), isTrue);
     // bar.json re-applied: the applet is in the centre again
-    final center = File(p.join(w.paths.config, 'cosmic/com.system76.CosmicPanel.Panel/v1/plugins_center')).readAsStringSync();
+    final centerFile = p.join(w.paths.config, 'cosmic/com.system76.CosmicPanel.Panel/v1/plugins_center');
+    final center = File(centerFile).readAsStringSync();
     expect(center, contains(_applet));
-    // in the panel but not running afterwards (no panel here): the panel restart was asked for
-    expect(text, contains('the applet did not start again: restarting the panel'));
+    // in the panel but not running afterwards (no panel here): its file was written without it
+    // and back (never a panel restart); the file is as bar.apply left it
+    expect(text, contains('the applet did not start again: its panel file is written without it and back'));
+    final backups = Directory(p.join(w.paths.managerState, 'backups')).listSync().length;
+    expect(backups, greaterThanOrEqualTo(2)); // bar.apply's write and the nudge's
     expect(job['bar']?['panel'] ?? (job['result'] as Map)['bar']?['panel'], isNotNull);
     // status shows the receipt and the job
     final st = appOf(await c.call('apps.list'), 'fake');
@@ -500,7 +504,7 @@ exit 0''');
     w.writeFile(center, 'Some([\n    "com.system76.CosmicAppletTime",\n    "$_applet",\n])');
     final job = await run(c, 'reinstall');
     expect(job['state'], 'succeeded', reason: log(job));
-    expect(WantedBar.load(w.paths).of(DesktopId.cosmic, 'fake'), {'placed': true, 'area': 'center'});
+    expect(WantedBar.load(w.paths).of(DesktopId.cosmic, 'fake'), {'placed': true, 'area': 'center', 'index': 1});
   });
 
   test('without a receipt, remove takes the catalog paths, marked unverified', () async {
