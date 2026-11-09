@@ -364,7 +364,12 @@ void main() {
       expect(find.text('Bar icon of Maprisma WLAN Monitor'), findsOneWidget);
       expect(find.textContaining('Note: the COSMIC applet draws a built-in copy'), findsOneWidget);
       final first = find.descendant(of: find.byType(GridView), matching: find.byType(InkWell)).first;
+      await tester.ensureVisible(first);
+      await tester.pump();
       await tester.tap(first);
+      await tester.pump(const Duration(milliseconds: 400)); // past the double-tap wait (cells also take a double click)
+      // the grid keeps room on a narrow window too (a long note once squeezed it to 15 px)
+      expect(tester.getRect(find.byType(GridView)).height, greaterThan(80));
       await settle(tester, 3);
       expect(tester.takeException(), isNull);
       await shot(tester, 'icons-${width.round()}');

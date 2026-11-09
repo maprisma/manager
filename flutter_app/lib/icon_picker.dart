@@ -122,7 +122,8 @@ class _IconPickerState extends State<IconPicker> {
       title: Text('Bar icon of ${widget.app['name']}'),
       content: SizedBox(
         width: width < 640 ? width - 80 : 560,
-        height: 440,
+        // the grid keeps room on small windows too
+        height: (MediaQuery.sizeOf(context).height - 220).clamp(340.0, 560.0),
         child: i == null
             ? (error != null ? Text(error!, style: TextStyle(color: scheme.error)) : const Center(child: CircularProgressIndicator()))
             : Column(
@@ -167,7 +168,16 @@ class _IconPickerState extends State<IconPicker> {
                         children: [
                           Icon(Icons.info_outline, size: 16, color: scheme.onSurfaceVariant),
                           const SizedBox(width: 6),
-                          Expanded(child: Text('Note: ${i['note']}', style: TextStyle(fontSize: 12.5, color: scheme.onSurfaceVariant))),
+                          // a long note stays short on narrow windows; the whole text in its tooltip
+                          Expanded(
+                            child: Tooltip(
+                              message: '${i['note']}',
+                              child: Text('Note: ${i['note']}',
+                                  maxLines: width < 640 ? 3 : 5,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(fontSize: 12.5, color: scheme.onSurfaceVariant)),
+                            ),
+                          ),
                         ],
                       ),
                     ),
