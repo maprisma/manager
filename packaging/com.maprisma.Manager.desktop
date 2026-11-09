@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Maprisma Manager
+Comment=Install, update and remove the Maprisma apps, and place their bar icons
+Exec=maprisma-manager
+Icon=com.maprisma.Manager
+Terminal=false
+Categories=System;Settings;PackageManager;
+Keywords=maprisma;install;update;applet;panel;bar;
+StartupWMClass=com.maprisma.Manager

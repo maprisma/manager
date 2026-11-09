@@ -1,0 +1,208 @@
+#!/bin/bash
+# Maprisma Manager's self-update helper. The Manager copies it to
+# ~/.local/state/maprisma-manager/self-update/helper and starts it detached (setsid) once a new
+# build is staged and checked (docs/protocol.md "Self-update"):
+#
+#   helper --job <id> --stage <dir> --lib <bundle folder> --state <dir> [--proc /proc]
+#          [--wait <pid>:<start> ...] --restart 0|1 [--ready-timeout 20] [--wait-timeout 600]
+#
+# 1. waits until every Manager window it was told about (pid + start time) has quit;
+# 2. swaps <stage>/bundle in by rename (the old bundle kept aside), keeps copies of the desktop
+#    entry and icon, runs <stage>/tools/install-local --integrate (links, entry, icon);
+# 3. --restart 1: starts the new Manager with MAPRISMA_MANAGER_READY=<state>/<job>.ready and waits
+#    for that file (the app writes it after its first frame); --restart 0: the new core must answer
+#    `version`;
+# 4. ready: the old bundle goes; not ready in time: the new Manager is ended, the old bundle, entry
+#    and icon come back and the old Manager is started again.
+# The outcome goes to <state>/<job>.status (waiting|swapping|starting <pid>, then done,
+# rolled back: …, failed: … or aborted: …) and, with --restart 1, to the core that is installed
+# then (`maprisma-manager-core self-update-done <job> [--failed <why>]`). It logs to <state>/<job>.log.
+set -uo pipefail
+
+job="" stage="" lib="" state="" proc=/proc restart=0 ready_timeout=20 wait_timeout=600
+waits=()
+while (( $# )); do
+  case "$1" in
+    --job) job=$2; shift ;;
+    --stage) stage=$2; shift ;;
+    --lib) lib=$2; shift ;;
+    --state) state=$2; shift ;;
+    --proc) proc=$2; shift ;;
+    --wait) waits+=("$2"); shift ;;
+    --restart) restart=$2; shift ;;
+    --ready-timeout) ready_timeout=$2; shift ;;
+    --wait-timeout) wait_timeout=$2; shift ;;
+    *) echo "self-update: unknown argument $1" >&2; exit 2 ;;
+  esac
+  shift
+done
+[[ -n $job && -n $stage && -n $lib && -n $state ]] || { echo "self-update: --job, --stage, --lib and --state are needed" >&2; exit 2; }
+[[ $job =~ ^[0-9]{8}T[0-9]{6}Z-[a-z0-9]+-[a-z]+(-[0-9]+)?$ ]] || { echo "self-update: bad job id" >&2; exit 2; }
+[[ $lib == /* && $stage == /* && $state == /* ]] || { echo "self-update: paths must be absolute" >&2; exit 2; }
+
+log="$state/$job.log"
+status_file="$state/$job.status"
+ready="$state/$job.ready"
+backup="$state/$job.backup"
+data="${XDG_DATA_HOME:-$HOME/.local/share}"
+entry="$data/applications/com.maprisma.Manager.desktop"
+icon="$data/icons/hicolor/scalable/apps/com.maprisma.Manager.svg"
+mkdir -p "$state"
+exec >>"$log" 2>&1 </dev/null
+say() { printf '%s %s\n' "$(date -u +%FT%TZ)" "$*"; }
+status() { printf '%s\n' "$1" > "$status_file.tmp" && mv -f "$status_file.tmp" "$status_file"; }
+unset MAPRISMA_MANAGER_JOB
+
+# A process given as pid:start is gone when its /proc entry is missing, is another process (start
+# time) or is a zombie.
+alive() {
+  local pid=${1%%:*} start=${1#*:} st rest
+  st=$(cat "$proc/$pid/stat" 2>/dev/null) || return 1
+  rest=${st##*) }
+  # shellcheck disable=SC2086
+  set -- $rest
+  [[ $1 != Z && $1 != X && ${20} == "$start" ]]
+}
+
+# The processes whose program is inside the installed bundle (the new Manager after the swap).
+in_lib() {
+  local p exe
+  for p in "$proc"/[0-9]*; do
+    exe=$(readlink "$p/exe" 2>/dev/null) || continue
+    exe=${exe% (deleted)}
+    [[ $exe == "$lib/"* ]] && echo "${p##*/}"
+  done
+  return 0
+}
+
+core_done() {
+  # the core that is installed now records the outcome in the job (receipt or failure)
+  (( restart )) || return 0
+  local core="$lib/bin/maprisma-manager-core"
+  if [[ -x $core ]]; then
+    "$core" self-update-done "$job" "$@" || say "self-update-done failed (exit $?)"
+  else
+    say "no core at $core to record the outcome"
+  fi
+}
+
+start_gui() {
+  # $1: the ready file, or empty
+  if [[ -n ${1:-} ]]; then
+    MAPRISMA_MANAGER_READY=$1 setsid -f "$lib/maprisma-manager" >/dev/null 2>&1 </dev/null
+  else
+    setsid -f "$lib/maprisma-manager" >/dev/null 2>&1 </dev/null
+  fi
+}
+
+finish() { rm -rf -- "$stage" "$backup"; rm -f -- "$ready"; }
+
+say "self-update $job: stage $stage, bundle $lib, restart $restart"
+status "waiting $$"
+
+# 1. the Manager quits
+deadline=$(( SECONDS + wait_timeout ))
+for w in "${waits[@]}"; do
+  while alive "$w"; do
+    if (( SECONDS >= deadline )); then
+      say "the Manager (pid ${w%%:*}) didn't quit within $wait_timeout s: nothing changed"
+      core_done --failed "the Manager didn't quit within $wait_timeout s; nothing changed"
+      status "aborted: the Manager didn't quit within $wait_timeout s; nothing changed"
+      finish
+      exit 1
+    fi
+    sleep 0.2
+  done
+done
+(( ${#waits[@]} )) && say "the Manager has quit"
+
+# 2. the swap
+status "swapping $$"
+if [[ ! -x $stage/bundle/maprisma-manager || ! -x $stage/tools/install-local ]]; then
+  say "the stage is incomplete: nothing changed"
+  core_done --failed "the stage is incomplete; nothing changed"
+  status "failed: the stage is incomplete; nothing changed"
+  finish
+  exit 1
+fi
+mkdir -p "$(dirname "$lib")" "$backup"
+for f in "$entry" "$icon"; do
+  [[ -f $f ]] && cp -a -- "$f" "$backup/${f##*/}"
+done
+new=$(mktemp -d "$lib.new.XXXXXX") || { core_done --failed "no folder for the new bundle"; status "failed: no folder for the new bundle; nothing changed"; finish; exit 1; }
+if ! cp -a "$stage/bundle/." "$new/"; then
+  rm -rf -- "$new"
+  say "copying the new bundle failed: nothing changed"
+  core_done --failed "copying the new bundle failed; nothing changed"
+  status "failed: copying the new bundle failed; nothing changed"
+  finish
+  exit 1
+fi
+chmod 755 "$new"
+prev=""
+if [[ -e $lib ]]; then
+  prev=$(mktemp -d "$lib.old.XXXXXX"); rmdir "$prev"
+  mv -- "$lib" "$prev"
+fi
+mv -- "$new" "$lib"
+say "swapped in (the old bundle is kept at ${prev:-nowhere: first install})"
+HOME=$HOME "$stage/tools/install-local" --integrate || say "install-local --integrate failed (exit $?)"
+
+rollback() {
+  local why=$1 pids
+  say "rolling back: $why"
+  pids=$(in_lib)
+  if [[ -n $pids ]]; then
+    say "ending the new build's processes: $(echo $pids)"
+    kill -TERM $pids 2>/dev/null || true
+    for _ in $(seq 1 50); do [[ -z $(in_lib) ]] && break; sleep 0.1; done
+    pids=$(in_lib); [[ -n $pids ]] && { kill -KILL $pids 2>/dev/null || true; sleep 0.3; }
+  fi
+  if [[ -z $prev ]]; then
+    say "there is no earlier build to go back to: the new one stays"
+    core_done --failed "$why (no earlier build to go back to)"
+    status "failed: $why (no earlier build to go back to)"
+    finish
+    exit 1
+  fi
+  local bad
+  bad=$(mktemp -d "$lib.old.XXXXXX"); rmdir "$bad"
+  mv -- "$lib" "$bad" && mv -- "$prev" "$lib" && rm -rf -- "$bad"
+  for f in "$entry" "$icon"; do
+    if [[ -f $backup/${f##*/} ]]; then cp -a -- "$backup/${f##*/}" "$f"; fi
+  done
+  command -v gtk-update-icon-cache >/dev/null && gtk-update-icon-cache -f -t "$data/icons/hicolor" >/dev/null 2>&1
+  say "the old build is back"
+  (( restart )) && start_gui ""
+  core_done --failed "$why; the old build is back"
+  status "rolled back: $why"
+  finish
+  exit 1
+}
+
+# 3. the new build proves itself
+if (( restart )); then
+  status "starting $$"
+  rm -f -- "$ready"
+  start_gui "$ready"
+  say "started the new Manager; waiting $ready_timeout s for it to be ready"
+  deadline=$(( SECONDS + ready_timeout ))
+  until [[ -s $ready ]]; do
+    (( SECONDS >= deadline )) && rollback "the new Manager wasn't ready within $ready_timeout s"
+    sleep 0.2
+  done
+  say "the new Manager is ready (pid $(head -c 20 "$ready"))"
+else
+  if ! out=$("$lib/bin/maprisma-manager-core" version 2>&1) || [[ $out != maprisma-manager-core\ * ]]; then
+    rollback "the new core doesn't start ($out)"
+  fi
+  say "the new core answers: $out"
+fi
+
+# 4. done
+[[ -n $prev ]] && rm -rf -- "$prev"
+core_done
+status "done"
+finish
+say "done"
+exit 0

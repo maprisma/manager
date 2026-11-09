@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'context.dart';
 import 'core.dart';
+import 'jobs.dart' show finishSelfUpdate;
 
 const usage = '''usage: maprisma-manager-core status [--json] [--desktop cosmic|kde|other] [<id>]
        maprisma-manager-core sources [--json]
@@ -18,13 +19,15 @@ const usage = '''usage: maprisma-manager-core status [--json] [--desktop cosmic|
        maprisma-manager-core remove <id> [--delete-settings] [--yes]
        maprisma-manager-core icon <id> [<name>|<file>|--reset] [--search <text>] [--json]
        maprisma-manager-core jobs [<id>]
-       maprisma-manager-core log <job>''';
+       maprisma-manager-core log <job>
+       maprisma-manager-core version
+       maprisma-manager-core self-update-done <job> [--failed <why>]   (the self-update helper)''';
 
 /// `maprisma-manager-core <command>`: a human table by default, JSON with --json.
 Future<int> runCli(List<String> args, {CoreService? service, IOSink? out}) async {
   final sink = out ?? stdout;
   var json = false, force = false, yes = false, deleteSettings = false, reset = false;
-  String? desktop, panel, source, search;
+  String? desktop, panel, source, search, failed;
   int? index;
   final rest = <String>[];
   for (var i = 0; i < args.length; i++) {
@@ -41,6 +44,8 @@ Future<int> runCli(List<String> args, {CoreService? service, IOSink? out}) async
       reset = true;
     } else if (a == '--source' && i + 1 < args.length) {
       source = args[++i];
+    } else if (a == '--failed' && i + 1 < args.length) {
+      failed = args[++i];
     } else if (a == '--search' && i + 1 < args.length) {
       search = args[++i];
     } else if (a == '--desktop' && i + 1 < args.length) {
@@ -58,6 +63,10 @@ Future<int> runCli(List<String> args, {CoreService? service, IOSink? out}) async
       rest.add(a);
     }
   }
+  if (rest case ['version']) {
+    sink.writeln('maprisma-manager-core $coreVersion');
+    return 0;
+  }
   final CoreService core;
   try {
     core = service ?? CoreService(environment: Platform.environment);
@@ -67,6 +76,9 @@ Future<int> runCli(List<String> args, {CoreService? service, IOSink? out}) async
   }
   try {
     switch (rest) {
+      case ['self-update-done', final job]:
+        final r = finishSelfUpdate(core.ctx.paths, job, failed: failed);
+        sink.writeln(json ? jsonEncode(r) : 'job $job: ${r['state']} (${r['selfUpdate']})');
       case ['status']:
         final r = await core.call('apps.list', {'desktop': ?desktop});
         sink.writeln(json ? const JsonEncoder.withIndent('  ').convert(r) : statusTable(r));

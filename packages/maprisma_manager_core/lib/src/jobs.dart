@@ -36,12 +36,14 @@ import 'paths.dart';
 import 'procs.dart';
 import 'receipts.dart';
 import 'removal.dart';
+import 'run.dart' show isExecutableFile;
 import 'sources.dart';
 import 'status.dart';
 import 'sysproc.dart';
 import 'trees.dart';
 
 part 'jobs_pacman.dart';
+part 'jobs_self.dart';
 
 enum JobKind { install, update, reinstall, remove, release }
 
@@ -232,6 +234,11 @@ final class JobEngine {
 
   int maxLog = maxLogBytes;
 
+  /// The self-update: how long the new Manager may take to say it is ready (else the old one
+  /// comes back), and how long the helper waits for the running Manager to quit.
+  Duration selfReadyTimeout = const Duration(seconds: 20);
+  Duration selfQuitTimeout = const Duration(minutes: 10);
+
   String get dir => p.join(paths.managerState, 'jobs');
   String get logDir => p.join(paths.managerState, 'logs');
   String get lockPath => p.join(dir, 'lock');
@@ -300,6 +307,10 @@ final class JobEngine {
       }
     }
     if (_exclusive) throw RouteError('busy', 'a bar icon is being changed: try again in a moment');
+    if (appId == selfApp) {
+      final pending = pendingSelfUpdate(paths);
+      if (pending != null) throw RouteError('busy', 'the Manager\'s update ${pending.job} is still being put in place (helper pid ${pending.pid})');
+    }
     if (_runs.values.any((r) => r.job['app'] == appId && r.job['finished'] != true)) {
       throw RouteError('busy', 'a job for ${app.name} is already queued or running');
     }
@@ -337,7 +348,12 @@ final class JobEngine {
     if (app != null && app is! String) throw RouteError('bad_params', 'app');
     if (limit is! int || limit < 1) throw RouteError('bad_params', 'limit');
     final jobs = [for (final j in loadJobs(paths)) if (app == null || j['app'] == app) j];
-    return {'jobs': [for (final j in jobs.take(limit)) summary(_runs[j['id']]?.job ?? j)]};
+    return {
+      'jobs': [
+        for (final j in jobs.take(limit))
+          summary(_runs[j['id']] != null && _runs[j['id']]!.job['finished'] != true ? _runs[j['id']]!.job : j),
+      ],
+    };
   }
 
   /// `{id, from}` → `{id, from, next, size, text, finished}`: the log from byte [from] on, at most
@@ -537,8 +553,9 @@ final class JobEngine {
   Map<String, dynamic> _job(Object? id) {
     if (id is! String || !validJobId(id)) throw RouteError('bad_params', 'id');
     final live = _runs[id];
-    if (live != null) return live.job;
-    final j = loadJob(paths, id);
+    // A finished job's file is the truth (the self-update helper finishes the Manager's later).
+    if (live != null && live.job['finished'] != true) return live.job;
+    final j = loadJob(paths, id) ?? live?.job;
     if (j == null) throw RouteError('not_found', 'no job $id');
     return j;
   }
@@ -598,6 +615,8 @@ final class JobEngine {
       final pacman = r.app.components.any((c) => c.kind == InstallKind.pacman);
       final result = r.kind == JobKind.remove
           ? await (pacman ? _removePacman(r) : _remove(r))
+          : r.app.id == selfApp
+          ? await _installSelf(r)
           : await (pacman ? _installPacman(r) : _install(r));
       _end(r, 'succeeded', {'ok': true, ...result});
     } on _Cancelled {
@@ -695,10 +714,12 @@ final class JobEngine {
     return out;
   }
 
-  Future<Map<String, dynamic>> _install(_Run r) async {
+  /// The prepare phase of an install, update or reinstall: dependencies, prerequisites, every
+  /// input present (cloned when missing), an update's pull / fast-forward, the inputs as they are
+  /// built; `upToDate` for an update with nothing new.
+  Future<({StatusReader status, List<String> repos, List<Map<String, dynamic>> notes, List<Map<String, dynamic>> inputs, bool upToDate})> _prepareInputs(
+      _Run r, List<Component> comps, {required bool release}) async {
     final app = r.app;
-    final release = r.kind == JobKind.release;
-    final comps = release ? [_releaseComponent(app)] : _ordered(app, _components(app));
     _phase(r, 'prepare');
     final status = StatusReader(ctx);
 
@@ -777,10 +798,6 @@ final class JobEngine {
     }
     _checkCancel(r);
 
-    // A release: the tarball downloaded and checked against its .sha256 before anything else.
-    ({Map<String, dynamic> release, String asset, String file, String sha256})? rel;
-    if (release) rel = await _downloadRelease(r, app);
-
     // Update with nothing new: the installed build is the folder as it is now (same commits, clean
     // then and now, every component installed) - nothing is built or replaced.
     if (r.kind == JobKind.update) {
@@ -793,10 +810,25 @@ final class JobEngine {
         final states = [for (final c in comps) (await status.component(app, c)).state];
         if (states.every((s) => s == InstallState.installed)) {
           r.log.note('already up to date: the installed build is ${inputs.map((i) => '${i['repo']}@${'${i['commit']}'.substring(0, 7)}').join(', ')}');
-          return {'up_to_date': true};
+          return (status: status, repos: repos, notes: notes, inputs: inputs, upToDate: true);
         }
       }
     }
+
+    return (status: status, repos: repos, notes: notes, inputs: inputs, upToDate: false);
+  }
+
+  Future<Map<String, dynamic>> _install(_Run r) async {
+    final app = r.app;
+    final release = r.kind == JobKind.release;
+    final comps = release ? [_releaseComponent(app)] : _ordered(app, _components(app));
+    final prep = await _prepareInputs(r, comps, release: release);
+    if (prep.upToDate) return {'up_to_date': true};
+    final (status: status, repos: repos, notes: notes, inputs: inputs, upToDate: _) = prep;
+
+    // A release: the tarball downloaded and checked against its .sha256 before anything else.
+    ({Map<String, dynamic> release, String asset, String file, String sha256})? rel;
+    if (release) rel = await _downloadRelease(r, app);
 
     await _seedWantedBar(r);
     _checkCancel(r);

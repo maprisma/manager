@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'bar.dart';
 import 'catalog.dart';
 import 'context.dart';
+import 'desktop_look.dart';
 import 'icons.dart';
 import 'jobs.dart';
 import 'paths.dart';
@@ -45,6 +46,7 @@ final class CoreService {
         'projectsDir': ctx.projectsDir,
         'projectsSource': ctx.projectsSource,
       },
+      'desktop.look': (_) async => desktopLook(ctx),
       'apps.list': (params) async {
         final status = StatusReader(_withDesktop(params));
         return {..._header(status.ctx), 'apps': await status.apps()};

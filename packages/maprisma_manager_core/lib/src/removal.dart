@@ -47,6 +47,9 @@ final class RemovePlan {
 
 /// Refuses an app whose remove needs a step of its own that isn't there yet.
 void checkRemovable(AppEntry app, [DesktopId? desktop]) {
+  if (app.removal == Support.terminal) {
+    throw RouteError('self_remove', '${app.name} doesn\'t remove itself${app.supportNote == null ? '' : ': ${app.supportNote}'}');
+  }
   if (app.removal == Support.unsupportedYet) {
     throw RouteError('unsupported_yet', 'removing ${app.name} is not supported yet${app.supportNote == null ? '' : ': ${app.supportNote}'}');
   }

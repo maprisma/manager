@@ -1,0 +1,110 @@
+#!/bin/bash
+# Build and install Maprisma Manager for this user (no sudo):
+#
+#   tools/install-local [--no-build]     build, stop the running copies, swap the bundle in, links, entry, icon
+#   tools/install-local --stage <dir>    build into <dir> only (the Manager's self-update: nothing installed)
+#   tools/install-local --integrate      links, desktop entry and icon for the installed bundle only
+#
+# ~/.local/lib/maprisma-manager          the Flutter bundle, with bin/maprisma-manager-core (the core CLI)
+# ~/.local/bin/maprisma-manager{,-core}  links
+# ~/.local/share/applications            com.maprisma.Manager.desktop; the icon under icons/hicolor
+#
+# A running Flutter app maps its code from its bundle: never copy over it. The running copies are
+# stopped (found by their real program path: the process name is cut to 15 characters, so pkill by
+# name misses them), a fresh folder is swapped in by rename, and the app is not restarted.
+#
+# --stage <dir> is what the Manager runs to update itself: <dir> gets bundle/, tools/install-local,
+# tools/self-update and packaging/; the Manager checks it and its helper (tools/self-update) swaps
+# it in once the Manager has quit, then runs <dir>/tools/install-local --integrate.
+set -euo pipefail
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+lib="$HOME/.local/lib/maprisma-manager"
+bin="$HOME/.local/bin"
+data="${XDG_DATA_HOME:-$HOME/.local/share}"
+build=1 stage="" integrate=0
+while (( $# )); do
+  case "$1" in
+    --no-build) build=0 ;;
+    --stage) [[ $# -ge 2 && -n $2 ]] || { echo "--stage needs a folder" >&2; exit 2; }; stage=$2; shift ;;
+    --integrate) integrate=1; build=0 ;;
+    *) echo "usage: tools/install-local [--no-build] [--stage <dir>] [--integrate]" >&2; exit 2 ;;
+  esac
+  shift
+done
+export PATH="${FLUTTER:-/mnt/Data/flutter/bin}:$PATH"
+bundle="$root/flutter_app/build/linux/x64/release/bundle"
+
+integrate() {
+  mkdir -p "$bin" "$data/applications" "$data/icons/hicolor/scalable/apps"
+  ln -sfn "$lib/maprisma-manager" "$bin/maprisma-manager"
+  ln -sfn "$lib/bin/maprisma-manager-core" "$bin/maprisma-manager-core"
+  # Exec with the full path, quoted: Plasma's own PATH has no ~/.local/bin.
+  local gui="$bin/maprisma-manager"
+  gui=${gui//\\/\\\\}; gui=${gui//\"/\\\"}; gui=${gui//\`/\\\`}; gui=${gui//\$/\\\$}
+  # …then the desktop file value layer: every backslash doubled again, % as %%.
+  gui=${gui//\\/\\\\}; gui=${gui//\%/%%}
+  local entry="$data/applications/com.maprisma.Manager.desktop"
+  { grep -v '^Exec=' "$root/packaging/com.maprisma.Manager.desktop"; printf 'Exec="%s"\n' "$gui"; } > "$entry.tmp.$$"
+  mv -f "$entry.tmp.$$" "$entry"
+  install -m644 "$root/packaging/com.maprisma.Manager.svg" "$data/icons/hicolor/scalable/apps/com.maprisma.Manager.svg.tmp.$$"
+  mv -f "$data/icons/hicolor/scalable/apps/com.maprisma.Manager.svg.tmp.$$" "$data/icons/hicolor/scalable/apps/com.maprisma.Manager.svg"
+  command -v gtk-update-icon-cache >/dev/null && gtk-update-icon-cache -f -t "$data/icons/hicolor" >/dev/null 2>&1 || true
+  command -v update-desktop-database >/dev/null && update-desktop-database "$data/applications" >/dev/null 2>&1 || true
+}
+
+if (( integrate )); then
+  [[ -x $lib/maprisma-manager ]] || { echo "no Maprisma Manager in $lib" >&2; exit 1; }
+  integrate
+  echo "Linked Maprisma Manager in $lib"
+  exit 0
+fi
+
+if (( build )); then
+  (cd "$root/flutter_app" && flutter build linux --release >/dev/null)
+  mkdir -p "$bundle/bin"
+  (cd "$root/packages/maprisma_manager_core" && dart compile exe bin/maprisma_manager_core.dart -o "$bundle/bin/maprisma-manager-core" >/dev/null)
+fi
+for f in maprisma-manager lib/libapp.so data/flutter_assets/version.json bin/maprisma-manager-core; do
+  [[ -e $bundle/$f ]] || { echo "missing in the build: $f (run without --no-build)" >&2; exit 1; }
+done
+
+if [[ -n $stage ]]; then
+  if [[ -e $stage ]] && [[ -n $(ls -A "$stage") ]]; then echo "$stage is not empty" >&2; exit 1; fi
+  mkdir -p "$stage/bundle" "$stage/tools" "$stage/packaging"
+  cp -a "$bundle/." "$stage/bundle/"
+  install -m755 "$root/tools/install-local" "$root/tools/self-update" "$stage/tools/"
+  install -m644 "$root/packaging/com.maprisma.Manager.desktop" "$root/packaging/com.maprisma.Manager.svg" "$stage/packaging/"
+  echo "Staged Maprisma Manager in $stage"
+  exit 0
+fi
+
+# Every running copy: its program is (or was, "(deleted)") inside the install folder.
+running() {
+  local p exe
+  for p in /proc/[0-9]*; do
+    exe=$(readlink "$p/exe" 2>/dev/null) || continue
+    exe=${exe% (deleted)}
+    [[ $exe == "$lib/"* || $exe == "$lib".*/* ]] && echo "${p#/proc/}"
+  done
+  return 0
+}
+
+mkdir -p "$(dirname "$lib")"
+new=$(mktemp -d "$lib.new.XXXXXX")
+trap 'rm -rf -- "$new"' EXIT
+cp -a "$bundle/." "$new/"
+chmod 755 "$new"
+pids=$(running)
+if [[ -n $pids ]]; then
+  echo "Stopping: $(echo $pids)"
+  kill -TERM $pids 2>/dev/null || true
+  for _ in $(seq 1 50); do [[ -z $(running) ]] && break; sleep 0.1; done
+  left=$(running); [[ -n $left ]] && { kill -KILL $left 2>/dev/null || true; sleep 0.3; }
+fi
+old=""
+if [[ -e $lib ]]; then old=$(mktemp -d "$lib.old.XXXXXX"); rmdir "$old"; mv "$lib" "$old"; fi
+mv "$new" "$lib"
+trap - EXIT
+[[ -n $old ]] && rm -rf -- "$old"
+integrate
+echo "Installed Maprisma Manager into $lib"

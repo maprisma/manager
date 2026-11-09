@@ -401,6 +401,7 @@ final class StatusReader {
       ],
       'bar': bar.stateOf(app),
       'running': running.length,
+      'icon': appIconOf(paths, app),
       'dependsOn': app.dependsOn,
       'neededBy': neededBy,
       'support': {
@@ -428,6 +429,22 @@ final class StatusReader {
       },
     };
   }
+}
+
+/// The row icon of [app]: its own icon name (else its bar icon's) and the SVG file found for it
+/// (the user's icons, then the system's hicolor), `symbolic` for a `-symbolic` one (drawn in the text colour).
+Map<String, dynamic> appIconOf(Paths paths, AppEntry app) {
+  final name = app.appIcon ?? app.bar.iconName;
+  if (name == null) return {'name': null, 'file': null, 'symbolic': false};
+  String? file;
+  for (final dir in [paths.icons, p.join(paths.homeShare, 'icons/hicolor/scalable/apps'), p.join(paths.root, 'usr/share/icons/hicolor/scalable/apps')]) {
+    final f = p.join(dir, '$name.svg');
+    if (FileSystemEntity.typeSync(f) == FileSystemEntityType.file) {
+      file = f;
+      break;
+    }
+  }
+  return {'name': name, 'file': file, 'symbolic': name.endsWith('-symbolic')};
 }
 
 String _short(String? commit) => commit == null ? '(none)' : (commit.length > 8 ? commit.substring(0, 8) : commit);

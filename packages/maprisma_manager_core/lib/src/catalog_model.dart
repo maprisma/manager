@@ -244,7 +244,13 @@ enum FlutterEnv {
 enum InstallKind { script, pacman }
 
 /// Whether the job engine can install / remove an app yet (later steps add app-specific steps).
-enum Support { supported, unsupportedYet }
+enum Support {
+  supported,
+  unsupportedYet,
+
+  /// Only from a terminal (the Manager doesn't remove itself: tools/uninstall-local).
+  terminal,
+}
 
 /// App-specific remove steps around the file deletion (kde_remove.dart).
 enum RemoveRecipe {
@@ -404,11 +410,15 @@ final class AppEntry {
     this.removeRecipe = RemoveRecipe.none,
     this.supportNote,
     this.release,
+    this.appIcon,
     this.note,
   });
 
   final String id;
   final String name;
+
+  /// The app's own icon name (the list's row icon); null = its bar icon's.
+  final String? appIcon;
 
   /// Its GitHub releases (of the main input), null = none.
   final ReleaseSpec? release;

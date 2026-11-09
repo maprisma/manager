@@ -88,6 +88,7 @@ final List<AppEntry> builtinCatalog = [
   // --- maprisma: the pacman package -------------------------------------------------------
   const AppEntry(
     id: 'maprisma',
+    appIcon: 'com.maprisma.Maprisma',
     name: 'Maprisma',
     kind: 'pacman package maprisma-bin',
     inputs: [
@@ -147,6 +148,7 @@ final List<AppEntry> builtinCatalog = [
   // --- control: maprisma-applet ------------------------------------------------------------
   const AppEntry(
     id: 'control',
+    appIcon: 'com.maprisma.Maprisma',
     name: 'Maprisma Control',
     kind: 'rust',
     inputs: [Input('maprisma-applet')],
@@ -186,6 +188,7 @@ final List<AppEntry> builtinCatalog = [
   // --- launcher: maprisma-launcher + its COSMIC applet -------------------------------------
   const AppEntry(
     id: 'launcher',
+    appIcon: 'com.maprisma.Launcher',
     name: 'Maprisma Launcher',
     kind: 'flutter',
     inputs: [
@@ -265,6 +268,7 @@ final List<AppEntry> builtinCatalog = [
   // --- theme: maprisma-theme ---------------------------------------------------------------
   const AppEntry(
     id: 'theme',
+    appIcon: 'com.maprisma.Theme',
     name: 'Maprisma Theme',
     kind: 'flutter + rust',
     inputs: [Input('maprisma-theme')],
@@ -620,10 +624,11 @@ final List<AppEntry> builtinCatalog = [
 
   // --- the Manager itself ------------------------------------------------------------------
   const AppEntry(
-    id: 'manager',
+    id: selfApp,
     name: 'Maprisma Manager',
     kind: 'flutter',
     inputs: [Input('maprisma-manager')],
+    appIcon: 'com.maprisma.Manager',
     components: [
       Component(
         id: 'main',
@@ -631,23 +636,39 @@ final List<AppEntry> builtinCatalog = [
         repo: 'maprisma-manager',
         install: ['tools/install-local'],
         flutter: FlutterEnv.path,
-        prerequisites: [Prerequisite('flutter'), Prerequisite('dart')],
-        note: 'tools/install-local comes in step 6.',
+        stopsOwnProcesses: true,
+        prerequisites: [Prerequisite('flutter'), Prerequisite('dart'), Prerequisite('bash'), Prerequisite('setsid')],
+        trees: [TreeRoot('{lib}/maprisma-manager', swap: true, note: 'the Flutter bundle; swapped in by the self-update helper once the Manager has quit')],
+        note: 'Updates itself: tools/install-local --stage builds and checks the new bundle, a helper swaps it in after the Manager quit and starts it again.',
         paths: [
           InstalledPath('{lib}/maprisma-manager/maprisma-manager', PathKind.executable, key: true),
+          InstalledPath('{lib}/maprisma-manager/lib/libapp.so', PathKind.file),
+          InstalledPath('{lib}/maprisma-manager/data/flutter_assets/version.json', PathKind.file),
+          InstalledPath('{lib}/maprisma-manager/bin/maprisma-manager-core', PathKind.executable, note: 'the core CLI'),
           InstalledPath('{bin}/maprisma-manager', PathKind.link, target: '{lib}/maprisma-manager/maprisma-manager'),
+          InstalledPath('{bin}/maprisma-manager-core', PathKind.link, target: '{lib}/maprisma-manager/bin/maprisma-manager-core'),
           InstalledPath('{apps}/com.maprisma.Manager.desktop', PathKind.file),
+          InstalledPath('{icons}/com.maprisma.Manager.svg', PathKind.file),
         ],
       ),
     ],
     data: [DataPath('{config}/maprisma-manager'), DataPath('{state}/maprisma-manager')],
     processes: [ProcessMatch(MatchKind.exeUnder, '{lib}/maprisma-manager')],
-    installation: Support.unsupportedYet,
-    removal: Support.unsupportedYet,
-    supportNote: 'the Manager updates itself through its own helper (step 6)',
+    version: VersionSource(
+      installedJson: '{lib}/maprisma-manager/data/flutter_assets/version.json',
+      folderFile: 'flutter_app/pubspec.yaml',
+      folderPattern: r'^version: *([0-9.]+)',
+    ),
+    postSteps: ['gtk-update-icon-cache', 'update-desktop-database'],
+    removal: Support.terminal,
+    supportNote: 'it updates itself (the new build is checked, swapped in once it has quit, and rolled back when it doesn\'t start); '
+        'it doesn\'t remove itself: run tools/uninstall-local in its folder from a terminal',
     note: 'Opens from the app menu.',
   ),
 ];
+
+/// The Manager's own id (its install and update go through the self-update helper).
+const selfApp = 'manager';
 
 /// Tests only: another catalog (e.g. the built-in one plus a fake app).
 List<AppEntry>? catalogOverride;
