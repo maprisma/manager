@@ -374,6 +374,29 @@ exit 0''');
     expect((await run(core(), 'reinstall'))['state'], 'succeeded');
   });
 
+  test('update with nothing new builds nothing; a new local commit is built', () async {
+    final c = core();
+    expect((await run(c, 'install'))['state'], 'succeeded');
+    // the fake's installer never writes its optional icon: there, it is fully installed
+    w.writeFile(p.join(w.paths.icons, 'io.test.Fake-symbolic.svg'), '<svg/>');
+    final at = File(receiptFile()).statSync().modified;
+    var job = await run(c, 'update');
+    expect(job['state'], 'succeeded', reason: log(job));
+    expect((job['result'] as Map)['up_to_date'], isTrue, reason: log(job));
+    expect(log(job), contains('already up to date'));
+    expect(log(job), isNot(contains('phase: build')));
+    expect(File(receiptFile()).statSync().modified, at);
+    // a commit in the folder: built again
+    final repo = p.join(w.projects, 'fake-app');
+    File(p.join(repo, 'CHANGE')).writeAsStringSync('x');
+    w.git(repo, ['add', 'CHANGE']);
+    w.git(repo, ['commit', '-qm', 'change']);
+    job = await run(c, 'update');
+    expect(job['state'], 'succeeded', reason: log(job));
+    expect(log(job), contains('phase: build'));
+    expect(jsonDecode(File(receiptFile()).readAsStringSync())['inputs'][0]['commit'], w.head('fake-app'));
+  });
+
   test('update pulls (fast-forward) when clean and behind; the receipt has the new commit', () async {
     final c = core();
     expect((await run(c, 'install'))['state'], 'succeeded');

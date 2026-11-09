@@ -660,6 +660,23 @@ final class JobEngine {
     }
     _checkCancel(r);
 
+    // Update with nothing new: the installed build is the folder as it is now (same commits, clean
+    // then and now, every component installed) - nothing is built or replaced.
+    if (r.kind == JobKind.update) {
+      final rec = readReceipt(paths, app.id).receipt;
+      bool same(Map<String, dynamic> now) {
+        final then = rec?.inputs.where((i) => i.repo == now['repo']).firstOrNull;
+        return then != null && !then.dirty && now['dirty'] == false && then.commit != null && then.commit == now['commit'];
+      }
+      if (rec != null && inputs.every(same) && rec.inputs.length == inputs.length) {
+        final states = [for (final c in comps) (await status.component(app, c)).state];
+        if (states.every((s) => s == InstallState.installed)) {
+          r.log.note('already up to date: the installed build is ${inputs.map((i) => '${i['repo']}@${'${i['commit']}'.substring(0, 7)}').join(', ')}');
+          return {'up_to_date': true};
+        }
+      }
+    }
+
     await _seedWantedBar(r);
     _checkCancel(r);
 
