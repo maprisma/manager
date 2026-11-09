@@ -202,3 +202,35 @@ Some(([
 `plugins_center` has the form `Some([ … ])`.
 
 Both files use a 4-space indent and trailing commas, and end without a newline.
+
+## Corrections and additions (step 1, checked against the scripts and this machine, 2026-11-09)
+
+The catalog (`packages/maprisma_manager_core/lib/src/catalog.dart`) is the exact version of this file.
+
+- **Interpreted helpers run as `python3 -I ~/.local/bin/../share/<app>/scripts/<x>.py`**: the
+  script path in argv is not normalized, so it has to be normalized before it is compared.
+- **`$HOME/.local/share` vs `XDG_DATA_HOME`:** the rust installers, Narrator, Video and Theme use
+  `XDG_DATA_HOME`; Launcher's `install-local` and Narrator's backend setup (`kindle-reader`,
+  `simple-reader`) hardcode `$HOME/.local/share`. Binaries always go to `$HOME/.local/bin`.
+- **Narrator's processes:** "ocrvox" is the `ocrvox.service` unit running the shared reader
+  (`~/.local/share/kindle-reader/venv/bin/python …/app/reader.py`, plus its `kokoro_tts.py --worker`
+  and an `mpv`). The unit isn't linked in any `.wants` here (not enabled). The marker line on this
+  machine is `# Managed by ubruckhaus.simple-reader (Screen Narrator for COSMIC)`: markers are
+  matched as a line prefix, as `setup_backend.py` does.
+- **Video Translator:** `bin/video-trans` and `apps/video-trans.desktop` are made by
+  `backend/install-shortcuts.sh` ("Set up now"), not by `install.sh`, which only refreshes them when
+  they carry the marker. The backend runs as `python3 …/backend/bridge.py` (or the private runtime's
+  python), matched by the backend folder. Neither Narrator nor Video installs an icon file.
+- **Bluetooth Monitor:** `bt-device.sh`, `bt-power.sh`, `allow-access.sh` are installed `755`; the
+  tray reads `~/.config/maprisma-bluetooth-monitor/settings.json`.
+- **Launcher:** the icons folder also holds a stale `io.github.ubruckhaus.Launcher.svg` that no
+  current installer writes (left alone). Its applet's desktop entry gets an unquoted Exec (sed).
+- **Theme's KDE tray** is the daemon `~/.local/lib/maprisma-theme/bin/maprisma-theme-core daemon`
+  (SNI Id `maprisma-theme`, in `daemon.dart`).
+- **Tiling/Icons helpers** (`maprisma-tiling-overlay`, `maprisma-tiling-shortcuts`,
+  `maprisma-panel-color`) are python scripts. Tiling's installer needs a running KWin (qdbus6).
+- **maprisma:** the repo has two remotes, `origin` (github.com/uBruckhaus/maprisma) and `public`
+  (github.com/maprisma/maprisma); `main` tracks `origin/main`. The folder is at 0.14.2
+  (`MAPRISMA_VERSION` in `addons.py`), the installed package 0.13.1-9.
+- **Upstreams here:** maprisma, maprisma-addons, bluetooth-monitor, hue-lights, launcher,
+  llm-monitor, narrator and wlan-monitor track `origin/main`; the others have no remote.
