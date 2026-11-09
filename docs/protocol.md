@@ -118,7 +118,8 @@ Reads the GitHub facts of every GitHub repo of app `id` (all without it): `repos
 URL, public, default branch) and `repos/<org>/<name>/releases/latest` (404 = no release). Through `gh
 api` when `gh` is installed and `gh auth status` succeeds, else the public REST API
 (`https://api.github.com/`, no token). A repo checked or tried within 30 minutes is skipped unless
-`force`. A failure keeps the last known facts and records `error`/`lastTry`; offline or rate limited
+`force`. A failure keeps the last known facts and records `error`/`lastTry`; offline (no connection,
+also when gh says so) or rate limited
 (403/429 with `x-ratelimit-remaining: 0`, the reset time in the message) stops the refresh, the rest
 is `skipped: offline` / `rate limited …`. Cached in `~/.local/state/maprisma-manager/github.json`
 (`{schema: 1, repos: {"org/name": {checked, via, facts: {url, public, defaultBranch, release}} | {…, lastTry, error}}}`,
@@ -248,15 +249,21 @@ Phases of install/update/reinstall:
 
 1. **prepare** (cancellable): dependencies installed, prerequisites found (a missing one of an
    optional part is a warning), every input repo present with a commit. A missing folder of an input
-   on GitHub is cloned: `git clone <github url>` into a hidden sibling (`.<repo>.clone-<job>`), renamed
-   to `<projects>/<repo>` when complete (logged; a cancel ends git and leaves nothing; `clone_failed`;
-   not on GitHub: `no_source`). For `update` only: `git pull --ff-only` when the repo is clean, behind
-   and has an upstream (otherwise the reason is logged and the folder is built as it is); then, when
-   the folder's GitHub remote isn't the configured upstream's remote, that remote is fetched and HEAD
-   is fast-forwarded to `<remote>/<branch>` (`git merge --ff-only`) only when the folder is clean, on
-   a branch, and that ref contains HEAD and is ahead; otherwise why not (up to date, ahead, diverged,
-   uncommitted changes, detached HEAD, no GitHub remote, fetch failed) is logged and returned in
-   `result.sources: [{repo, remote?, ref?, fastForward, why?, new?} | {repo, cloned}]`. The inputs (HEAD, dirty, fingerprint) are recorded. The catalog paths
+   on GitHub is cloned: `git clone <github url>` (through `setsid`: its own session and group) into a
+   hidden sibling (`.<repo>.clone-<job>`), renamed to `<projects>/<repo>` when complete (logged; a
+   cancel sends TERM to the clone's group, KILL to what is left after 5 s, waits until none is left,
+   then deletes the sibling; `clone_failed`; not on GitHub: `no_source`). For `update` only: the
+   folder's GitHub remote (by URL) is fetched first; then `git pull --ff-only` when the repo is clean,
+   behind and has an upstream (otherwise the reason is logged and the folder is built as it is); then,
+   when the GitHub remote isn't the configured upstream's remote, HEAD is fast-forwarded to the exact
+   commit of `<remote>/<branch>` (`git merge --ff-only <commit id>`, never a short ref name a local
+   branch or tag could shadow) only when that commit contains HEAD and is ahead and, checked again
+   right before the merge, the folder is clean, on a branch, at the HEAD that was compared; otherwise
+   why not (up to date, ahead, diverged, uncommitted changes, detached HEAD, changed while checking, no
+   GitHub remote, fetch failed) is logged and returned in `result.sources: [{repo, remote?, ref?,
+   commit?, fastForward, why?, new?} | {repo, cloned}]`. A configured upstream on the GitHub remote is
+   followed by the pull (its branch is the user's choice). An update after a release install always
+   builds (a release receipt's commit is only the installer's). The inputs (HEAD, dirty, fingerprint) are recorded. The catalog paths
    are snapshotted; an installed app without a bar.json entry gets its current bar state recorded
    there (so the installer's rewritten autostart file doesn't change it); a file at one of them that isn't the Manager's (per the receipt) is copied to
    `displaced/<app>/` first (`restore: true` when a receipt existed, `false` for files from before the
@@ -299,10 +306,12 @@ asset (`maprisma-launcher-<version>-x86_64.tar.gz`) and that name plus `.sha256`
 the `.sha256` file's (whose file name, if any, must be the asset; `bad_checksum`, `checksum_mismatch`:
 the download is deleted, nothing installed). Then the snapshot as above, the tarball is placed in the
 repo's `dist/` with an mtime newer than every other `maprisma-launcher-*-x86_64.tar.gz` there (so the
-script's `ls -t … | head -1` picks it; a different file of that name is moved aside to
-`.<asset>.maprisma-manager-<job>`), and **build** runs `tools/install-local --no-build`; afterwards
-(also on failure) a copy placed by the job is removed, a moved one put back, a reused identical one
-gets its mtime back and a `dist/` made by the job is removed when empty. verify/finish as above; the
+script's `ls -t … | head -1` picks it; copied to a `.part` name and renamed; a different file of
+that name is moved aside to `.<asset>.maprisma-manager-<job>`, recorded in the job's `dist` until it
+is back), and **build** runs `tools/install-local --no-build`; afterwards (also on failure, and at once
+when placing fails) a copy placed by the job is removed only while it is still that file (its sha256),
+a moved one is put back only where the name is free (else both stay and the log says where), a reused
+identical one gets its mtime back and a `dist/` made by the job is removed when empty. verify/finish as above; the
 receipt's `source` is `{kind: release, tag, asset, sha256, url}`, the paths of the app's other
 components (the COSMIC applet) and their inputs are carried over from the last receipt.
 

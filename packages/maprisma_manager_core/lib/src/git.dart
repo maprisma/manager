@@ -237,10 +237,12 @@ final class Git {
 
   /// HEAD against [ref] (e.g. `public/main`, as of the last fetch): ancestry checked as for the
   /// upstream. `exists: false` when the ref isn't there (never fetched).
-  Future<({bool exists, int? ahead, int? behind, Relation relation})> compare(String folder, String ref) async {
-    final full = ref.startsWith('refs/') ? ref : 'refs/remotes/$ref';
-    final v = await _git(folder, ['rev-parse', '-q', '--verify', '$full^{commit}']);
-    if (!v.ok) return (exists: false, ahead: null, behind: null, relation: Relation.unknown);
+  Future<({bool exists, String? commit, int? ahead, int? behind, Relation relation})> compare(String folder, String ref) async {
+    final ref0 = ref.startsWith('refs/') ? ref : 'refs/remotes/$ref';
+    final v = await _git(folder, ['rev-parse', '-q', '--verify', '$ref0^{commit}']);
+    if (!v.ok) return (exists: false, commit: null, ahead: null, behind: null, relation: Relation.unknown);
+    // Everything below against the exact commit: a branch or tag of the same short name can't interfere.
+    final full = v.stdout.trim();
     final counts = await _git(folder, ['rev-list', '--left-right', '--count', 'HEAD...$full']);
     final parts = counts.stdout.trim().split(RegExp(r'\s+'));
     final ahead = counts.ok && parts.length == 2 ? int.tryParse(parts[0]) : null;
@@ -254,7 +256,7 @@ final class Git {
       (false, false) => Relation.diverged,
       _ => Relation.unknown,
     };
-    return (exists: true, ahead: ahead, behind: behind, relation: relation);
+    return (exists: true, commit: full, ahead: ahead, behind: behind, relation: relation);
   }
 
   /// Commits [ref] has that [commit] hasn't (null when either is unknown here).
@@ -264,9 +266,10 @@ final class Git {
     return r.ok ? int.tryParse(r.stdout.trim()) : null;
   }
 
-  /// `git merge --ff-only <ref>` (an update job, only when clean and [ref] contains HEAD).
-  Future<RunResult> mergeFfOnly(String folder, String ref) => runner.run(
-    ['git', '-c', 'core.fsmonitor=false', '-C', folder, 'merge', '--ff-only', '--quiet', ref],
+  /// `git merge --ff-only <commit>` (an update job, only when clean and [commit] contains HEAD;
+  /// always an exact commit id, never a ref name that a local branch or tag could shadow).
+  Future<RunResult> mergeFfOnly(String folder, String commit) => runner.run(
+    ['git', '-c', 'core.fsmonitor=false', '-C', folder, 'merge', '--ff-only', '--quiet', commit],
     extraEnv: _gitEnv,
     timeout: const Duration(seconds: 120),
   );

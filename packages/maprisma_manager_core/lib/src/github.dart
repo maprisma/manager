@@ -79,6 +79,10 @@ final class GhCliApi implements GitHubApi {
     }
     final status = int.tryParse(RegExp(r'HTTP (\d{3})').firstMatch(r.stderr)?.group(1) ?? '');
     if (status == 404) return ApiAnswer(404, null);
+    // no answer from GitHub at all: offline, like the REST API's SocketException
+    if (status == null && (r.code == 124 || _transport.hasMatch(r.stderr))) {
+      throw SocketException('gh: ${_firstLine(r.stderr)}');
+    }
     final limited = status == 429 || (status == 403 && r.stderr.toLowerCase().contains('rate limit'));
     throw GitHubError(
       limited ? 'rate limited' : 'gh api $path: ${_firstLine(r.stderr)}',
@@ -432,5 +436,10 @@ String? parseSha256File(String text, String asset) {
 
 /// sha256 of a file, streamed.
 Future<String> sha256OfFile(String path) async => (await sha256.bind(File(path).openRead()).first).toString();
+
+final _transport = RegExp(
+  r'error connecting to|dial tcp|no such host|could not resolve|connection refused|network is unreachable|i/o timeout|timed out|TLS handshake',
+  caseSensitive: false,
+);
 
 String _firstLine(String s) => s.trim().split('\n').firstWhere((l) => l.trim().isNotEmpty, orElse: () => 'failed');

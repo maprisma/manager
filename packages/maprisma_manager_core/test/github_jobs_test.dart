@@ -175,6 +175,19 @@ void main() {
     final a = appOf(await c.call('apps.list'), 'ghfake');
     expect(a['sources']['where'], 'both');
     expect(a['sources']['inputs'][0]['remote'], {'name': 'origin', 'url': github, 'isUpstream': true});
+
+    // a new commit on GitHub (the upstream here) without a git.fetch before: update fetches itself
+    final other = p.join(w.dir, 'other');
+    w.git(w.dir, ['clone', '-q', github, other]);
+    File(p.join(other, 'NEW')).writeAsStringSync('x');
+    w.git(other, ['add', '.']);
+    w.git(other, ['commit', '-q', '-m', 'on github']);
+    w.git(other, ['push', '-q', 'origin', 'main']);
+    final upd = await run(c, 'update');
+    expect(upd['state'], 'succeeded', reason: log(upd));
+    expect(log(upd), contains('git fetch origin (GitHub, $github)'));
+    expect(log(upd), contains('git pull --ff-only (1 new from origin/main)'));
+    expect(w.head('mm-gh'), (w.git(other, ['rev-parse', 'HEAD']).stdout as String).trim());
   });
 
   test('a clone that fails leaves nothing; a cancelled clone leaves nothing', () async {
@@ -188,7 +201,8 @@ void main() {
     // a git whose clone hangs: cancelled in prepare
     final realGit = Link(p.join(w.fakeBin, 'git')).targetSync();
     Link(p.join(w.fakeBin, 'git')).deleteSync();
-    w.fake('git', 'for last; do :; done\nfor a; do [ "\$a" = clone ] && { mkdir -p "\$last"; exec sleep 30; }; done\nexec $realGit "\$@"');
+    // its helper (a child that outlives a TERM to git alone) must end with it
+    w.fake('git', 'for last; do :; done\nfor a; do [ "\$a" = clone ] && { mkdir -p "\$last"; sleep 30 & echo \$! > "\$HOME/.clone-child"; wait; exit 1; }; done\nexec $realGit "\$@"');
     c = core();
     final j = await c.call('jobs.start', {'app': 'ghfake', 'kind': 'install'});
     final id = j['id'] as String;
@@ -204,6 +218,8 @@ void main() {
     expect(job['state'], 'cancelled', reason: log(job));
     expect(log(job), contains('clone cancelled'));
     expect(Directory(w.projects).listSync().where((e) => p.basename(e.path).contains('mm-gh')), isEmpty);
+    final child = int.parse(File(p.join(w.home, '.clone-child')).readAsStringSync().trim());
+    expect(Directory('/proc/$child').existsSync(), isFalse, reason: 'the clone\'s helper still runs');
   });
 
   test('update against the GitHub remote when the upstream is another one: fast-forward only when clean and behind', () async {
@@ -246,11 +262,13 @@ void main() {
     ]);
     File(p.join(folder(), 'LOCAL')).deleteSync();
 
-    // clean and behind: fetched and fast-forwarded, then built
+    // clean and behind: fetched and fast-forwarded to the exact commit (a local branch named
+    // public/main, which a short ref name would resolve to, doesn't interfere), then built
+    w.git(folder(), ['branch', 'public/main', 'HEAD']);
     job = await run(c, 'update');
     expect(job['state'], 'succeeded', reason: log(job));
     expect(log(job), contains('git fetch public (GitHub, $github)'));
-    expect(log(job), contains('git merge --ff-only public/main (1 new from GitHub)'));
+    expect(log(job), contains('git merge --ff-only public/main (${ghHead.substring(0, 12)}, 1 new from GitHub)'));
     expect(w.head('mm-gh'), ghHead);
     expect(jsonDecode(File(receiptFile()).readAsStringSync())['inputs'][0]['commit'], ghHead);
     a = appOf(await c.call('apps.list'), 'ghfake');
@@ -302,8 +320,23 @@ void main() {
     final a = appOf(await c.call('apps.list'), 'ghfake');
     expect(a['updates']['sourceDiffers'], isNull);
     expect(a['updates']['sourceReasons'], ['installed from release v0.2.0']);
+    // a folder update after a release builds (the receipt's commit is only the installer's)
+    final upd = await run(c, 'update');
+    expect(upd['state'], 'succeeded', reason: log(upd));
+    expect(log(upd), contains('phase: build'));
+    expect(log(upd), isNot(contains('already up to date')));
+    expect(File(p.join(w.paths.bin, 'mm-gh-daemon')).readAsStringSync(), contains('folder'));
 
     // a newer release is offered; a dist/ the script didn't have is removed again afterwards
+    // a user's own, different file of the release's name in dist/: moved aside, put back afterwards
+    final mine = File(p.join(dist, 'mm-gh-0.2.0-x86_64.tar.gz'))..writeAsStringSync('mine');
+    final job1 = await run(c, 'release', {'tag': 'v0.2.0'});
+    expect(job1['state'], 'succeeded', reason: log(job1));
+    expect(log(job1), contains('was moved aside'));
+    expect(mine.readAsStringSync(), 'mine');
+    expect(Directory(dist).listSync().map((e) => p.basename(e.path)).toSet(), {'mm-gh-0.1.0-x86_64.tar.gz', 'mm-gh-0.2.0-x86_64.tar.gz'});
+    expect(job1['dist'], isNull);
+
     makeRelease('0.3.0');
     Directory(dist).deleteSync(recursive: true);
     await c.call('github.refresh', {'id': 'ghfake', 'force': true});

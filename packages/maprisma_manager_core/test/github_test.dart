@@ -162,6 +162,19 @@ exit 1''');
       expect(core.ctx.github.facts('maprisma/narrator')['via'], 'gh');
     });
 
+    test('gh offline (no connection): the refresh stops, the last facts stay', () async {
+      w.fake('gh', r'''case "$1" in
+  auth) exit 0;;
+  api) echo "error connecting to api.github.com" >&2; echo "check your internet connection or https://githubstatus.com" >&2; exit 1;;
+esac
+exit 1''');
+      final core = w.core(extra: {'MAPRISMA_MANAGER_GH': p.join(w.fakeBin, 'gh')});
+      final r = await core.call('github.refresh', {'force': true});
+      expect(r['via'], 'gh');
+      expect((r['repos'] as List).first['error'], startsWith('offline: gh: error connecting'));
+      expect((r['repos'] as List).skip(1).every((e) => e['skipped'] == 'offline'), isTrue);
+    });
+
     test('gh absent from the test PATH and offline: the built-in REST refuses (no network)', () async {
       final core = w.core();
       final r = await core.call('github.refresh', {'id': 'launcher', 'force': true});

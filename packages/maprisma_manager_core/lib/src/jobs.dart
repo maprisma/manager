@@ -674,22 +674,32 @@ final class JobEngine {
       if (!g.present) throw JobFailure('no_source', '$folder is missing');
       if (!g.isRepo || g.head == null) throw JobFailure('no_source', '$folder: ${g.error ?? 'not a git repository with a commit'}');
       if (r.kind != JobKind.update) continue;
-      if (g.upstream == null) {
+      // The GitHub remote fetched first (the comparisons below then see what GitHub has now).
+      final gh = input.github == null ? null : await githubRemote(ctx, folder, input.github!, upstreamRemote: g.upstreamRemote);
+      if (gh != null) {
+        r.log.note('$repo: git fetch ${gh.name} (GitHub, ${gh.url})');
+        final f = await ctx.git.fetch(folder, gh.name);
+        if (f.stderr.trim().isNotEmpty) r.log.add(utf8.encode(f.stderr.endsWith('\n') ? f.stderr : '${f.stderr}\n'));
+        if (!f.ok) r.log.note('$repo: fetching ${gh.name} failed; compared with what was fetched before');
+        _checkCancel(r);
+      }
+      final g2 = gh == null ? g : await ctx.git.inspect(repo, folder);
+      if (g2.upstream == null) {
         r.log.note('$repo: no upstream, built as it is');
-      } else if (g.dirty != false) {
+      } else if (g2.dirty != false) {
         r.log.note('$repo: uncommitted changes, no pull; built as it is');
-      } else if (g.relation == Relation.behind) {
-        r.log.note('$repo: git pull --ff-only (${g.behind} new from ${g.upstream})');
+      } else if (g2.relation == Relation.behind) {
+        r.log.note('$repo: git pull --ff-only (${g2.behind} new from ${g2.upstream})');
         final pull = await ctx.git.pullFfOnly(folder);
         if (pull.stdout.isNotEmpty) r.log.add(utf8.encode(pull.stdout));
         if (pull.stderr.isNotEmpty) r.log.add(utf8.encode(pull.stderr));
         if (!pull.ok) throw JobFailure('pull_failed', '$repo: git pull --ff-only failed');
       } else {
-        r.log.note('$repo: ${g.relation.name} against ${g.upstream}, no pull');
+        r.log.note('$repo: ${g2.relation.name} against ${g2.upstream}, no pull');
       }
       _checkCancel(r);
-      final gh = await _githubUpdate(r, input, folder);
-      if (gh != null) notes.add(gh);
+      final ff = await _githubUpdate(r, input, folder, fetched: gh != null);
+      if (ff != null) notes.add(ff);
       _checkCancel(r);
     }
     if (notes.isNotEmpty) r.job['sources'] = notes;
@@ -719,7 +729,7 @@ final class JobEngine {
         final then = rec?.inputs.where((i) => i.repo == now['repo']).firstOrNull;
         return then != null && !then.dirty && now['dirty'] == false && then.commit != null && then.commit == now['commit'];
       }
-      if (rec != null && inputs.every(same) && rec.inputs.length == inputs.length) {
+      if (rec != null && !rec.fromRelease && inputs.every(same) && rec.inputs.length == inputs.length) {
         final states = [for (final c in comps) (await status.component(app, c)).state];
         if (states.every((s) => s == InstallState.installed)) {
           r.log.note('already up to date: the installed build is ${inputs.map((i) => '${i['repo']}@${'${i['commit']}'.substring(0, 7)}').join(', ')}');
@@ -879,24 +889,44 @@ final class JobEngine {
     r.log.note('${input.repo}: the folder is missing: git clone $url $folder');
     final Process proc;
     try {
-      proc = await Process.start(git, ['-c', 'core.fsmonitor=false', 'clone', '--no-progress', url, tmp],
+      // its own session and group (setsid): a cancel ends git and every helper it started
+      proc = await Process.start(ctx.runner.which('setsid') ?? '/usr/bin/setsid', [git, '-c', 'core.fsmonitor=false', 'clone', '--no-progress', url, tmp],
           environment: {...ctx.environment, ...Git.cloneEnv}, includeParentEnvironment: false, workingDirectory: parent);
     } on ProcessException catch (e) {
       throw JobFailure('clone_failed', 'git clone could not start: ${e.message}');
     }
+    final start = procStat(proc.pid)?.start;
     await proc.stdin.close();
     final outDone = proc.stdout.listen(r.log.add).asFuture<void>();
     final errDone = proc.stderr.listen(r.log.add).asFuture<void>();
+    // Our own child's group (pgid = its pid once setsid ran): signalled only while it is that one.
+    final real = Signaller();
+    bool group(int sig) => (sameProcess(proc.pid, start) || groupMembers(proc.pid).isNotEmpty) && real.group(proc.pid, sig);
     var stopped = false;
+    DateTime? killAt;
     final deadline = DateTime.now().add(const Duration(minutes: 30));
     final timer = Timer.periodic(const Duration(milliseconds: 50), (_) {
       if (!stopped && (r.cancelRequested || DateTime.now().isAfter(deadline))) {
         stopped = true;
-        proc.kill(ProcessSignal.sigterm);
-        Timer(killAfter, () => proc.kill(ProcessSignal.sigkill));
+        killAt = DateTime.now().add(killAfter);
+        if (!group(sigTerm)) proc.kill(ProcessSignal.sigterm);
+      } else if (killAt != null && DateTime.now().isAfter(killAt!)) {
+        killAt = null;
+        if (!group(sigKill)) proc.kill(ProcessSignal.sigkill);
       }
     });
     final code = await proc.exitCode;
+    // what is left of the group (a helper that outlived git) ends before the folder is cleaned up
+    if (stopped || code != 0) {
+      final until = DateTime.now().add(killAfter + const Duration(seconds: 3));
+      var killed = false;
+      while (groupMembers(proc.pid).isNotEmpty && DateTime.now().isBefore(until)) {
+        if (!killed && (killAt == null || DateTime.now().isAfter(killAt!))) {
+          killed = group(sigKill);
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+    }
     timer.cancel();
     try {
       await Future.wait([outDone, errDone]).timeout(const Duration(seconds: 2));
@@ -920,10 +950,12 @@ final class JobEngine {
     r.log.note('${input.repo}: cloned into $folder');
   }
 
-  /// An update of a folder whose configured upstream isn't its GitHub remote: that remote is
-  /// fetched and HEAD fast-forwarded to its branch, only when the folder is clean, on a branch,
-  /// and the GitHub branch contains HEAD and is ahead. Otherwise the reason is logged and returned.
-  Future<Map<String, dynamic>?> _githubUpdate(_Run r, Input input, String folder) async {
+  /// An update of a folder whose configured upstream isn't its GitHub remote (fetched just
+  /// before by the caller): HEAD is fast-forwarded to the exact commit of the GitHub branch, only
+  /// when the folder is clean, on a branch, and that commit contains HEAD and is ahead - checked
+  /// again right before the merge. Otherwise the reason is logged and returned. A configured
+  /// upstream on the GitHub remote was followed by the pull (its branch is the user's choice).
+  Future<Map<String, dynamic>?> _githubUpdate(_Run r, Input input, String folder, {required bool fetched}) async {
     if (r.kind != JobKind.update || input.github == null) return null;
     final repo = input.repo;
     final g = await ctx.git.inspect(repo, folder);
@@ -933,13 +965,10 @@ final class JobEngine {
       r.log.note('$repo: $why');
       return {'repo': repo, 'github': input.webUrl, 'fastForward': false, 'why': why};
     }
-    if (g.upstream != null && gh.name == g.upstreamRemote) return null; // the pull above was against GitHub
-    r.log.note('$repo: git fetch ${gh.name} (GitHub, ${gh.url})');
-    final f = await ctx.git.fetch(folder, gh.name);
-    if (f.stderr.trim().isNotEmpty) r.log.add(utf8.encode(f.stderr.endsWith('\n') ? f.stderr : '${f.stderr}\n'));
+    if (g.upstream != null && gh.name == g.upstreamRemote) return null;
     final ref = '${gh.name}/${githubBranch(ctx.github.facts(input.github!), g)}';
     String? why;
-    if (!f.ok) {
+    if (!fetched) {
       why = 'fetching ${gh.name} failed';
     } else {
       final c = await ctx.git.compare(folder, ref);
@@ -953,17 +982,23 @@ final class JobEngine {
         why = 'diverged from $ref (${c.ahead} local, ${c.behind} there)';
       } else if (c.relation != Relation.behind) {
         why = 'could not compare with $ref';
-      } else if (g.branch == null) {
-        why = 'detached HEAD';
-      } else if (g.dirty != false) {
-        why = 'uncommitted changes';
       } else {
-        r.log.note('$repo: git merge --ff-only $ref (${c.behind} new from GitHub)');
-        final m = await ctx.git.mergeFfOnly(folder, ref);
-        if (m.stdout.isNotEmpty) r.log.add(utf8.encode(m.stdout));
-        if (m.stderr.isNotEmpty) r.log.add(utf8.encode(m.stderr));
-        if (!m.ok) throw JobFailure('pull_failed', '$repo: git merge --ff-only $ref failed');
-        return {'repo': repo, 'remote': gh.name, 'ref': ref, 'fastForward': true, 'new': c.behind};
+        // checked again right before the merge: HEAD, branch and a clean tree as compared
+        final now = await ctx.git.inspect(repo, folder);
+        if (now.branch == null) {
+          why = 'detached HEAD';
+        } else if (now.dirty != false) {
+          why = 'uncommitted changes';
+        } else if (now.head != g.head || now.branch != g.branch) {
+          why = 'the folder changed while checking';
+        } else {
+          r.log.note('$repo: git merge --ff-only $ref (${c.commit!.substring(0, 12)}, ${c.behind} new from GitHub)');
+          final m = await ctx.git.mergeFfOnly(folder, c.commit!);
+          if (m.stdout.isNotEmpty) r.log.add(utf8.encode(m.stdout));
+          if (m.stderr.isNotEmpty) r.log.add(utf8.encode(m.stderr));
+          if (!m.ok) throw JobFailure('pull_failed', '$repo: git merge --ff-only $ref failed');
+          return {'repo': repo, 'remote': gh.name, 'ref': ref, 'commit': c.commit, 'fastForward': true, 'new': c.behind};
+        }
       }
     }
     r.log.note('$repo: no fast-forward to $ref: $why');
@@ -1040,8 +1075,10 @@ final class JobEngine {
 
   /// Puts the tarball where the release's installer picks it (the newest matching file in its
   /// dist folder: given an mtime newer than every other match). Returns the undo: a copy placed
-  /// here is removed, a different file of that name moved aside is put back, a reused file gets
-  /// its mtime back, a dist folder made here is removed when empty.
+  /// here is removed (only while it is still that file), a different file of that name moved aside
+  /// is put back (only where the name is free; else both are kept and told), a reused file gets
+  /// its mtime back, a dist folder made here is removed when empty. A failure while placing undoes
+  /// at once. What was moved aside is in the job's state (`dist`) until it is back.
   Future<void Function()> _placeTarball(_Run r, String folder, ReleaseSpec spec, String file, String asset, String sha) async {
     final dist = p.join(folder, spec.dist);
     final madeDist = !Directory(dist).existsSync();
@@ -1049,48 +1086,68 @@ final class JobEngine {
     final target = p.join(dist, asset);
     final parts = spec.tarball.split('{version}');
     final pattern = RegExp('^${parts.map(RegExp.escape).join('.*')}\$');
-    var newest = DateTime.fromMillisecondsSinceEpoch(0);
-    for (final e in Directory(dist).listSync(followLinks: false)) {
-      if (e.path == target || !pattern.hasMatch(p.basename(e.path))) continue;
-      final m = e.statSync().modified;
-      if (m.isAfter(newest)) newest = m;
-    }
     String? aside;
     DateTime? reusedMtime;
     var placed = false;
-    if (FileSystemEntity.typeSync(target, followLinks: false) != FileSystemEntityType.notFound) {
-      if (FileSystemEntity.typeSync(target, followLinks: false) == FileSystemEntityType.file && await sha256OfFile(target) == sha) {
-        reusedMtime = File(target).statSync().modified;
-      } else {
-        aside = p.join(dist, '.$asset.maprisma-manager-${r.id}');
-        FileSystemEntity.typeSync(target, followLinks: false) == FileSystemEntityType.link
-            ? Link(target).renameSync(aside)
-            : File(target).renameSync(aside);
-        r.log.note('a different $asset in ${spec.dist}/ was moved aside for the install');
-      }
-    }
-    if (reusedMtime == null) {
-      File(file).copySync(target);
-      placed = true;
-    }
-    final now = DateTime.now();
-    final stamp = newest.add(const Duration(seconds: 1)).isAfter(now) ? newest.add(const Duration(seconds: 1)) : now;
-    File(target).setLastModifiedSync(stamp);
-    r.log.note('${placed ? 'placed' : 'using'} $target (the newest in ${spec.dist}/)');
-    return () {
+
+    FileSystemEntityType type(String path) => FileSystemEntity.typeSync(path, followLinks: false);
+    void undo() {
       try {
-        if (placed && File(target).existsSync()) File(target).deleteSync();
-        if (aside != null) {
-          FileSystemEntity.typeSync(aside, followLinks: false) == FileSystemEntityType.link
-              ? Link(aside).renameSync(target)
-              : File(aside).renameSync(target);
+        if (placed && type(target) == FileSystemEntityType.file && sha256File(target) == sha) {
+          File(target).deleteSync();
+        } else if (placed && type(target) != FileSystemEntityType.notFound) {
+          r.log.note('$target was replaced during the install: left as it is');
         }
-        if (reusedMtime != null && File(target).existsSync()) File(target).setLastModifiedSync(reusedMtime);
+        if (aside != null) {
+          if (type(target) == FileSystemEntityType.notFound) {
+            type(aside) == FileSystemEntityType.link ? Link(aside).renameSync(target) : File(aside).renameSync(target);
+            r.job.remove('dist');
+            _persist(r.job);
+          } else {
+            r.log.note('the earlier $asset is kept as $aside ($target is taken)');
+          }
+        }
+        if (reusedMtime != null && type(target) == FileSystemEntityType.file) File(target).setLastModifiedSync(reusedMtime);
         if (madeDist && Directory(dist).existsSync() && Directory(dist).listSync().isEmpty) Directory(dist).deleteSync();
       } on FileSystemException catch (e) {
         r.log.note('cleaning up $dist: $e');
       }
-    };
+    }
+
+    try {
+      var newest = DateTime.fromMillisecondsSinceEpoch(0);
+      for (final e in Directory(dist).listSync(followLinks: false)) {
+        if (e.path == target || !pattern.hasMatch(p.basename(e.path))) continue;
+        final m = e.statSync().modified;
+        if (m.isAfter(newest)) newest = m;
+      }
+      if (type(target) != FileSystemEntityType.notFound) {
+        if (type(target) == FileSystemEntityType.file && await sha256OfFile(target) == sha) {
+          reusedMtime = File(target).statSync().modified;
+        } else {
+          final to = p.join(dist, '.$asset.maprisma-manager-${r.id}');
+          r.job['dist'] = {'target': target, 'aside': to};
+          _persist(r.job);
+          type(target) == FileSystemEntityType.link ? Link(target).renameSync(to) : File(target).renameSync(to);
+          aside = to;
+          r.log.note('a different $asset in ${spec.dist}/ was moved aside to $to for the install');
+        }
+      }
+      if (reusedMtime == null) {
+        final tmp = p.join(dist, '.$asset.maprisma-manager-${r.id}.part');
+        File(file).copySync(tmp);
+        File(tmp).renameSync(target);
+        placed = true;
+      }
+      final now = DateTime.now();
+      final stamp = newest.add(const Duration(seconds: 1)).isAfter(now) ? newest.add(const Duration(seconds: 1)) : now;
+      File(target).setLastModifiedSync(stamp);
+    } on Object {
+      undo();
+      rethrow;
+    }
+    r.log.note('${placed ? 'placed' : 'using'} $target (the newest in ${spec.dist}/)');
+    return undo;
   }
 
   /// The bar state before an install: an app the user never placed through the Manager has no
