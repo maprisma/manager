@@ -27,16 +27,18 @@ import 'bar_read.dart';
 import 'catalog.dart';
 import 'context.dart';
 import 'core.dart' show coreVersion;
-import 'git.dart' show Relation;
+import 'git.dart' show Git, Relation;
+import 'github.dart';
 import 'ownership.dart';
 import 'paths.dart';
 import 'procs.dart';
 import 'receipts.dart';
 import 'removal.dart';
+import 'sources.dart';
 import 'status.dart';
 import 'sysproc.dart';
 
-enum JobKind { install, update, reinstall, remove }
+enum JobKind { install, update, reinstall, remove, release }
 
 /// Phases in order; a job's `phase` is the last one it reached.
 const jobPhases = ['queued', 'prepare', 'build', 'commit', 'verify', 'finish'];
@@ -233,7 +235,7 @@ final class JobEngine {
     if (app == null) throw RouteError('not_found', 'no app $appId');
     final kindName = params['kind'];
     final kind = JobKind.values.where((k) => k.name == kindName).firstOrNull;
-    if (kind == null) throw RouteError('bad_params', 'kind (install, update, reinstall, remove)');
+    if (kind == null) throw RouteError('bad_params', 'kind (install, update, reinstall, remove, release)');
     final rawOptions = params['options'] ?? const {};
     if (rawOptions is! Map) throw RouteError('bad_params', 'options');
     final options = Map<String, dynamic>.from(rawOptions);
@@ -241,8 +243,22 @@ final class JobEngine {
       if (options[k] != null && options[k] is! bool) throw RouteError('bad_params', 'options.$k');
     }
     if (options['revision'] != null && options['revision'] is! String) throw RouteError('bad_params', 'options.revision');
+    if (params['tag'] != null && options['tag'] == null) options['tag'] = params['tag'];
+    if (options['tag'] != null && (options['tag'] is! String || !validTag(options['tag'] as String))) {
+      throw RouteError('bad_params', 'tag');
+    }
     if (kind == JobKind.remove) {
       checkRemovable(app);
+    } else if (kind == JobKind.release) {
+      final spec = app.release;
+      if (spec == null) throw RouteError('unavailable', '${app.name} has no GitHub releases');
+      if (!spec.supported) {
+        throw RouteError('unsupported_yet', 'installing a ${app.name} release is not supported yet${spec.note == null ? '' : ': ${spec.note}'}');
+      }
+      final c = app.components.where((c) => c.id == spec.component).firstOrNull;
+      if (!app.desktops.contains(ctx.desktop) || c == null || !c.desktops.contains(ctx.desktop)) {
+        throw RouteError('unavailable', '${app.name} is not for ${ctx.desktop.name}');
+      }
     } else {
       if (app.installation == Support.unsupportedYet) {
         throw RouteError('unsupported_yet', 'installing ${app.name} is not supported yet${app.supportNote == null ? '' : ': ${app.supportNote}'}');
@@ -599,9 +615,30 @@ final class JobEngine {
     ];
   }
 
+  /// The component a release installs: its paths, the release's installer and prerequisites.
+  Component _releaseComponent(AppEntry app) {
+    final spec = app.release!;
+    final base = app.components.firstWhere((c) => c.id == spec.component);
+    return Component(
+      id: base.id,
+      name: base.name,
+      repo: base.repo,
+      install: spec.install,
+      paths: base.paths,
+      kind: base.kind,
+      desktops: base.desktops,
+      prerequisites: spec.prerequisites,
+      optionalParts: base.optionalParts,
+      stopsOwnProcesses: base.stopsOwnProcesses,
+      env: base.env,
+      note: base.note,
+    );
+  }
+
   Future<Map<String, dynamic>> _install(_Run r) async {
     final app = r.app;
-    final comps = _components(app);
+    final release = r.kind == JobKind.release;
+    final comps = release ? [_releaseComponent(app)] : _components(app);
     _phase(r, 'prepare');
     final status = StatusReader(ctx);
 
@@ -624,9 +661,15 @@ final class JobEngine {
         throw JobFailure('missing_prerequisite', '${c.name} needs ${pr.command}');
       }
     }
-    final repos = _repos(app, comps);
+    final repos = release ? [comps.single.repo] : _repos(app, comps);
+    final notes = <Map<String, dynamic>>[];
     for (final repo in repos) {
       final folder = ctx.repoFolder(repo);
+      final input = app.inputs.firstWhere((i) => i.repo == repo, orElse: () => Input(repo));
+      if (FileSystemEntity.typeSync(folder, followLinks: false) == FileSystemEntityType.notFound) {
+        await _clone(r, input, folder);
+        notes.add({'repo': repo, 'cloned': ctx.cloneUrlFor(input.github!)});
+      }
       final g = await ctx.git.inspect(repo, folder);
       if (!g.present) throw JobFailure('no_source', '$folder is missing');
       if (!g.isRepo || g.head == null) throw JobFailure('no_source', '$folder: ${g.error ?? 'not a git repository with a commit'}');
@@ -645,7 +688,11 @@ final class JobEngine {
         r.log.note('$repo: ${g.relation.name} against ${g.upstream}, no pull');
       }
       _checkCancel(r);
+      final gh = await _githubUpdate(r, input, folder);
+      if (gh != null) notes.add(gh);
+      _checkCancel(r);
     }
+    if (notes.isNotEmpty) r.job['sources'] = notes;
     // The inputs as they are built (after the pull).
     final inputs = <Map<String, dynamic>>[];
     for (final repo in repos) {
@@ -659,6 +706,10 @@ final class JobEngine {
       });
     }
     _checkCancel(r);
+
+    // A release: the tarball downloaded and checked against its .sha256 before anything else.
+    ({Map<String, dynamic> release, String asset, String file, String sha256})? rel;
+    if (release) rel = await _downloadRelease(r, app);
 
     // Update with nothing new: the installed build is the folder as it is now (same commits, clean
     // then and now, every component installed) - nothing is built or replaced.
@@ -705,8 +756,17 @@ final class JobEngine {
     r.signatures = signatures([for (final (_, path) in cat) path]);
     _checkCancel(r);
 
-    for (final c in comps) {
-      await _runScript(r, c);
+    if (rel != null) {
+      final undo = await _placeTarball(r, ctx.repoFolder(comps.single.repo), app.release!, rel.file, rel.asset, rel.sha256);
+      try {
+        await _runScript(r, comps.single);
+      } finally {
+        undo();
+      }
+    } else {
+      for (final c in comps) {
+        await _runScript(r, c);
+      }
     }
     r.aliveAtEnd = {for (final pr in ctx.processes()) '${pr.pid}:${pr.startTicks}'};
 
@@ -749,17 +809,30 @@ final class JobEngine {
       }
     }
     d.save();
+    // A release installs one component: what the last receipt says about the others is kept.
+    final catSet = {for (final (_, path) in cat) path};
+    final otherComps = [for (final c in app.components) if (!comps.any((x) => x.id == c.id)) c];
+    final otherPaths = {for (final (_, path) in catalogPaths(paths, otherComps)) path};
+    final carried = release && receipt != null
+        ? [for (final e in receipt.paths) if (!catSet.contains(e['path']) && otherPaths.contains(e['path'])) e]
+        : const <Map<String, dynamic>>[];
+    final carriedInputs = release && receipt != null && carried.isNotEmpty
+        ? [for (final i in receipt.inputs) if (!repos.contains(i.repo)) i.toJson()]
+        : const <Map<String, dynamic>>[];
     final receiptJson = <String, dynamic>{
       'schema': 1,
       'id': app.id,
       'at': ctx.clock().toUtc().toIso8601String(),
-      'version': ?(status.bundleVersion(app) ?? status.folderVersion(app)),
+      'version': ?(status.bundleVersion(app) ?? (rel != null ? tagVersion(rel.release['tag'] as String) : status.folderVersion(app))),
       'manager': coreVersion,
       'job': r.id,
       'kind': r.kind.name,
-      'components': [for (final c in comps) c.id],
+      'components': [for (final c in comps) c.id, if (carried.isNotEmpty) for (final c in otherComps) c.id],
       if (partial.isNotEmpty) 'partial': partial.toList(),
-      'inputs': inputs,
+      'source': rel == null
+          ? {'kind': 'folder'}
+          : {'kind': 'release', 'tag': rel.release['tag'], 'asset': rel.asset, 'sha256': rel.sha256, 'url': ?rel.release['url']},
+      'inputs': [...inputs, ...carriedInputs],
       'paths': [
         for (final (_, path) in cat)
           if (pathState(path, normalized: norm.contains(path) ? normalizedHidden : null) case final st when st['exists'] == true)
@@ -768,6 +841,7 @@ final class JobEngine {
               'link' => {'path': path, 'link': st['link']},
               _ => {'path': path, 'dir': true},
             },
+        ...carried,
       ],
       'displaced': [for (final e in d.entries) {'path': e['path'], 'backup': e['backup'], 'restore': e['restore'], 'reason': e['reason']}],
     };
@@ -778,9 +852,244 @@ final class JobEngine {
     r.log.note('receipt written (${(receiptJson['paths'] as List).length} paths)');
     return {
       if (partial.isNotEmpty) 'partial': partial.toList(),
+      if (rel != null) 'release': {'tag': rel.release['tag'], 'asset': rel.asset, 'sha256': rel.sha256},
+      if (notes.isNotEmpty) 'sources': notes,
       'stopped': r.job['stopped'] ?? const [],
       'bar': bar,
       'receipt': p.join(paths.receipts, '${app.id}.json'),
+    };
+  }
+
+  /// Clones the input's GitHub repo into [folder] (missing): into a hidden sibling first, renamed
+  /// when complete, so a cancelled or failed clone leaves nothing behind. Cancellable.
+  Future<void> _clone(_Run r, Input input, String folder) async {
+    final slug = input.github;
+    if (slug == null) throw JobFailure('no_source', '$folder is missing and ${input.repo} is not on GitHub');
+    final git = ctx.runner.which('git');
+    if (git == null) throw JobFailure('missing_prerequisite', 'git is needed to clone ${input.repo}');
+    final url = ctx.cloneUrlFor(slug);
+    final parent = p.dirname(folder);
+    Directory(parent).createSync(recursive: true);
+    final tmp = p.join(parent, '.${p.basename(folder)}.clone-${r.id}');
+    void drop() {
+      if (FileSystemEntity.typeSync(tmp, followLinks: false) == FileSystemEntityType.directory) Directory(tmp).deleteSync(recursive: true);
+    }
+
+    drop();
+    r.log.note('${input.repo}: the folder is missing: git clone $url $folder');
+    final Process proc;
+    try {
+      proc = await Process.start(git, ['-c', 'core.fsmonitor=false', 'clone', '--no-progress', url, tmp],
+          environment: {...ctx.environment, ...Git.cloneEnv}, includeParentEnvironment: false, workingDirectory: parent);
+    } on ProcessException catch (e) {
+      throw JobFailure('clone_failed', 'git clone could not start: ${e.message}');
+    }
+    await proc.stdin.close();
+    final outDone = proc.stdout.listen(r.log.add).asFuture<void>();
+    final errDone = proc.stderr.listen(r.log.add).asFuture<void>();
+    var stopped = false;
+    final deadline = DateTime.now().add(const Duration(minutes: 30));
+    final timer = Timer.periodic(const Duration(milliseconds: 50), (_) {
+      if (!stopped && (r.cancelRequested || DateTime.now().isAfter(deadline))) {
+        stopped = true;
+        proc.kill(ProcessSignal.sigterm);
+        Timer(killAfter, () => proc.kill(ProcessSignal.sigkill));
+      }
+    });
+    final code = await proc.exitCode;
+    timer.cancel();
+    try {
+      await Future.wait([outDone, errDone]).timeout(const Duration(seconds: 2));
+    } on TimeoutException {
+      // a helper still holds the output
+    }
+    if (r.cancelRequested) {
+      drop();
+      r.log.note('clone cancelled; nothing kept');
+      throw _Cancelled();
+    }
+    if (code != 0 || stopped) {
+      drop();
+      throw JobFailure('clone_failed', 'git clone $url failed (${stopped ? 'took too long' : 'exit code $code'})');
+    }
+    if (FileSystemEntity.typeSync(folder, followLinks: false) != FileSystemEntityType.notFound) {
+      drop();
+      throw JobFailure('no_source', '$folder appeared while cloning: left as it is');
+    }
+    Directory(tmp).renameSync(folder);
+    r.log.note('${input.repo}: cloned into $folder');
+  }
+
+  /// An update of a folder whose configured upstream isn't its GitHub remote: that remote is
+  /// fetched and HEAD fast-forwarded to its branch, only when the folder is clean, on a branch,
+  /// and the GitHub branch contains HEAD and is ahead. Otherwise the reason is logged and returned.
+  Future<Map<String, dynamic>?> _githubUpdate(_Run r, Input input, String folder) async {
+    if (r.kind != JobKind.update || input.github == null) return null;
+    final repo = input.repo;
+    final g = await ctx.git.inspect(repo, folder);
+    final gh = await githubRemote(ctx, folder, input.github!, upstreamRemote: g.upstreamRemote);
+    if (gh == null) {
+      final why = 'no remote of the folder is ${input.webUrl}: GitHub not checked';
+      r.log.note('$repo: $why');
+      return {'repo': repo, 'github': input.webUrl, 'fastForward': false, 'why': why};
+    }
+    if (g.upstream != null && gh.name == g.upstreamRemote) return null; // the pull above was against GitHub
+    r.log.note('$repo: git fetch ${gh.name} (GitHub, ${gh.url})');
+    final f = await ctx.git.fetch(folder, gh.name);
+    if (f.stderr.trim().isNotEmpty) r.log.add(utf8.encode(f.stderr.endsWith('\n') ? f.stderr : '${f.stderr}\n'));
+    final ref = '${gh.name}/${githubBranch(ctx.github.facts(input.github!), g)}';
+    String? why;
+    if (!f.ok) {
+      why = 'fetching ${gh.name} failed';
+    } else {
+      final c = await ctx.git.compare(folder, ref);
+      if (!c.exists) {
+        why = '$ref does not exist';
+      } else if (c.relation == Relation.upToDate) {
+        why = 'up to date with $ref';
+      } else if (c.relation == Relation.ahead) {
+        why = 'the folder is ahead of $ref';
+      } else if (c.relation == Relation.diverged) {
+        why = 'diverged from $ref (${c.ahead} local, ${c.behind} there)';
+      } else if (c.relation != Relation.behind) {
+        why = 'could not compare with $ref';
+      } else if (g.branch == null) {
+        why = 'detached HEAD';
+      } else if (g.dirty != false) {
+        why = 'uncommitted changes';
+      } else {
+        r.log.note('$repo: git merge --ff-only $ref (${c.behind} new from GitHub)');
+        final m = await ctx.git.mergeFfOnly(folder, ref);
+        if (m.stdout.isNotEmpty) r.log.add(utf8.encode(m.stdout));
+        if (m.stderr.isNotEmpty) r.log.add(utf8.encode(m.stderr));
+        if (!m.ok) throw JobFailure('pull_failed', '$repo: git merge --ff-only $ref failed');
+        return {'repo': repo, 'remote': gh.name, 'ref': ref, 'fastForward': true, 'new': c.behind};
+      }
+    }
+    r.log.note('$repo: no fast-forward to $ref: $why');
+    return {'repo': repo, 'remote': gh.name, 'ref': ref, 'fastForward': false, 'why': why};
+  }
+
+  /// The release (the tag asked for, else the latest), its tarball downloaded into the cache and
+  /// checked against the release's `.sha256` asset: refused when that is missing or differs.
+  Future<({Map<String, dynamic> release, String asset, String file, String sha256})> _downloadRelease(_Run r, AppEntry app) async {
+    final spec = app.release!;
+    final slug = app.mainInput.github;
+    if (slug == null) throw JobFailure('no_release', '${app.name} is not on GitHub');
+    final tag = (r.job['options'] as Map)['tag'] as String?;
+    Map<String, dynamic>? rel;
+    try {
+      rel = await ctx.github.release(slug, tag: tag);
+    } on GitHubError catch (e) {
+      throw JobFailure('github_failed', '$slug: ${e.message}');
+    } on Object catch (e) {
+      throw JobFailure('github_failed', '$slug: offline? ($e)');
+    }
+    if (rel == null) throw JobFailure('no_release', tag == null ? '$slug has no release' : '$slug has no release $tag');
+    final relTag = rel['tag'];
+    if (relTag is! String || !validTag(relTag)) throw JobFailure('no_release', 'the release has no usable tag');
+    final asset = spec.asset(tagVersion(relTag));
+    final assets = [for (final a in (rel['assets'] as List? ?? const [])) if (a is Map) a];
+    final tar = assets.where((a) => a['name'] == asset).firstOrNull;
+    final sum = assets.where((a) => a['name'] == '$asset.sha256').firstOrNull;
+    if (tar == null || tar['url'] is! String) throw JobFailure('no_asset', 'release $relTag has no $asset');
+    if (sum == null || sum['url'] is! String) throw JobFailure('no_checksum', 'release $relTag has no $asset.sha256: not installed');
+    r.log.note('release $relTag of $slug: $asset (${tar['size'] ?? '?'} bytes)');
+    final dir = p.join(ctx.github.downloads, slug.replaceAll('/', '_'), relTag);
+    Directory(dir).createSync(recursive: true);
+
+    Future<void> get(String url, String dest) async {
+      final part = '$dest.part';
+      try {
+        if (File(part).existsSync()) File(part).deleteSync();
+        await ctx.github.fetchTo(Uri.parse(url), part, cancelled: () => r.cancelRequested);
+      } on Object catch (e) {
+        if (File(part).existsSync()) File(part).deleteSync();
+        if (r.cancelRequested) throw _Cancelled();
+        throw JobFailure('download_failed', '$url: $e');
+      }
+      if (r.cancelRequested) {
+        File(part).deleteSync();
+        throw _Cancelled();
+      }
+      File(part).renameSync(dest);
+    }
+
+    final sumFile = p.join(dir, '$asset.sha256');
+    await get(sum['url'] as String, sumFile);
+    final want = parseSha256File(File(sumFile).readAsStringSync(), asset);
+    if (want == null) throw JobFailure('bad_checksum', '$asset.sha256 holds no sha256 for $asset: not installed');
+    final file = p.join(dir, asset);
+    if (File(file).existsSync() && await sha256OfFile(file) == want) {
+      r.log.note('$asset: already downloaded ($file)');
+    } else {
+      r.log.note('downloading ${tar['url']}');
+      await get(tar['url'] as String, file);
+    }
+    final got = await sha256OfFile(file);
+    if (got != want) {
+      File(file).deleteSync();
+      throw JobFailure('checksum_mismatch', '$asset: sha256 $got, its .sha256 says $want: not installed');
+    }
+    r.log.note('$asset: sha256 $got matches $asset.sha256');
+    r.job['release'] = {'tag': relTag, 'asset': asset, 'sha256': got, 'file': file};
+    _persist(r.job);
+    _checkCancel(r);
+    return (release: rel, asset: asset, file: file, sha256: got);
+  }
+
+  /// Puts the tarball where the release's installer picks it (the newest matching file in its
+  /// dist folder: given an mtime newer than every other match). Returns the undo: a copy placed
+  /// here is removed, a different file of that name moved aside is put back, a reused file gets
+  /// its mtime back, a dist folder made here is removed when empty.
+  Future<void Function()> _placeTarball(_Run r, String folder, ReleaseSpec spec, String file, String asset, String sha) async {
+    final dist = p.join(folder, spec.dist);
+    final madeDist = !Directory(dist).existsSync();
+    Directory(dist).createSync(recursive: true);
+    final target = p.join(dist, asset);
+    final parts = spec.tarball.split('{version}');
+    final pattern = RegExp('^${parts.map(RegExp.escape).join('.*')}\$');
+    var newest = DateTime.fromMillisecondsSinceEpoch(0);
+    for (final e in Directory(dist).listSync(followLinks: false)) {
+      if (e.path == target || !pattern.hasMatch(p.basename(e.path))) continue;
+      final m = e.statSync().modified;
+      if (m.isAfter(newest)) newest = m;
+    }
+    String? aside;
+    DateTime? reusedMtime;
+    var placed = false;
+    if (FileSystemEntity.typeSync(target, followLinks: false) != FileSystemEntityType.notFound) {
+      if (FileSystemEntity.typeSync(target, followLinks: false) == FileSystemEntityType.file && await sha256OfFile(target) == sha) {
+        reusedMtime = File(target).statSync().modified;
+      } else {
+        aside = p.join(dist, '.$asset.maprisma-manager-${r.id}');
+        FileSystemEntity.typeSync(target, followLinks: false) == FileSystemEntityType.link
+            ? Link(target).renameSync(aside)
+            : File(target).renameSync(aside);
+        r.log.note('a different $asset in ${spec.dist}/ was moved aside for the install');
+      }
+    }
+    if (reusedMtime == null) {
+      File(file).copySync(target);
+      placed = true;
+    }
+    final now = DateTime.now();
+    final stamp = newest.add(const Duration(seconds: 1)).isAfter(now) ? newest.add(const Duration(seconds: 1)) : now;
+    File(target).setLastModifiedSync(stamp);
+    r.log.note('${placed ? 'placed' : 'using'} $target (the newest in ${spec.dist}/)');
+    return () {
+      try {
+        if (placed && File(target).existsSync()) File(target).deleteSync();
+        if (aside != null) {
+          FileSystemEntity.typeSync(aside, followLinks: false) == FileSystemEntityType.link
+              ? Link(aside).renameSync(target)
+              : File(aside).renameSync(target);
+        }
+        if (reusedMtime != null && File(target).existsSync()) File(target).setLastModifiedSync(reusedMtime);
+        if (madeDist && Directory(dist).existsSync() && Directory(dist).listSync().isEmpty) Directory(dist).deleteSync();
+      } on FileSystemException catch (e) {
+        r.log.note('cleaning up $dist: $e');
+      }
     };
   }
 
@@ -1293,6 +1602,9 @@ bool isExecutableFileOrLink(String path) {
 }
 
 // ---------- the jobs on disk (any process) ----------
+
+/// A release tag that can be a folder name and a URL segment.
+bool validTag(String tag) => RegExp(r'^[A-Za-z0-9][A-Za-z0-9._+-]{0,99}$').hasMatch(tag) && !tag.contains('..');
 
 bool validJobId(String id) => RegExp(r'^[0-9]{8}T[0-9]{6}Z-[a-z0-9]+-[a-z]+(-[0-9]+)?$').hasMatch(id);
 

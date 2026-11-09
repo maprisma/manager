@@ -4,6 +4,7 @@ import 'package:path/path.dart' as p;
 
 import 'catalog.dart';
 import 'git.dart';
+import 'github.dart';
 import 'paths.dart';
 import 'procs.dart';
 import 'run.dart';
@@ -60,6 +61,13 @@ final class Ctx {
   late final String projectsDir;
   late final String projectsSource;
   late final Git git;
+
+  /// The URL to clone a GitHub repo (`org/name`) from; tests point it at a local bare repo.
+  /// A folder's remote is "the GitHub remote" when its URL is this one or a GitHub URL of the slug.
+  String Function(String slug) cloneUrlFor = (slug) => 'https://github.com/$slug.git';
+
+  /// GitHub facts (cache, refresh, releases, downloads).
+  late final GitHub github = GitHub(this);
 
   /// When this core last tried to fetch a repo (an offline fetch leaves FETCH_HEAD old).
   final Map<String, DateTime> fetchAttempts = {};

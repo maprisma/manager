@@ -38,6 +38,8 @@ final class World {
     'GIT_CONFIG_GLOBAL': gitConfig,
     'GIT_CONFIG_NOSYSTEM': '1',
     'GIT_ALLOW_PROTOCOL': 'file',
+    // never the network: the built-in GitHub reads refuse, gh only when MAPRISMA_MANAGER_GH names it
+    'MAPRISMA_MANAGER_OFFLINE': '1',
     ...extra,
   };
 

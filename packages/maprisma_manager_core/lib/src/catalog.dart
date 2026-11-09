@@ -26,7 +26,7 @@ AppEntry _rustApp({
   required String suffix,
   required String binary,
   required List<String> scripts,
-  String? remote,
+  String? github,
   List<DataPath> data = const [],
   List<RuntimePath> runtime = const [],
 }) {
@@ -35,7 +35,7 @@ AppEntry _rustApp({
     id: id,
     name: name,
     kind: 'rust',
-    inputs: [Input(repo, remote: remote)],
+    inputs: [Input(repo, github: github)],
     components: [
       Component(
         id: 'main',
@@ -84,8 +84,9 @@ final List<AppEntry> builtinCatalog = [
     name: 'Maprisma',
     kind: 'pacman package maprisma-bin',
     inputs: [
-      Input('maprisma', remote: 'https://github.com/maprisma/maprisma.git'),
-      Input('maprisma-addons', remote: 'https://github.com/maprisma/maprisma-addons.git', note: 'dist/adapters-<version>.zip, signed'),
+      // The folder's origin is the private uBruckhaus/maprisma; GitHub here is its `public` remote.
+      Input('maprisma', github: 'maprisma/maprisma'),
+      Input('maprisma-addons', github: 'maprisma/maprisma-addons', note: 'dist/adapters-<version>.zip, signed'),
     ],
     components: [
       Component(
@@ -127,6 +128,12 @@ final List<AppEntry> builtinCatalog = [
     bar: BarIcon(),
     version: VersionSource(pacman: 'maprisma-bin', folderFile: 'addons.py', folderPattern: r'^MAPRISMA_VERSION = "([0-9.]+)"'),
     postSteps: ['systemctl --user restart maprisma-providers.service'],
+    release: ReleaseSpec(
+      tarball: 'maprisma-{version}-x86_64.tar.gz',
+      component: 'package',
+      supported: false,
+      note: 'installed as a pacman package from a recipe for the tarball (step 5)',
+    ),
     installation: Support.unsupportedYet,
     removal: Support.unsupportedYet,
     supportNote: 'the pacman package comes in step 5',
@@ -175,7 +182,7 @@ final List<AppEntry> builtinCatalog = [
     name: 'Maprisma Launcher',
     kind: 'flutter',
     inputs: [
-      Input('maprisma-launcher', remote: 'https://github.com/maprisma/launcher.git'),
+      Input('maprisma-launcher', github: 'maprisma/launcher'),
       Input('maprisma-launcher-applet'),
     ],
     components: [
@@ -234,6 +241,14 @@ final List<AppEntry> builtinCatalog = [
       folderPattern: r'^version: *([0-9.]+)',
     ),
     postSteps: ['update-desktop-database'],
+    // install-local --no-build installs the newest dist/maprisma-launcher-*-x86_64.tar.gz.
+    release: ReleaseSpec(
+      tarball: 'maprisma-launcher-{version}-x86_64.tar.gz',
+      component: 'app',
+      install: ['tools/install-local', '--no-build'],
+      dist: 'dist',
+      prerequisites: [Prerequisite('bash'), Prerequisite('tar')],
+    ),
     removal: Support.unsupportedYet,
     supportNote: 'its Flutter bundle needs whole-tree ownership in the receipt first (step 5)',
   ),
@@ -309,7 +324,7 @@ final List<AppEntry> builtinCatalog = [
     repo: 'maprisma-bluetooth-monitor',
     suffix: 'BluetoothMonitor',
     binary: 'maprisma-bluetooth-monitor',
-    remote: 'https://github.com/maprisma/bluetooth-monitor.git',
+    github: 'maprisma/bluetooth-monitor',
     scripts: const ['bluetooth-monitor.py', 'audio-default.py', 'bt-device.sh', 'bt-power.sh', 'allow-access.sh'],
     data: const [
       DataPath('{config}/maprisma-bluetooth-monitor'),
@@ -337,7 +352,7 @@ final List<AppEntry> builtinCatalog = [
     repo: 'maprisma-hue-lights',
     suffix: 'HueLights',
     binary: 'maprisma-hue-lights',
-    remote: 'https://github.com/maprisma/hue-lights.git',
+    github: 'maprisma/hue-lights',
     scripts: const ['hue-lights.py'],
     data: const [DataPath('{config}/hue-lights', sharedWithOmarchy: true)],
   ),
@@ -347,7 +362,7 @@ final List<AppEntry> builtinCatalog = [
     repo: 'maprisma-llm-monitor',
     suffix: 'LlmMonitor',
     binary: 'maprisma-llm-monitor',
-    remote: 'https://github.com/maprisma/llm-monitor.git',
+    github: 'maprisma/llm-monitor',
     scripts: const ['llm-monitor.py', 'free-gpu.sh'],
   ),
   _rustApp(
@@ -356,7 +371,7 @@ final List<AppEntry> builtinCatalog = [
     repo: 'maprisma-wlan-monitor',
     suffix: 'WlanMonitor',
     binary: 'maprisma-wlan-monitor',
-    remote: 'https://github.com/maprisma/wlan-monitor.git',
+    github: 'maprisma/wlan-monitor',
     scripts: const ['wlan-monitor.py'],
     data: const [DataPath('{config}/ubruckhaus-wlan-monitor', sharedWithOmarchy: true)],
   ),
@@ -366,7 +381,7 @@ final List<AppEntry> builtinCatalog = [
     id: 'narrator',
     name: 'Maprisma Narrator',
     kind: 'rust + flutter',
-    inputs: [Input('maprisma-narrator', remote: 'https://github.com/maprisma/narrator.git')],
+    inputs: [Input('maprisma-narrator', github: 'maprisma/narrator')],
     components: [
       Component(
         id: 'main',

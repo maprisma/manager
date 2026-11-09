@@ -219,6 +219,9 @@ maprisma/maprisma). Local only: control, home, theme, video, tiling, icons, the 
 4. One simple Rust app end to end (WLAN Monitor): install, update, remove with ownership, bar state kept.
 4b. GitHub: where each app exists (folder, GitHub URL, latest release), clone when the folder is missing,
    update against the GitHub remote, release installs for the launcher (maprisma's in step 5).
+   **Done** (docs/protocol.md "github.refresh", "Source", release jobs; the catalog's GitHub repos match
+   `gh` and every folder's remotes; maprisma's `public/main` has a history of its own (diverged from the
+   private origin's main), so it is shown, never fast-forwarded).
 5. The others: Flutter apps, Narrator/Video, Launcher (+ applet), Theme, then Tiling, Icons, maprisma
    (pacman); icon changes (and the small own-icon-name changes in the apps' repos).
 6. Self-update; then the Flutter UI (list, bar editor, icon picker, log sheet) and tools/install-local.

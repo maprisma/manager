@@ -86,7 +86,7 @@ void main() {
       File(p.join(w.projects, 'maprisma/addons.py')).writeAsStringSync('MAPRISMA_VERSION = "0.14.2"  # x\n');
       final a = appOf(await list(), 'maprisma');
       expect(a['state'], 'installed');
-      expect(a['versions'], {'installed': '0.13.1-9', 'folder': '0.14.2'});
+      expect(a['versions'], {'installed': '0.13.1-9', 'folder': '0.14.2', 'release': null});
       expect(a['components'][0]['packageVersion'], '0.13.1-9');
       // system files are under the test root
       expect(File(p.join(w.root, 'usr/lib/maprisma/maprisma')).existsSync(), isTrue);

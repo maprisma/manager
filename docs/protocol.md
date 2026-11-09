@@ -19,8 +19,9 @@ remove needs a step of its own that comes later; the catalog says why), `not_can
 in its commit phase, or its script has started writing the app's files), `finished`, `not_owner` (the
 job runs in another Manager process: only that one can cancel it).
 
-Writes: `git.fetch` (remote-tracking refs, when asked), the `bar.*` changes, and the jobs
-(`jobs.start`: install, update, reinstall, remove). `apps.list` / `apps.get` / `jobs.*` reads mark
+Writes: `git.fetch` (remote-tracking refs, when asked), `github.refresh` (`github.json`), the `bar.*`
+changes, and the jobs (`jobs.start`: install, update, reinstall, remove, release; a job may clone a
+missing folder from GitHub and download release assets into `~/.cache/maprisma-manager/downloads/`). `apps.list` / `apps.get` / `jobs.*` reads mark
 an unfinished job of a Manager that is gone as `interrupted` in its state file.
 
 ## Environment
@@ -33,6 +34,7 @@ an unfinished job of a Manager that is gone as `interrupted` in its state file.
 | `MAPRISMA_PROJECTS` | The projects folder (the repos). |
 | `MAPRISMA_FLUTTER` | Flutter: the executable or its folder. |
 | `MAPRISMA_MANAGER_ROOT`, `MAPRISMA_MANAGER_PROC` | Tests only: the system root for `/usr`, `/etc` and the `/proc` to read. |
+| `MAPRISMA_MANAGER_OFFLINE`, `MAPRISMA_MANAGER_GH` | Tests only: `1` = the built-in GitHub reads and downloads refuse (no network) and gh is used only when `MAPRISMA_MANAGER_GH` names it (a fake). |
 
 The projects folder: `MAPRISMA_PROJECTS`, else `projectsDir` in `~/.config/maprisma-manager/settings.json`,
 else the first of `~/Projects`, `/mnt/Data/Projects` that holds a known repo, else the first that
@@ -63,14 +65,31 @@ App:
 | `state` | `installed`, `partial` (some postconditions fail, see the components), `absent`. Counts the components that apply to this desktop (Launcher's applet: COSMIC only). |
 | `components[]` | `{id, name, repo, applies, state, packageVersion?, note?, failing: [{path, part, problem}], missingParts, prerequisitesMissing}`. `problem`: `missing`, `not a file`, `not a folder`, `not executable`, `not a link`, `points to …`, `dangling`. `missingParts`: parts with no path present (e.g. Narrator's `settings window` without cmake). |
 | `build` | `{known, receipt?: {id, at, version?, inputs, paths, displaced}, error?}`; `known` = a valid receipt exists. |
-| `updates` | The three facts: `buildUnknown` (installed, no receipt); `sourceDiffers` (`true`/`false`, `null` without a receipt) with `sourceReasons`; `upstreamNew` (commits the configured upstream has that HEAD hasn't, as of the last fetch; `null` = no input has an upstream) with `upstreamNotes` (diverged, dirty: no pull). |
-| `versions` | `{installed, folder}` where known (pacman, a Flutter bundle's `version.json`; the repo's version line). |
+| `updates` | `buildUnknown` (installed, no receipt); `sourceDiffers` (`true`/`false`, `null` without a receipt, and for a release install: `sourceReasons: ["installed from release vX"]`) with `sourceReasons`; `upstreamNew` (commits the configured upstream has that HEAD hasn't, as of the last fetch; `null` = no input has an upstream) with `upstreamNotes` (diverged, dirty: no pull); `githubNew` (commits the GitHub remote's branch has that HEAD hasn't, as of the last fetch, also when the configured upstream is another remote; `null` = nothing to compare) with `githubNotes` (no folder, no GitHub remote in the folder, not fetched yet, diverged, dirty); `releaseNew` (`{tag, version, installed, installable}` when the latest release's version is newer than the installed one, else `null`). |
+| `versions` | `{installed, folder, release}` where known (pacman, a Flutter bundle's `version.json`; the repo's version line; the latest GitHub release's tag without `v`). |
+| `sources` | Where it exists (below): `{where: folder/GitHub/both/none (the main input), url (GitHub web URL), release (latest, as last checked), releaseInstall: {supported, note?} or null, inputs: [Source]}`. |
 | `repos[]` | Per input repo (`dirty` is `null` when git status failed; `error` says what could not be read): `{repo, folder, present, isRepo, branch, detached, head, dirty, dirtyTracked, untracked, upstream, upstreamRemote, upstreamUrl, ahead, behind, relation, lastFetch, error?, cloneUrl, available}`. `relation`: `upToDate`, `behind`, `ahead`, `diverged` (by ancestry), `unknown` (no upstream). `available`: `here`, `cloneable`, `not available here`. |
 | `bar` | COSMIC: `{has, id, state: in/out/unknown, zone, panel, startsAtLogin, running, visible, error?}`: `zone`/`panel` where the applet is (every panel instance is looked at); in a panel = starts at login (cosmic-panel starts it); `running` = its applet program runs as a child of cosmic-panel; a file that doesn't parse gives `unknown` with the error. KDE tray: `{has, id, kind: tray, state, zone?, startsAtLogin, running, visible, where?}`: autostart file not `Hidden=true`; the tray process; `state: out` also when Maprisma Icons hides it; `visible` is `null` for a running tray in the system tray (it may sit in the overflow), `where: systemTray` without the widget. KDE widget entry (Launcher): `{kind: widgetEntry, state, zone?, visible}` from Maprisma Icons (`unknown` with `error` when plasmashell can't be asked). `iconName` is the one the desktop shows (Theme's KDE tray: `com.maprisma.Theme`). `wanted` is the app's entry in bar.json. No icon: `{has: false, state: none}`. |
 | `running` | How many of the user's processes belong to it (by `/proc/<pid>/exe`, or the script path in argv for interpreted helpers). |
 | `dependsOn`, `neededBy`, `env` | Dependencies; `env.FLUTTER` as the installer wants it (Theme: the folder, Narrator/Video: the executable; `PATH+` for those that take flutter from PATH). |
 | `support` | `{install, remove, note?}`: whether jobs can install/remove it yet (`false` → `unsupported_yet`). |
 | `job`, `repair` | The app's latest job (the `jobs.list` form, null without one); `repair: true` after an interrupted job or a failed one that had started writing: offer Repair (= reinstall). |
+
+Source (one per input repo):
+
+```
+{repo,
+ folder:  {path, present, isRepo, branch, head, dirty},
+ github:  null (local only) | {repo: "org/name", url: "https://github.com/org/name", cloneUrl, known, public?, defaultBranch?,
+          release?: {tag, name, published, url, prerelease, assets: [{name, size, url, digest?}]} | null,
+          checked, age (seconds), stale, error?, lastTry?, via?: gh/rest},
+ remote:  null | {name, url, isUpstream}       the folder's remote whose URL is the GitHub repo (by URL, not by name)
+ compare: null | {ref: "<remote>/<branch>", fetched, ahead, behind, relation},
+ newSinceBuild?}                              commits on that ref since the receipt's commit (folder builds)
+```
+
+The GitHub branch is the repo's default branch as last checked, else the folder's branch, else `main`.
+maprisma: origin is the private `uBruckhaus/maprisma`, the GitHub remote is `public`.
 
 ### `apps.get` `{id, desktop?}`
 
@@ -82,13 +101,31 @@ runtime: `{path, exists, glob?, matches?, marker?, markedOurs?}`), `postSteps`, 
 
 ### `git.fetch` `{id?, force?}`
 
-Fetches the configured upstream's remote of each input repo of app `id` (all apps without it). A repo
+Fetches the configured upstream's remote of each input repo of app `id` (all apps without it), and
+the folder's GitHub remote when that is another remote (so `githubNew` is known for maprisma, whose
+upstream is the private origin). A repo
 fetched within 30 minutes (`FETCH_HEAD`), or tried by this core process within 30 minutes, is skipped
 unless `force` is `true`. Failed attempts are remembered in memory only (step 1 writes no state), so a
 new CLI process retries an offline fetch. Inspection never uses a transport (`protocol.allow=never`,
 no lazy fetch, no fsmonitor); only this route does.
 
-`{force, repos: [{repo, fetched, skipped?: recent/no upstream/missing/not a repo, error?, behind?, relation?, lastFetch?}]}`
+`{force, repos: [{repo, fetched, skipped?: recent/no upstream/missing/not a repo, error?, remotes?: [{remote, fetched, error?, github?}], behind?, relation?, github?: {remote, ref, fetched, behind, relation}, lastFetch?}]}`
+(`no upstream` = neither an upstream nor a GitHub remote.)
+
+### `github.refresh` `{id?, force?}`
+
+Reads the GitHub facts of every GitHub repo of app `id` (all without it): `repos/<org>/<name>` (web
+URL, public, default branch) and `repos/<org>/<name>/releases/latest` (404 = no release). Through `gh
+api` when `gh` is installed and `gh auth status` succeeds, else the public REST API
+(`https://api.github.com/`, no token). A repo checked or tried within 30 minutes is skipped unless
+`force`. A failure keeps the last known facts and records `error`/`lastTry`; offline or rate limited
+(403/429 with `x-ratelimit-remaining: 0`, the reset time in the message) stops the refresh, the rest
+is `skipped: offline` / `rate limited …`. Cached in `~/.local/state/maprisma-manager/github.json`
+(`{schema: 1, repos: {"org/name": {checked, via, facts: {url, public, defaultBranch, release}} | {…, lastTry, error}}}`,
+written under the state lock). `apps.list` only reads this cache (no network).
+
+`{force, via: gh/rest/null, repos: [{repo, checked, via?, release?, skipped?: recent/offline/rate limited…, error?}], facts: {"org/name": github facts}}`;
+`{…, note: "not on GitHub"}` for an app without GitHub repos.
 
 ### `bar.get` `{panel?, widget?}`
 
@@ -196,10 +233,11 @@ One job at a time: a queue in the core process and an fcntl lock on
 gets `busy`. Every job's state is `jobs/<id>.json`, its log `logs/<id>.log` (100 finished jobs kept).
 
 ```
-{id: "20261109T101500Z-wlan-install", app, kind: install/update/reinstall/remove, options,
+{id: "20261109T101500Z-wlan-install", app, kind: install/update/reinstall/remove/release, options,
  state: queued/running/succeeded/failed/cancelled/interrupted, phase: queued/prepare/build/commit/verify/finish,
  component?, created, started?, ended?, finished?, committed, owner: {pid, start}, script?: {pid, pgid, start},
- log, stopped?: [{pid, exe, result}], units?, warnings?, result?: {ok, code?, message?, repair?, partial?, …}}
+ log, stopped?: [{pid, exe, result}], units?, warnings?, sources?: [..], release?: {tag, asset, sha256, file},
+ result?: {ok, code?, message?, repair?, partial?, sources?, release?, …}}
 ```
 
 An unfinished job whose owner (pid + start time) is gone is `interrupted` (`repair: true` unless it was
@@ -209,9 +247,16 @@ still queued); if its script still runs it gets SIGCONT (it may have been paused
 Phases of install/update/reinstall:
 
 1. **prepare** (cancellable): dependencies installed, prerequisites found (a missing one of an
-   optional part is a warning), every input repo present with a commit; for `update` only: `git pull
-   --ff-only` when the repo is clean, behind and has an upstream (otherwise the reason is logged and
-   the folder is built as it is). The inputs (HEAD, dirty, fingerprint) are recorded. The catalog paths
+   optional part is a warning), every input repo present with a commit. A missing folder of an input
+   on GitHub is cloned: `git clone <github url>` into a hidden sibling (`.<repo>.clone-<job>`), renamed
+   to `<projects>/<repo>` when complete (logged; a cancel ends git and leaves nothing; `clone_failed`;
+   not on GitHub: `no_source`). For `update` only: `git pull --ff-only` when the repo is clean, behind
+   and has an upstream (otherwise the reason is logged and the folder is built as it is); then, when
+   the folder's GitHub remote isn't the configured upstream's remote, that remote is fetched and HEAD
+   is fast-forwarded to `<remote>/<branch>` (`git merge --ff-only`) only when the folder is clean, on
+   a branch, and that ref contains HEAD and is ahead; otherwise why not (up to date, ahead, diverged,
+   uncommitted changes, detached HEAD, no GitHub remote, fetch failed) is logged and returned in
+   `result.sources: [{repo, remote?, ref?, fastForward, why?, new?} | {repo, cloned}]`. The inputs (HEAD, dirty, fingerprint) are recorded. The catalog paths
    are snapshotted; an installed app without a bar.json entry gets its current bar state recorded
    there (so the installer's rewritten autostart file doesn't change it); a file at one of them that isn't the Manager's (per the receipt) is copied to
    `displaced/<app>/` first (`restore: true` when a receipt existed, `false` for files from before the
@@ -243,6 +288,24 @@ Phases of install/update/reinstall:
    started again (`setsid`, when its autostart file isn't hidden; kept stopped when it is), backups of
    files the script left as they were dropped, then the receipt written (below).
 
+A **release** job (`kind: release`, `options.tag?`; only apps whose catalog has a release spec:
+Launcher; Maprisma's pacman release is `unsupported_yet` until step 5, other apps `unavailable`)
+installs one component (Launcher: `app`) from a GitHub release instead of building: in **prepare** the
+installer's folder is cloned when missing, the release is read (the tag asked for from GitHub, else the
+latest from the cache, refreshed when older than 30 minutes; `no_release`, `github_failed`), its tarball
+asset (`maprisma-launcher-<version>-x86_64.tar.gz`) and that name plus `.sha256` must exist (`no_asset`,
+`no_checksum`), both are downloaded into `~/.cache/maprisma-manager/downloads/<org>_<name>/<tag>/`
+(`.part`, renamed when complete; cancellable; `download_failed`), and the tarball's sha256 must be
+the `.sha256` file's (whose file name, if any, must be the asset; `bad_checksum`, `checksum_mismatch`:
+the download is deleted, nothing installed). Then the snapshot as above, the tarball is placed in the
+repo's `dist/` with an mtime newer than every other `maprisma-launcher-*-x86_64.tar.gz` there (so the
+script's `ls -t … | head -1` picks it; a different file of that name is moved aside to
+`.<asset>.maprisma-manager-<job>`), and **build** runs `tools/install-local --no-build`; afterwards
+(also on failure) a copy placed by the job is removed, a moved one put back, a reused identical one
+gets its mtime back and a `dist/` made by the job is removed when empty. verify/finish as above; the
+receipt's `source` is `{kind: release, tag, asset, sha256, url}`, the paths of the app's other
+components (the COSMIC applet) and their inputs are carried over from the last receipt.
+
 A failure leaves everything as it is (nothing is deleted, no receipt); `repair: true` when it had
 reached the commit. Remove: **prepare** (the plan, `revision`, dependents need `dependents_ok`) →
 **commit** (bar icon out of the panel/widget without changing bar.json, so a reinstall puts it back;
@@ -253,7 +316,8 @@ receipt dropped).
 
 ### `jobs.start` `{app, kind, options?}`
 
-`options`: remove `{delete_settings?, dependents_ok?, revision?}`. Answers the job (short form) at once;
+`options`: remove `{delete_settings?, dependents_ok?, revision?}`; release `{tag?}` (also accepted as a
+top-level `tag`; `[A-Za-z0-9][A-Za-z0-9._+-]*`, else `bad_params`). Answers the job (short form) at once;
 it runs in the background of the core. `unavailable` for an app not for this desktop.
 
 ### `jobs.get` `{id}` / `jobs.list` `{app?, limit?}`
@@ -277,11 +341,14 @@ the lines and `jobs.done(id)` completes with the job.
 
 ```
 maprisma-manager-core status [--json] [--desktop cosmic|kde|other] [<id>]
+maprisma-manager-core sources [--json]
 maprisma-manager-core fetch [--force] [<id>]
+maprisma-manager-core github [--force] [<id>]
 maprisma-manager-core bar [--json] [--panel <name>]
 maprisma-manager-core bar <id> left|center|right|out [--index <n>] [--panel <name>]
 maprisma-manager-core bar apply
 maprisma-manager-core install|update|reinstall <id>
+maprisma-manager-core release <id> [<tag>]
 maprisma-manager-core remove <id> [--delete-settings] [--yes]
 maprisma-manager-core jobs [<app>]
 maprisma-manager-core log <job>
@@ -294,8 +361,13 @@ maprisma-manager-core log <job>
 `bar` prints the areas (`[wlan]` = ours, COSMIC's applets shortened: `Time`, `Power`) and the icons that
 are out; `bar <id> <area>` places/moves it there (`out` takes it out) and prints the bar again.
 
-`status` prints a table (ID, STATE, VERSION, BUILD, FOLDER, UPSTREAM, BAR, RUN, NOTES); `--json` prints
-`apps.list` (or `apps.get` with an id).
+`status` prints a table (ID, STATE, VERSION, SOURCE (folder / GitHub / both / -), BUILD, FOLDER,
+UPSTREAM, BAR, RUN, NOTES: a newer release, `GitHub +N` or `diverged from GitHub` when the GitHub
+remote isn't the upstream); `status <id>` adds per input the folder (path, branch, HEAD, clean), the
+GitHub URL (public/private, which remote, the facts' age), the latest release with its URL and the
+comparison with the GitHub branch; `--json` prints `apps.list` (or `apps.get` with an id). `sources`
+lists every app and input with its folder (or `missing`), GitHub URL (or `local only`) and latest
+release. `github` runs `github.refresh`. `release` runs a release job like `install`.
 
 ## Receipts (written by install jobs after verify)
 
@@ -304,6 +376,7 @@ are out; `bar <id> <area>` places/moves it there (`out` takes it out) and prints
 ```json
 {"schema": 1, "id": "wlan", "at": "2026-11-09T10:00:00Z", "version": "…", "manager": "0.1.0",
  "job": "<job id>", "kind": "install", "components": ["main"], "partial": ["settings window"],
+ "source": {"kind": "folder"},
  "inputs": [{"repo": "maprisma-wlan-monitor", "commit": "<sha>", "dirty": false, "fingerprint": "tree:<sha>"}],
  "paths": [{"path": "…", "sha256": "…", "mode": "755"}, {"path": "…autostart….desktop", "sha256": "…", "mode": "644", "normalized": "hidden"},
            {"path": "…", "link": "…"}, {"path": "…", "dir": true}],
@@ -315,5 +388,9 @@ changed/untracked file's path and content hash>`. Every catalog path present aft
 recorded (files with sha256 and mode, links with their target as written). `displaced/<app>/index.json`
 keeps the backups across jobs (the oldest backup of a path wins).
 
-A receipt whose `id` doesn't match its file name, or with missing `at`/`inputs`, is reported in
-`build.error` and not trusted.
+`source` is `{"kind": "folder"}` for a build from the folder, `{"kind": "release", "tag", "asset",
+"sha256", "url"}` for a release install (its `inputs` then name the folder whose installer ran); a
+receipt without `source` (before step 4b) is a folder build.
+
+A receipt whose `id` doesn't match its file name, with missing `at`/`inputs`, or a malformed `source`,
+is reported in `build.error` and not trusted.

@@ -24,7 +24,7 @@ final class ReceiptInput {
 ///   "paths":[{path, sha256} | {path, link} | {path, dir:true}], "displaced":[{path, backup}]}`.
 /// Read here only; written by the job engine (step 3).
 final class Receipt {
-  Receipt({required this.id, required this.at, required this.inputs, required this.paths, required this.displaced, this.version});
+  Receipt({required this.id, required this.at, required this.inputs, required this.paths, required this.displaced, this.version, this.source});
 
   final String id;
   final DateTime at;
@@ -32,6 +32,12 @@ final class Receipt {
   final List<ReceiptInput> inputs;
   final List<Map<String, dynamic>> paths;
   final List<Map<String, dynamic>> displaced;
+
+  /// How it was built: `{kind: folder}` or `{kind: release, tag, asset, sha256, url?}`; null in
+  /// receipts from before step 4b (= folder).
+  final Map<String, dynamic>? source;
+
+  bool get fromRelease => source?['kind'] == 'release';
 
   ReceiptInput? input(String repo) {
     for (final i in inputs) {
@@ -47,6 +53,7 @@ final class Receipt {
     'inputs': [for (final i in inputs) i.toJson()],
     'paths': paths.length,
     'displaced': displaced.length,
+    if (source != null) 'source': source,
   };
 
   static Receipt parse(String id, Object? data) {
@@ -81,8 +88,24 @@ final class Receipt {
       return kinds.length == 1 && kinds.single;
     }
 
+    final rawSource = data['source'];
+    Map<String, dynamic>? source;
+    if (rawSource != null) {
+      if (rawSource is! Map) throw const FormatException('source');
+      final kind = rawSource['kind'];
+      if (kind == 'release') {
+        if (!_nonEmpty(rawSource['tag']) || !_nonEmpty(rawSource['asset']) ||
+            rawSource['sha256'] is! String || !RegExp(r'^[0-9a-f]{64}$').hasMatch(rawSource['sha256'])) {
+          throw const FormatException('source');
+        }
+      } else if (kind != 'folder') {
+        throw const FormatException('source.kind');
+      }
+      source = Map<String, dynamic>.from(rawSource);
+    }
     return Receipt(
       id: id,
+      source: source,
       at: at,
       version: data['version'] is String ? data['version'] : null,
       inputs: inputs,

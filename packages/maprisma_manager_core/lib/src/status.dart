@@ -7,11 +7,13 @@ import 'bar_read.dart';
 import 'catalog.dart';
 import 'context.dart';
 import 'git.dart';
+import 'github.dart';
 import 'jobs.dart';
 import 'paths.dart';
 import 'procs.dart';
 import 'receipts.dart';
 import 'run.dart';
+import 'sources.dart';
 
 enum InstallState { installed, partial, absent }
 
@@ -207,9 +209,10 @@ final class StatusReader {
     final procs = ctx.processes();
     final bar = await BarSnapshot.read(ctx, procs);
     final jobs = latestJobs(paths);
+    final facts = ctx.github.allFacts();
     final out = <Map<String, dynamic>>[];
     for (final app in apps) {
-      out.add({...await _app(app, gitInfos, procs, bar, detail), 'job': jobs[app.id], 'repair': repairOffered(jobs[app.id])});
+      out.add({...await _app(app, gitInfos, procs, bar, detail, facts), 'job': jobs[app.id], 'repair': repairOffered(jobs[app.id])});
     }
     return out;
   }
@@ -220,6 +223,7 @@ final class StatusReader {
     List<ProcInfo> procs,
     BarSnapshot bar,
     bool detail,
+    Map<String, Map<String, dynamic>> facts,
   ) async {
     final components = [for (final c in app.components) await component(app, c)];
     final counted = components.where((c) => c.applies).toList();
@@ -240,7 +244,10 @@ final class StatusReader {
     // The three update facts (plan: "Update status").
     bool? sourceDiffers;
     final differReasons = <String>[];
-    if (receipt != null) {
+    if (receipt != null && receipt.fromRelease) {
+      // A release isn't built from the folder: the folder is only its installer.
+      differReasons.add('installed from release ${receipt.source!['tag']}');
+    } else if (receipt != null) {
       var differs = false, unknown = false;
       for (final input in app.inputs) {
         final g = gitInfos[input.repo]!;
@@ -281,6 +288,54 @@ final class StatusReader {
       if (n > 0 && g.dirty != false) upstreamNotes.add('${input.repo}: uncommitted changes, no pull');
     }
 
+    // Where it exists, and what GitHub has (as of the last fetch / github.refresh).
+    final sources = [for (final input in app.inputs) await inputSource(ctx, input, gitInfos[input.repo]!, facts, receipt)];
+    int? githubNew;
+    final githubNotes = <String>[];
+    for (final src in sources) {
+      final cmp = src['compare'] as Map<String, dynamic>?;
+      if (src['github'] == null) continue;
+      final folder = src['folder'] as Map;
+      if (folder['present'] != true) {
+        githubNotes.add('${src['repo']}: no folder; it can be cloned from GitHub');
+        continue;
+      }
+      if (src['remote'] == null) {
+        githubNotes.add('${src['repo']}: no remote of the folder is ${(src['github'] as Map)['url']}');
+        continue;
+      }
+      if (cmp == null) continue;
+      if (cmp['fetched'] != true) {
+        githubNotes.add('${src['repo']}: ${cmp['ref']} not fetched yet');
+        continue;
+      }
+      final n = switch (cmp['relation']) {
+        'behind' || 'diverged' => cmp['behind'] as int?,
+        'upToDate' || 'ahead' => 0,
+        _ => null,
+      };
+      if (n == null) continue;
+      githubNew = (githubNew ?? 0) + n;
+      if (cmp['relation'] == 'diverged') githubNotes.add('${src['repo']}: diverged from ${cmp['ref']}: no fast-forward');
+      if (n > 0 && folder['dirty'] != false) githubNotes.add('${src['repo']}: uncommitted changes: no fast-forward');
+    }
+    final pkgVersion = components.map((c) => c.packageVersion).whereType<String>().firstOrNull;
+    final installedVersion = pkgVersion ?? bundleVersion(app);
+    final mainFacts = sources.first['github'] as Map<String, dynamic>?;
+    final latest = mainFacts?['release'] as Map<String, dynamic>?;
+    Map<String, dynamic>? releaseNew;
+    if (latest != null && latest['tag'] is String && installedAtAll) {
+      final cmp = compareVersions(latest['tag'] as String, installedVersion);
+      if (cmp != null && cmp > 0) {
+        releaseNew = {
+          'tag': latest['tag'],
+          'version': tagVersion(latest['tag'] as String),
+          'installed': installedVersion,
+          'installable': app.release?.supported == true,
+        };
+      }
+    }
+
     final env = <String, String?>{};
     for (final c in app.components) {
       final f = ctx.flutter().exe;
@@ -298,7 +353,6 @@ final class StatusReader {
 
     final running = runningFor(app, paths, procs);
     final neededBy = [for (final a in catalog) if (a.dependsOn.contains(app.id)) a.id];
-    final pkg = components.map((c) => c.packageVersion).whereType<String>().firstOrNull;
 
     return {
       'id': app.id,
@@ -319,8 +373,22 @@ final class StatusReader {
         if (differReasons.isNotEmpty) 'sourceReasons': differReasons,
         'upstreamNew': upstreamNew,
         if (upstreamNotes.isNotEmpty) 'upstreamNotes': upstreamNotes,
+        'githubNew': githubNew,
+        if (githubNotes.isNotEmpty) 'githubNotes': githubNotes,
+        'releaseNew': releaseNew,
       },
-      'versions': {'installed': pkg ?? bundleVersion(app), 'folder': folderVersion(app)},
+      'versions': {
+        'installed': installedVersion,
+        'folder': folderVersion(app),
+        'release': latest?['tag'] is String ? tagVersion(latest!['tag'] as String) : null,
+      },
+      'sources': {
+        'where': whereOf(sources.first),
+        'url': mainFacts?['url'],
+        'release': latest,
+        'releaseInstall': app.release == null ? null : {'supported': app.release!.supported, 'note': ?app.release!.note},
+        'inputs': sources,
+      },
       'repos': [
         for (final input in app.inputs)
           {

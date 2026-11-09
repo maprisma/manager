@@ -223,6 +223,57 @@ final class Git {
     return 'dirty:${sha256.convert(utf8.encode(parts.join('\n')))}';
   }
 
+  /// The folder's remotes: name → fetch URL (read-only).
+  Future<Map<String, String>> remotes(String folder) async {
+    final r = await _git(folder, ['config', '--get-regexp', r'^remote\..*\.url$']);
+    final out = <String, String>{};
+    if (!r.ok) return out;
+    for (final line in r.stdout.split('\n')) {
+      final m = RegExp(r'^remote\.(.+)\.url (.+)$').firstMatch(line.trim());
+      if (m != null) out.putIfAbsent(m.group(1)!, () => m.group(2)!.trim());
+    }
+    return out;
+  }
+
+  /// HEAD against [ref] (e.g. `public/main`, as of the last fetch): ancestry checked as for the
+  /// upstream. `exists: false` when the ref isn't there (never fetched).
+  Future<({bool exists, int? ahead, int? behind, Relation relation})> compare(String folder, String ref) async {
+    final full = ref.startsWith('refs/') ? ref : 'refs/remotes/$ref';
+    final v = await _git(folder, ['rev-parse', '-q', '--verify', '$full^{commit}']);
+    if (!v.ok) return (exists: false, ahead: null, behind: null, relation: Relation.unknown);
+    final counts = await _git(folder, ['rev-list', '--left-right', '--count', 'HEAD...$full']);
+    final parts = counts.stdout.trim().split(RegExp(r'\s+'));
+    final ahead = counts.ok && parts.length == 2 ? int.tryParse(parts[0]) : null;
+    final behind = counts.ok && parts.length == 2 ? int.tryParse(parts[1]) : null;
+    final headIn = await _isAncestor(folder, 'HEAD', full);
+    final refIn = await _isAncestor(folder, full, 'HEAD');
+    final relation = switch ((headIn, refIn)) {
+      (true, true) => Relation.upToDate,
+      (true, false) => Relation.behind,
+      (false, true) => Relation.ahead,
+      (false, false) => Relation.diverged,
+      _ => Relation.unknown,
+    };
+    return (exists: true, ahead: ahead, behind: behind, relation: relation);
+  }
+
+  /// Commits [ref] has that [commit] hasn't (null when either is unknown here).
+  Future<int?> newSince(String folder, String commit, String ref) async {
+    final full = ref.startsWith('refs/') ? ref : 'refs/remotes/$ref';
+    final r = await _git(folder, ['rev-list', '--count', '$commit..$full']);
+    return r.ok ? int.tryParse(r.stdout.trim()) : null;
+  }
+
+  /// `git merge --ff-only <ref>` (an update job, only when clean and [ref] contains HEAD).
+  Future<RunResult> mergeFfOnly(String folder, String ref) => runner.run(
+    ['git', '-c', 'core.fsmonitor=false', '-C', folder, 'merge', '--ff-only', '--quiet', ref],
+    extraEnv: _gitEnv,
+    timeout: const Duration(seconds: 120),
+  );
+
+  /// The environment for a clone (no prompts).
+  static Map<String, String> get cloneEnv => _gitEnv;
+
   /// Fetches the upstream's remote (only that one). The caller decides about throttling.
   Future<RunResult> fetch(String folder, String remote) => runner.run(
     ['git', '-c', 'core.fsmonitor=false', '-C', folder, 'fetch', '--quiet', '--prune', remote],

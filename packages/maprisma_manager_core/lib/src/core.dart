@@ -8,6 +8,7 @@ import 'paths.dart';
 import 'procs.dart';
 import 'protocol.dart';
 import 'removal.dart';
+import 'sources.dart';
 import 'run.dart';
 import 'status.dart';
 
@@ -53,6 +54,13 @@ final class CoreService {
         return {..._header(status.ctx), 'app': (await status.apps(only: id, detail: true)).single};
       },
       'git.fetch': _fetch,
+      'github.refresh': (params) async {
+        final force = params['force'] ?? false;
+        if (force is! bool) throw RouteError('bad_params', 'force');
+        final only = params.containsKey('id') ? appSlugs(findApp(_app(params))!) : null;
+        if (only != null && only.isEmpty) return {'force': force, 'repos': const [], 'facts': const {}, 'note': 'not on GitHub'};
+        return ctx.github.refresh(only: only, force: force);
+      },
       'bar.get': (params) => Bar(ctx).get(params),
       'bar.place': (params) => _bar((b) => b.place(params)),
       'bar.move': (params) => _bar((b) => b.move(params)),
@@ -99,7 +107,8 @@ final class CoreService {
     final d = raw is String ? parseDesktop(raw) : null;
     if (d == null) throw RouteError('bad_params', 'desktop');
     if (d == ctx.desktop) return ctx;
-    return Ctx(paths: ctx.paths, environment: ctx.environment, desktop: d, runner: ctx.runner, clock: ctx.clock, uid: ctx.uid);
+    return Ctx(paths: ctx.paths, environment: ctx.environment, desktop: d, runner: ctx.runner, clock: ctx.clock, uid: ctx.uid)
+      ..cloneUrlFor = ctx.cloneUrlFor;
   }
 
   Map<String, dynamic> _header(Ctx c) {
@@ -120,24 +129,31 @@ final class CoreService {
     return id;
   }
 
-  /// Fetches the configured upstream's remote of each input repo (of one app with `id`, else all).
-  /// Repos fetched (or tried) within [fetchInterval] are skipped unless `force` is true.
+  /// Fetches the configured upstream's remote of each input repo (of one app with `id`, else all)
+  /// and its GitHub remote (the remote whose URL is the input's GitHub repo) when that is another
+  /// one. Repos fetched (or tried) within [fetchInterval] are skipped unless `force` is true.
   Future<Map<String, dynamic>> _fetch(Map<String, dynamic> params) async {
     final force = params['force'] ?? false;
     if (force is! bool) throw RouteError('bad_params', 'force');
     final apps = params.containsKey('id') ? [findApp(_app(params))!] : catalog;
-    final repos = {for (final a in apps) for (final i in a.inputs) i.repo};
+    final inputs = <String, Input>{};
+    for (final a in apps) {
+      for (final i in a.inputs) {
+        inputs.putIfAbsent(i.repo, () => i);
+      }
+    }
     final now = ctx.clock();
     final results = await Future.wait([
-      for (final repo in repos)
+      for (final input in inputs.values)
         () async {
+          final repo = input.repo;
           final folder = ctx.repoFolder(repo);
           final before = await ctx.git.inspect(repo, folder);
           if (!before.isRepo) return {'repo': repo, 'fetched': false, 'skipped': before.present ? 'not a repo' : 'missing'};
-          final remote = before.upstreamRemote;
-          if (before.upstream == null || remote == null || remote == '.') {
-            return {'repo': repo, 'fetched': false, 'skipped': 'no upstream'};
-          }
+          final upstream = before.upstream != null && before.upstreamRemote != null && before.upstreamRemote != '.' ? before.upstreamRemote : null;
+          final gh = input.github == null ? null : await githubRemote(ctx, folder, input.github!, upstreamRemote: before.upstreamRemote);
+          final remotes = [?upstream, if (gh != null && gh.name != upstream) gh.name];
+          if (remotes.isEmpty) return {'repo': repo, 'fetched': false, 'skipped': 'no upstream'};
           final last = [before.lastFetch, ctx.fetchAttempts[repo]].whereType<DateTime>().fold<DateTime?>(
             null,
             (a, b) => a == null || b.isAfter(a) ? b : a,
@@ -146,10 +162,27 @@ final class CoreService {
             return {'repo': repo, 'fetched': false, 'skipped': 'recent', 'lastFetch': last.toUtc().toIso8601String()};
           }
           ctx.fetchAttempts[repo] = now;
-          final r = await ctx.git.fetch(folder, remote);
-          if (!r.ok) return {'repo': repo, 'fetched': false, 'error': _firstLine(r.stderr)};
+          final fetched = <Map<String, dynamic>>[];
+          for (final remote in remotes) {
+            final r = await ctx.git.fetch(folder, remote);
+            fetched.add({'remote': remote, 'fetched': r.ok, if (!r.ok) 'error': _firstLine(r.stderr), if (remote == gh?.name) 'github': true});
+          }
           final after = await ctx.git.inspect(repo, folder);
-          return {'repo': repo, 'fetched': true, 'behind': after.behind, 'relation': after.relation.name};
+          final ok = fetched.every((f) => f['fetched'] == true);
+          Map<String, dynamic>? github;
+          if (gh != null && after.head != null) {
+            final branch = githubBranch(ctx.github.facts(input.github!), after);
+            final c = await ctx.git.compare(folder, '${gh.name}/$branch');
+            github = {'remote': gh.name, 'ref': '${gh.name}/$branch', 'fetched': c.exists, 'behind': c.behind, 'relation': c.relation.name};
+          }
+          return {
+            'repo': repo,
+            'fetched': ok,
+            if (!ok) 'error': fetched.firstWhere((f) => f['fetched'] != true)['error'],
+            'remotes': fetched,
+            if (upstream != null) ...{'behind': after.behind, 'relation': after.relation.name},
+            'github': ?github,
+          };
         }(),
     ]);
     return {'force': force, 'repos': results};

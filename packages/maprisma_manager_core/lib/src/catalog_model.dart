@@ -251,12 +251,52 @@ final class Component {
 
 /// A repo whose state goes into a build (Maprisma: the add-ons checkout).
 final class Input {
-  const Input(this.repo, {this.remote, this.note});
+  const Input(this.repo, {this.github, this.note});
   final String repo;
 
-  /// The URL to clone from when the folder is missing; null = not available elsewhere.
-  final String? remote;
+  /// Its GitHub repo (`org/name`), null = local only. Cloned from there when the folder is missing;
+  /// the folder's remote whose URL is this repo is "the GitHub remote" (matched by URL, not by name).
+  final String? github;
   final String? note;
+
+  /// The web page, e.g. https://github.com/maprisma/launcher.
+  String? get webUrl => github == null ? null : 'https://github.com/$github';
+
+  /// The URL to clone from when the folder is missing; null = not available elsewhere.
+  String? get remote => github == null ? null : 'https://github.com/$github.git';
+}
+
+/// An app's GitHub releases: the tarball asset (`{version}` = the tag without its `v`), checked
+/// against the asset of the same name plus `.sha256`, and how it is installed.
+final class ReleaseSpec {
+  const ReleaseSpec({
+    required this.tarball,
+    this.component,
+    this.install = const [],
+    this.dist = 'dist',
+    this.prerequisites = const [],
+    this.supported = true,
+    this.note,
+  });
+
+  /// e.g. `maprisma-launcher-{version}-x86_64.tar.gz`.
+  final String tarball;
+
+  /// The component the release installs (its paths are the postconditions).
+  final String? component;
+
+  /// The repo's script that installs a tarball from [dist] (run in the repo folder).
+  final List<String> install;
+
+  /// Where the script picks the tarball (relative to the repo folder).
+  final String dist;
+  final List<Prerequisite> prerequisites;
+
+  /// False: the release install comes in a later step (`unsupported_yet`).
+  final bool supported;
+  final String? note;
+
+  String asset(String version) => tarball.replaceAll('{version}', version);
 }
 
 /// Where the installed and the folder's version can be read (optional).
@@ -293,11 +333,15 @@ final class AppEntry {
     this.installation = Support.supported,
     this.removal = Support.supported,
     this.supportNote,
+    this.release,
     this.note,
   });
 
   final String id;
   final String name;
+
+  /// Its GitHub releases (of the main input), null = none.
+  final ReleaseSpec? release;
 
   /// Whether jobs can install/update and remove it yet; [supportNote] says why not.
   final Support installation;

@@ -6,11 +6,14 @@ import 'context.dart';
 import 'core.dart';
 
 const usage = '''usage: maprisma-manager-core status [--json] [--desktop cosmic|kde|other] [<id>]
+       maprisma-manager-core sources [--json]
        maprisma-manager-core fetch [--force] [<id>]
+       maprisma-manager-core github [--force] [<id>]
        maprisma-manager-core bar [--json] [--panel <name>]
        maprisma-manager-core bar <id> left|center|right|out [--index <n>] [--panel <name>]
        maprisma-manager-core bar apply
        maprisma-manager-core install|update|reinstall <id>
+       maprisma-manager-core release <id> [<tag>]
        maprisma-manager-core remove <id> [--delete-settings] [--yes]
        maprisma-manager-core jobs [<id>]
        maprisma-manager-core log <job>''';
@@ -61,7 +64,32 @@ Future<int> runCli(List<String> args, {CoreService? service, IOSink? out}) async
         sink.writeln(json ? const JsonEncoder.withIndent('  ').convert(r) : statusTable(r));
       case ['status', final id]:
         final r = await core.call('apps.get', {'id': id, 'desktop': ?desktop});
-        sink.writeln(json ? const JsonEncoder.withIndent('  ').convert(r) : statusTable({...r, 'apps': [r['app']]}));
+        sink.writeln(json
+            ? const JsonEncoder.withIndent('  ').convert(r)
+            : '${statusTable({...r, 'apps': [r['app']]})}\n${sourcesDetail(r['app'] as Map<String, dynamic>)}');
+      case ['sources']:
+        final r = await core.call('apps.list');
+        sink.writeln(json ? const JsonEncoder.withIndent('  ').convert(r) : sourcesTable(r));
+      case ['github']:
+      case ['github', _]:
+        final r = await core.call('github.refresh', {'force': force, if (rest.length == 2) 'id': rest[1]});
+        if (json) {
+          sink.writeln(const JsonEncoder.withIndent('  ').convert(r));
+        } else {
+          if (r['note'] != null) sink.writeln(r['note']);
+          for (final repo in (r['repos'] as List).cast<Map<String, dynamic>>()) {
+            final what = repo['checked'] == true
+                ? 'checked via ${repo['via']}${repo['release'] == null ? ', no release' : ', latest release ${repo['release']}'}'
+                : repo['error'] != null
+                ? 'failed: ${repo['error']} (last known facts kept)'
+                : 'skipped: ${repo['skipped']}';
+            sink.writeln('${(repo['repo'] as String).padRight(28)} $what');
+          }
+        }
+      case ['release', final id]:
+        return await _runJob(core, sink, {'app': id, 'kind': 'release'});
+      case ['release', final id, final tag]:
+        return await _runJob(core, sink, {'app': id, 'kind': 'release', 'options': {'tag': tag}});
       case ['fetch']:
       case ['fetch', _]:
         final r = await core.call('git.fetch', {'force': force, if (rest.length == 2) 'id': rest[1]});
@@ -286,7 +314,7 @@ String _short(String id) {
 /// The human view of apps.list.
 String statusTable(Map<String, dynamic> r) {
   final rows = <List<String>>[
-    ['ID', 'STATE', 'VERSION', 'BUILD', 'FOLDER', 'UPSTREAM', 'BAR', 'RUN', 'NOTES'],
+    ['ID', 'STATE', 'VERSION', 'SOURCE', 'BUILD', 'FOLDER', 'UPSTREAM', 'BAR', 'RUN', 'NOTES'],
   ];
   for (final a in (r['apps'] as List).cast<Map<String, dynamic>>()) {
     final comps = (a['components'] as List).cast<Map<String, dynamic>>();
@@ -316,6 +344,17 @@ String statusTable(Map<String, dynamic> r) {
     }
     final build = a['build'] as Map<String, dynamic>;
     if (build['error'] != null) notes.add('${build['error']}');
+    final releaseNew = updates['releaseNew'] as Map<String, dynamic>?;
+    if (releaseNew != null) notes.add('release ${releaseNew['tag']} is newer');
+    final githubNew = updates['githubNew'] as int?;
+    final upstreamIsGitHub = ((a['sources'] as Map?)?['inputs'] as List? ?? const [])
+        .every((s) => (s as Map)['remote'] == null || (s['remote'] as Map)['isUpstream'] == true);
+    final githubDiverged = (updates['githubNotes'] as List? ?? const []).any((n) => '$n'.contains('diverged'));
+    if (githubDiverged && !upstreamIsGitHub) {
+      notes.add('diverged from GitHub');
+    } else if (githubNew != null && githubNew > 0 && !upstreamIsGitHub) {
+      notes.add('GitHub +$githubNew');
+    }
     final job = a['job'] as Map<String, dynamic>?;
     if (job != null && a['repair'] == true) notes.add('${job['kind']} ${job['state']} in ${job['phase']}: repair (reinstall)');
     final versions = a['versions'] as Map<String, dynamic>;
@@ -338,6 +377,12 @@ String statusTable(Map<String, dynamic> r) {
         _ => 'not installed',
       },
       version,
+      switch ((a['sources'] as Map?)?['where']) {
+        'both' => 'both',
+        'folder' => 'folder',
+        'GitHub' => 'GitHub',
+        _ => '-',
+      },
       build['known'] == true ? 'receipt' : (a['state'] == 'absent' ? '-' : 'unknown'),
       switch (updates['sourceDiffers']) {
         true => 'differs',
@@ -361,4 +406,90 @@ String statusTable(Map<String, dynamic> r) {
     for (final row in rows) [for (var i = 0; i < row.length; i++) i < widths.length ? row[i].padRight(widths[i]) : row[i]].join('  ').trimRight(),
   ];
   return lines.join('\n');
+}
+
+String _age(Object? seconds) {
+  if (seconds is! int) return 'never checked';
+  if (seconds < 90) return 'checked just now';
+  if (seconds < 5400) return 'checked ${(seconds / 60).round()} min ago';
+  if (seconds < 2 * 86400) return 'checked ${(seconds / 3600).round()} h ago';
+  return 'checked ${(seconds / 86400).round()} days ago';
+}
+
+String _release(Map<String, dynamic>? rel) {
+  if (rel == null) return 'none';
+  final date = rel['published'] is String ? (rel['published'] as String).split('T').first : '?';
+  return '${rel['tag']} ($date)';
+}
+
+/// The folder and GitHub lines of one app (`status <id>`).
+String sourcesDetail(Map<String, dynamic> app) {
+  final lines = <String>[];
+  final src = app['sources'] as Map<String, dynamic>;
+  for (final s in (src['inputs'] as List).cast<Map<String, dynamic>>()) {
+    final folder = s['folder'] as Map<String, dynamic>;
+    final gh = s['github'] as Map<String, dynamic>?;
+    lines.add('${s['repo']}:');
+    if (folder['present'] == true) {
+      final head = folder['head'] is String ? (folder['head'] as String).substring(0, 7) : '-';
+      final state = folder['dirty'] == true ? 'uncommitted changes' : (folder['dirty'] == false ? 'clean' : 'state unknown');
+      lines.add('  Folder:  ${folder['path']} (${folder['branch'] ?? 'detached'} @ $head, $state)');
+    } else {
+      lines.add('  Folder:  ${folder['path']} (missing${gh != null ? ': can be cloned from GitHub' : ''})');
+    }
+    if (gh == null) {
+      lines.add('  GitHub:  - (local only)');
+      continue;
+    }
+    final vis = gh['public'] == true ? 'public' : (gh['public'] == false ? 'private' : 'visibility unknown');
+    final remote = s['remote'] as Map<String, dynamic>?;
+    lines.add('  GitHub:  ${gh['url']} ($vis; ${remote == null ? 'no remote of the folder' : 'remote ${remote['name']}${remote['isUpstream'] == true ? ', the upstream' : ''}'}; ${_age(gh['age'])})');
+    final rel = gh['release'] as Map<String, dynamic>?;
+    lines.add('  Release: ${gh['known'] == true ? _release(rel) : 'unknown (run: github)'}${rel?['url'] != null ? '  ${rel!['url']}' : ''}');
+    final cmp = s['compare'] as Map<String, dynamic>?;
+    if (cmp != null) {
+      lines.add('  Against: ${cmp['ref']}: ${cmp['fetched'] == true ? '${cmp['relation']} (${cmp['ahead']} ahead, ${cmp['behind']} behind)' : 'not fetched yet'}');
+    }
+    if (gh['error'] != null) lines.add('  Last check failed: ${gh['error']}');
+  }
+  final updates = app['updates'] as Map<String, dynamic>;
+  final rn = updates['releaseNew'] as Map<String, dynamic>?;
+  if (rn != null) {
+    lines.add('Newer release: ${rn['tag']} (installed ${rn['installed']})${rn['installable'] == true ? '; install with: release ${app['id']}' : ''}');
+  }
+  for (final n in (updates['githubNotes'] as List? ?? const [])) {
+    lines.add('Note: $n');
+  }
+  return lines.join('\n');
+}
+
+/// Every app with its folder and GitHub URL per input (`sources`).
+String sourcesTable(Map<String, dynamic> r) {
+  final rows = <List<String>>[
+    ['APP', 'REPO', 'FOLDER', 'GITHUB', 'RELEASE'],
+  ];
+  for (final a in (r['apps'] as List).cast<Map<String, dynamic>>()) {
+    for (final s in ((a['sources'] as Map)['inputs'] as List).cast<Map<String, dynamic>>()) {
+      final folder = s['folder'] as Map<String, dynamic>;
+      final gh = s['github'] as Map<String, dynamic>?;
+      rows.add([
+        a['id'] as String,
+        s['repo'] as String,
+        folder['present'] == true ? folder['path'] as String : 'missing',
+        gh == null ? 'local only' : '${gh['url']}${gh['public'] == false ? ' (private)' : ''}',
+        gh == null ? '-' : (gh['known'] == true ? _release(gh['release'] as Map<String, dynamic>?) : 'unknown'),
+      ]);
+    }
+  }
+  final widths = [for (var i = 0; i < rows.first.length - 1; i++) rows.map((r) => r[i].length).reduce((a, b) => a > b ? a : b)];
+  final facts = [
+    for (final a in (r['apps'] as List).cast<Map<String, dynamic>>())
+      for (final s in ((a['sources'] as Map)['inputs'] as List).cast<Map<String, dynamic>>())
+        if (s['github'] is Map && (s['github'] as Map)['age'] is int) (s['github'] as Map)['age'] as int,
+  ];
+  return [
+    for (final row in rows) [for (var i = 0; i < row.length; i++) i < widths.length ? row[i].padRight(widths[i]) : row[i]].join('  ').trimRight(),
+    if (facts.isNotEmpty) 'GitHub facts ${_age(facts.reduce((a, b) => a > b ? a : b))} (oldest); refresh: github [--force]'
+    else 'GitHub facts: never checked; refresh: github',
+  ].join('\n');
 }

@@ -11,6 +11,8 @@ export 'src/cli.dart';
 export 'src/context.dart';
 export 'src/core.dart';
 export 'src/git.dart';
+export 'src/github.dart';
+export 'src/sources.dart';
 export 'src/jobs.dart';
 export 'src/ownership.dart';
 export 'src/paths.dart';
