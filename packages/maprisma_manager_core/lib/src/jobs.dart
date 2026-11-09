@@ -1499,14 +1499,14 @@ final class JobEngine {
   /// The commit boundary: from here the job isn't cancellable. The script is paused while the
   /// app's units and processes are stopped (where it doesn't do that itself). One transition per
   /// job: callers await [_Run.committing].
-  Future<void> _enterCommit(_Run r, String changed, {bool scriptEnded = false, bool paused = false}) {
+  Future<void> _enterCommit(_Run r, String changed, {bool scriptEnded = false, bool paused = false, String? why}) {
     if (r.committing != null) return r.committing!;
     if (r.committed) return Future.value();
     r.committed = true;
     r.job['committed'] = true;
     r.job['phase'] = 'commit';
     _persist(r.job);
-    r.log.note('phase: commit ($changed changed; not cancellable from here)');
+    r.log.note('phase: commit (${why ?? '$changed changed'}; not cancellable from here)');
     Future<void> body() async {
       final c = r.component;
       if (c != null && c.stopsOwnProcesses) {

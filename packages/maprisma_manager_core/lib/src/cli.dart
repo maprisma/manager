@@ -256,6 +256,11 @@ Future<int> _runJob(CoreService core, IOSink sink, Map<String, dynamic> params) 
   final result = job['result'] as Map<String, dynamic>;
   if (result['ok'] == true) {
     sink.writeln('${job['kind']} ${job['app']}: done${result['partial'] != null ? ' (partly: no ${(result['partial'] as List).join(', ')})' : ''}');
+    if (result['restart'] == true) {
+      final su = result['selfUpdate'] as Map? ?? const {};
+      sink.writeln('The new build is staged and checked: close Maprisma Manager (pid ${(su['waitFor'] as List?)?.join(', ')}) to finish; '
+          'the helper swaps it in and starts it again (log: ${su['log']})');
+    }
     return 0;
   }
   sink.writeln('${job['kind']} ${job['app']}: ${job['state']} (${result['code']}${result['message'] == null ? '' : ': ${result['message']}'})'

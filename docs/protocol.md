@@ -24,6 +24,9 @@ runs a command), `blocked` (a remove that can't run now: the plan's `blocked` sa
 `pacman_locked`, `auth_cancelled`, `auth_timeout`, `pacman_failed`, `missing_addons`, `bad_package`,
 `build_failed`, `unsafe` (a system pkexec/pacman/makepkg with a test root). Icons: `bad_icon` (not an SVG
 the Manager writes: the message says why), `not_installed` (the app's icon file is missing).
+The Manager itself: `self_remove` (it doesn't remove itself: `tools/uninstall-local` from a terminal);
+self-update job results add `bad_stage` (the staged build isn't complete; nothing was touched) and
+`self_update_failed` (the helper rolled back, or didn't finish).
 
 Writes: `git.fetch` (remote-tracking refs, when asked), `github.refresh` (`github.json`), the `bar.*`
 changes, `icons.set`/`icons.reset` (the app's icon file, `icons/<app>/`), and the jobs (`jobs.start`: install, update, reinstall, remove, release; a job may clone a
@@ -54,6 +57,19 @@ exists, else `~/Projects`. Flutter: the `flutter` setting, `MAPRISMA_FLUTTER`, `
 `{version, protocol, desktop, projectsDir, projectsSource}`; `projectsSource` is `env`, `settings`,
 `found` or `default`.
 
+### `desktop.look`
+
+`{desktop, colors: {accent, background, foreground, muted, selection, red, yellow, orange, green}, rounding, is_dark}`:
+the desktop's palette and window corners, read as Maprisma Launcher reads them (COSMIC: the
+`com.system76.CosmicTheme.{Dark,Light}` accent/background/success/warning/destructive and
+`corner_radii.radius_s`; KDE: kdeglobals' colour scheme; other: no colours, the platform's light or dark).
+
+### `apps.open` `{id}` / `links.open` `{url}`
+
+`apps.open` starts the app's window (the catalog's `open` command, detached in its own session):
+`unavailable` when it has none (Control, the KDE apps, the Manager), `not_installed` when its program
+is missing. `links.open` opens a `https://github.com/…` page with `xdg-open` (anything else: `bad_params`).
+
 ### `apps.list` `{desktop?}`
 
 Everything the list page needs, for every catalog app. `desktop` shows it as another desktop would.
@@ -77,6 +93,8 @@ App:
 | `repos[]` | Per input repo (`dirty` is `null` when git status failed; `error` says what could not be read): `{repo, folder, present, isRepo, branch, detached, head, dirty, dirtyTracked, untracked, upstream, upstreamRemote, upstreamUrl, ahead, behind, relation, lastFetch, error?, cloneUrl, available}`. `relation`: `upToDate`, `behind`, `ahead`, `diverged` (by ancestry), `unknown` (no upstream). `available`: `here`, `cloneable`, `not available here`. |
 | `bar` | COSMIC: `{has, id, state: in/out/unknown, zone, panel, startsAtLogin, running, visible, error?}`: `zone`/`panel` where the applet is (every panel instance is looked at); in a panel = starts at login (cosmic-panel starts it); `running` = its applet program runs as a child of cosmic-panel; a file that doesn't parse gives `unknown` with the error. KDE tray: `{has, id, kind: tray, state, zone?, startsAtLogin, running, visible, where?}`: autostart file not `Hidden=true`; the tray process; `state: out` also when Maprisma Icons hides it; `visible` is `null` for a running tray in the system tray (it may sit in the overflow), `where: systemTray` without the widget. KDE widget entry (Launcher): `{kind: widgetEntry, state, zone?, visible}` from Maprisma Icons (`unknown` with `error` when plasmashell can't be asked). `iconName` is the one the desktop shows (Theme's KDE tray: `com.maprisma.Theme`). `wanted` is the app's entry in bar.json. No icon: `{has: false, state: none}`. |
 | `running` | How many of the user's processes belong to it (by `/proc/<pid>/exe`, or the script path in argv for interpreted helpers). |
+| `icon` | The row icon: `{name, file, symbolic}`: the app's own icon name (else its bar icon's) and the SVG found for it in the user's or the system's hicolor (`null` when missing). |
+| `open` | It has a window of its own and its program is there (`apps.open`). |
 | `dependsOn`, `neededBy`, `env` | Dependencies; `env.FLUTTER` as the installer wants it (Theme: the folder, Narrator/Video: the executable; `PATH+` for those that take flutter from PATH). |
 | `support` | `{install, remove, note?}`: whether jobs can install/remove it yet (`false` → `unsupported_yet`). |
 | `job`, `repair` | The app's latest job (the `jobs.list` form, null without one); `repair: true` after an interrupted job or a failed one that had started writing: offer Repair (= reinstall). |
@@ -226,7 +244,7 @@ With a valid receipt, a file goes only while its sha256 is the receipt's (an aut
 (unlinked, never followed), a folder only when empty; catalog paths not in the receipt stay. Without
 a receipt (installed before the Manager, or a broken one) the catalog's paths go, each marked
 `unverified`; a link only when it points where the installer points it. Maprisma (pacman): below,
-"Maprisma (pacman)". Refused with `unsupported_yet` for the Manager (step 6); `unavailable` for an app of another desktop
+"Maprisma (pacman)". Refused with `self_remove` for the Manager (`tools/uninstall-local` removes it from a terminal); `unavailable` for an app of another desktop
 (Tiling and Icons are removed only on KDE: their steps need Plasma).
 
 **Owned folders** (step 5a; the catalog's `trees`: Launcher's and Theme's bundles in `~/.local/lib`,
@@ -458,6 +476,42 @@ the text ends at a full line (a line longer than one read comes in pieces, cut a
 Poll with `from = next`. In-process, `CoreService.jobs.lines(id)` streams
 the lines and `jobs.done(id)` completes with the job.
 
+## Self-update (the Manager, step 6)
+
+The Manager's install/update/reinstall (`jobs_self.dart`) never touches the bundle it runs from:
+
+1. **prepare** as for any app (an update pulls; nothing new → `up_to_date`); refused (`busy`) while the
+   helper of an earlier self-update still runs.
+2. **build** (cancellable): `tools/install-local --stage ~/.local/state/maprisma-manager/self-update/<job>`
+   builds the Flutter bundle and the core CLI and copies them with `tools/install-local`,
+   `tools/self-update` and the desktop entry and icon into that stage; nothing is installed.
+3. The stage is checked: the bundle's program, `lib/libapp.so`, `lib/libflutter_linux_gtk.so`,
+   `data/icudtl.dat`, `data/flutter_assets/version.json` (with a version), `bin/maprisma-manager-core`,
+   the scripts and the packaging files; `ldd` finds every library; the new core answers `version`.
+   Anything missing: `bad_stage`, the stage is deleted, nothing changed.
+4. **commit**: the helper is copied to `self-update/helper` and started detached (`setsid`) with the
+   pids (and start times) of the running Manager windows (`/proc/<pid>/exe` is the installed
+   `maprisma-manager`). It writes `self-update/<job>.status` (`waiting|swapping|starting <pid>`, then
+   `done`, `rolled back: …`, `failed: …`, `aborted: …`) and logs to `self-update/<job>.log`. It waits
+   for those windows to quit (10 minutes, then `aborted`, nothing changed), copies the stage's bundle
+   next to the installed one and swaps it in by rename (the old one kept as `maprisma-manager.old.*`),
+   keeps copies of the desktop entry and icon and runs the stage's `install-local --integrate` (links,
+   entry, icon). Then:
+   - a window was open (`restart`): it starts the new Manager with `MAPRISMA_MANAGER_READY=<state>/<job>.ready`;
+     the app writes its pid there after its first frame. No ready file within 20 s: the new build's
+     processes are ended, the old bundle, entry and icon come back and the old Manager is started again.
+     The job itself has already ended (`succeeded`, `result: {restart: true, selfUpdate: {state:
+     waiting, waitFor, log}}`; the window that ran it quits after 1.5 s); the helper then runs
+     `maprisma-manager-core self-update-done <job>` of the installed core (the new one: verify, receipt,
+     `selfUpdate.state: done`) or, after a rollback, `self-update-done <job> --failed <why>` (the old one:
+     the job becomes `failed`, `self_update_failed`).
+   - no window (the CLI, a first install): the new core must answer `version` (else the rollback); the
+     job waits for the helper and does **verify** and **finish** (receipt) itself.
+5. The old bundle and the stage are deleted once the new one is ready.
+
+The receipt is the usual one (the bundle as an owned folder, the links, the entry and icon); a job
+finished by the helper is read from its file (`jobs.get` prefers the file for a finished job).
+
 ## Bar icons
 
 ### `icons.get` `{app, query?, limit?}`
@@ -522,6 +576,8 @@ maprisma-manager-core remove <id> [--delete-settings] [--yes]
 maprisma-manager-core icon <id> [<name>|<file>|--reset] [--search <text>] [--json]
 maprisma-manager-core jobs [<app>]
 maprisma-manager-core log <job>
+maprisma-manager-core version
+maprisma-manager-core self-update-done <job> [--failed <why>]
 ```
 
 `install`/`update`/`reinstall` run the job in the CLI process and print its output; Ctrl-C cancels

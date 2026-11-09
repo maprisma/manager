@@ -133,7 +133,7 @@ extension _SelfUpdate on JobEngine {
     final restart = waitFor.isNotEmpty;
 
     // commit: from here the helper owns it
-    await _enterCommit(r, 'the self-update helper starts', scriptEnded: true);
+    await _enterCommit(r, '', scriptEnded: true, why: 'the self-update helper takes over');
     final helper = p.join(dir, 'helper');
     final tmp = '$helper.${r.id}.tmp';
     File(p.join(stage, 'tools/self-update')).copySync(tmp);

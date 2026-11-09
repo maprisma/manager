@@ -249,6 +249,13 @@ maprisma/maprisma). Local only: control, home, theme, video, tiling, icons, the 
    password dialog wasn't answered (`auth_timeout`, nothing changed); still to be done with someone at
    the dialog.
 6. Self-update; then the Flutter UI (list, bar editor, icon picker, log sheet) and tools/install-local.
+   **Done**: `flutter_app` (com.maprisma.Manager): the list as the Launcher's Plugins page (sections by
+   bar state, ⋮ menu, update marks with commit counts, source chips, filter, Esc), details, bar editor
+   (drag and keys, `changed` with Reload), icon picker, log sheet (phase, Cancel, queue), uninstall
+   dialog; `desktop.look`, `apps.open`, `links.open`; `tools/install-local` (`--stage`, `--integrate`),
+   `tools/self-update` (the helper), `tools/uninstall-local` (the Manager doesn't remove itself:
+   `self_remove`); docs/protocol.md "Self-update". Installed live and updated through the core: the
+   helper waited for the window, swapped, started the new build, which signalled ready.
 7. Checks on COSMIC live, KDE in a later Plasma session: interrupted installs, hidden icons kept, shared
    data kept, concurrent config edits.
 
