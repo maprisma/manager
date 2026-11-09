@@ -194,6 +194,9 @@ enum FlutterEnv {
 
 enum InstallKind { script, pacman }
 
+/// Whether the job engine can install / remove an app yet (later steps add app-specific steps).
+enum Support { supported, unsupportedYet }
+
 /// One installable unit: a repo and its install command.
 final class Component {
   const Component({
@@ -208,11 +211,20 @@ final class Component {
     this.flutter = FlutterEnv.none,
     this.optionalParts = const {},
     this.dependsOn = const [],
+    this.stopsOwnProcesses = false,
+    this.env = const {},
     this.note,
   });
 
   final String id;
   final String name;
+
+  /// The install script stops the app's running copies itself (Launcher, Theme): the job
+  /// engine doesn't stop them at the commit.
+  final bool stopsOwnProcesses;
+
+  /// More environment for the install script (values are path templates or plain text).
+  final Map<String, String> env;
 
   /// Folder name under the projects folder.
   final String repo;
@@ -274,11 +286,19 @@ final class AppEntry {
     this.dependsOn = const [],
     this.version = const VersionSource(),
     this.postSteps = const [],
+    this.installation = Support.supported,
+    this.removal = Support.supported,
+    this.supportNote,
     this.note,
   });
 
   final String id;
   final String name;
+
+  /// Whether jobs can install/update and remove it yet; [supportNote] says why not.
+  final Support installation;
+  final Support removal;
+  final String? supportNote;
 
   /// rust, flutter, rust + flutter, KWin scripts …
   final String kind;

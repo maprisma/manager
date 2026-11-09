@@ -7,6 +7,7 @@ import 'bar_read.dart';
 import 'catalog.dart';
 import 'context.dart';
 import 'git.dart';
+import 'jobs.dart';
 import 'paths.dart';
 import 'procs.dart';
 import 'receipts.dart';
@@ -205,9 +206,10 @@ final class StatusReader {
     );
     final procs = ctx.processes();
     final bar = await BarSnapshot.read(ctx, procs);
+    final jobs = latestJobs(paths);
     final out = <Map<String, dynamic>>[];
     for (final app in apps) {
-      out.add(await _app(app, gitInfos, procs, bar, detail));
+      out.add({...await _app(app, gitInfos, procs, bar, detail), 'job': jobs[app.id], 'repair': repairOffered(jobs[app.id])});
     }
     return out;
   }
@@ -331,6 +333,11 @@ final class StatusReader {
       'running': running.length,
       'dependsOn': app.dependsOn,
       'neededBy': neededBy,
+      'support': {
+        'install': app.installation == Support.supported,
+        'remove': app.removal == Support.supported,
+        'note': ?app.supportNote,
+      },
       'env': env,
       if (detail) ...{
         'processes': running,

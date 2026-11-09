@@ -108,9 +108,9 @@ bool processMatches(ProcessMatch m, String path, ProcInfo proc) {
 
 final _interpreter = RegExp(r'^(python[0-9.]*|bash|sh|dash|zsh)$');
 
-/// The app's running processes: [{pid, exe, argv0, match}].
-List<Map<String, dynamic>> runningFor(AppEntry app, Paths paths, List<ProcInfo> procs) {
-  final out = <Map<String, dynamic>>[];
+/// The app's running processes with the match that found them.
+List<(ProcInfo, ProcessMatch)> matchingProcesses(AppEntry app, Paths paths, List<ProcInfo> procs) {
+  final out = <(ProcInfo, ProcessMatch)>[];
   // The lexical path and, when it exists, the physical one: /proc shows resolved paths
   // (a symlinked HOME or install folder); a deleted executable only matches lexically.
   final targets = [
@@ -120,13 +120,19 @@ List<Map<String, dynamic>> runningFor(AppEntry app, Paths paths, List<ProcInfo> 
   for (final proc in procs) {
     for (final (m, path) in targets) {
       if (processMatches(m, path, proc)) {
-        out.add({'pid': proc.pid, 'exe': proc.exe, 'argv': proc.argv.take(3).toList(), 'match': m.kind.name, 'startTicks': proc.startTicks});
+        out.add((proc, m));
         break;
       }
     }
   }
   return out;
 }
+
+/// The app's running processes: [{pid, exe, argv0, match}].
+List<Map<String, dynamic>> runningFor(AppEntry app, Paths paths, List<ProcInfo> procs) => [
+  for (final (proc, m) in matchingProcesses(app, paths, procs))
+    {'pid': proc.pid, 'exe': proc.exe, 'argv': proc.argv.take(3).toList(), 'match': m.kind.name, 'startTicks': proc.startTicks},
+];
 
 String? _resolved(String path) {
   try {

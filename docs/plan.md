@@ -185,6 +185,10 @@ original files backed up and restored byte for byte at the end:
    **Done** (COSMIC tested live; KDE against a fake plasmashell only, a Plasma session is needed to
    check it for real; Maprisma Icons' `hidden` list is committed in maprisma-panel, not installed).
 3. Job engine: queue, phases, persisted state, logs, process handling, receipts with hashes.
+   **Done** (generic, against a fake app; docs/protocol.md "Jobs"). The commit rule: the script's
+   catalog paths are watched by stat signature; a cancel pauses the script's group and is refused once
+   any of them changed. Not yet installable/removable: Maprisma (pacman), Tiling (migration), the
+   Manager (self-update); not yet removable: Narrator (runtime), Icons (themes): `unsupported_yet`.
 4. One simple Rust app end to end (WLAN Monitor): install, update, remove with ownership, bar state kept.
 5. The others: Flutter apps, Narrator/Video, Launcher (+ applet), Theme, then Tiling, Icons, maprisma
    (pacman); icon changes (and the small own-icon-name changes in the apps' repos).

@@ -13,10 +13,15 @@ Error codes: `unknown_route`, `bad_request` (not a valid frame), `bad_params`, `
 `request_too_large` (64 KiB), `response_too_large` (4 MiB), `internal`; for the bar: `changed` (the
 config changed since it was read: read again and retry), `unreadable` (a panel file doesn't parse),
 `unavailable` (no plasmashell / qdbus6, or not possible on this desktop), `no_bar_icon`, `bad_file`
-(an autostart file without `[Desktop Entry]`), `busy` (another Manager holds the state lock 10 s).
+(an autostart file without `[Desktop Entry]`), `busy` (another Manager holds the state lock 10 s, or
+runs a job; a job for that app is already queued); for jobs: `unsupported_yet` (the app's install or
+remove needs a step of its own that comes later; the catalog says why), `not_cancellable` (the job is
+in its commit phase, or its script has started writing the app's files), `finished`, `not_owner` (the
+job runs in another Manager process: only that one can cancel it).
 
-Only `git.fetch` (remote-tracking refs, when asked) and the `bar.*` changes write anything; nothing
-installs, removes or stops processes yet.
+Writes: `git.fetch` (remote-tracking refs, when asked), the `bar.*` changes, and the jobs
+(`jobs.start`: install, update, reinstall, remove). `apps.list` / `apps.get` / `jobs.*` reads mark
+an unfinished job of a Manager that is gone as `interrupted` in its state file.
 
 ## Environment
 
@@ -64,6 +69,8 @@ App:
 | `bar` | COSMIC: `{has, id, state: in/out/unknown, zone, panel, startsAtLogin, running, visible, error?}`: `zone`/`panel` where the applet is (every panel instance is looked at); in a panel = starts at login (cosmic-panel starts it); `running` = its applet program runs as a child of cosmic-panel; a file that doesn't parse gives `unknown` with the error. KDE tray: `{has, id, kind: tray, state, zone?, startsAtLogin, running, visible, where?}`: autostart file not `Hidden=true`; the tray process; `state: out` also when Maprisma Icons hides it; `visible` is `null` for a running tray in the system tray (it may sit in the overflow), `where: systemTray` without the widget. KDE widget entry (Launcher): `{kind: widgetEntry, state, zone?, visible}` from Maprisma Icons (`unknown` with `error` when plasmashell can't be asked). `iconName` is the one the desktop shows (Theme's KDE tray: `com.maprisma.Theme`). `wanted` is the app's entry in bar.json. No icon: `{has: false, state: none}`. |
 | `running` | How many of the user's processes belong to it (by `/proc/<pid>/exe`, or the script path in argv for interpreted helpers). |
 | `dependsOn`, `neededBy`, `env` | Dependencies; `env.FLUTTER` as the installer wants it (Theme: the folder, Narrator/Video: the executable; `PATH+` for those that take flutter from PATH). |
+| `support` | `{install, remove, note?}`: whether jobs can install/remove it yet (`false` → `unsupported_yet`). |
+| `job`, `repair` | The app's latest job (the `jobs.list` form, null without one); `repair: true` after an interrupted job or a failed one that had started writing: offer Repair (= reinstall). |
 
 ### `apps.get` `{id, desktop?}`
 
@@ -151,6 +158,108 @@ not in its wanted area is placed at its wanted index, in the panel/widget it was
 default one); one wanted out is taken out (KDE: hidden + autostart
 flag). Icons already in their area stay where they are. Used after installs (step 3). `{changed: [app ids], reload?}`.
 
+### `apps.remove_plan` `{id, delete_settings?}`
+
+What a remove would do, before anything is touched (the remove job plans again and deletes only what
+its plan says; pass `revision` to refuse a plan that changed since it was shown):
+
+```
+{app, name, receipt: valid/none/broken, receiptError?, verified, revision,
+ goes:  [{path, kind: file/link/dir, sha256?/link?, normalized?, onlyIfEmpty?, unverified?}],
+ stays: [{path, why}],            changed since the install / not what the Manager installed / not in the receipt / …
+ data:  [{path, goes, why?}],     user data: goes only with delete_settings; Omarchy-shared data never
+ runtime: [{path, why}],          made at runtime: not removed by this step
+ restores: [{path, backup, reason}], backupsKept: [...],
+ dependents: [{id, name}], units, running, bar: {has, id?, takenOut?}, postSteps}
+```
+
+With a valid receipt, a file goes only while its sha256 is the receipt's (an autostart file's
+`Hidden=` line left out: hiding the icon is not a change), a link only while it points where it did
+(unlinked, never followed), a folder only when empty; catalog paths not in the receipt stay. Without
+a receipt (installed before the Manager, or a broken one) the catalog's paths go, each marked
+`unverified`; a link only when it points where the installer points it. Refused with `unsupported_yet`
+for Maprisma (pacman), Narrator (reader runtime), Tiling (Krohnkite migration), Icons (generated
+Plasma themes) and the Manager (step 6).
+
+## Jobs
+
+One job at a time: a queue in the core process and an fcntl lock on
+`~/.local/state/maprisma-manager/jobs/lock` held while the queue runs, so a second Manager or the CLI
+gets `busy`. Every job's state is `jobs/<id>.json`, its log `logs/<id>.log` (100 finished jobs kept).
+
+```
+{id: "20261109T101500Z-wlan-install", app, kind: install/update/reinstall/remove, options,
+ state: queued/running/succeeded/failed/cancelled/interrupted, phase: queued/prepare/build/commit/verify/finish,
+ component?, created, started?, ended?, finished?, committed, owner: {pid, start}, script?: {pid, pgid, start},
+ log, stopped?: [{pid, exe, result}], units?, warnings?, result?: {ok, code?, message?, repair?, partial?, …}}
+```
+
+An unfinished job whose owner (pid + start time) is gone is `interrupted` (`repair: true` unless it was
+still queued); if its script still runs it gets SIGCONT (it may have been paused at the commit) and
+`orphan: true`.
+
+Phases of install/update/reinstall:
+
+1. **prepare** (cancellable): dependencies installed, prerequisites found (a missing one of an
+   optional part is a warning), every input repo present with a commit; for `update` only: `git pull
+   --ff-only` when the repo is clean, behind and has an upstream (otherwise the reason is logged and
+   the folder is built as it is). The inputs (HEAD, dirty, fingerprint) are recorded. The catalog paths
+   are snapshotted; a file at one of them that isn't the Manager's (per the receipt) is copied to
+   `displaced/<app>/` first (`restore: true` when a receipt existed, `false` for files from before the
+   Manager: those are most likely an earlier install of the same app).
+2. **build** (cancellable): the component's install command runs from its repo folder through
+   `setsid` (its own session and process group), stdin closed, with an explicit environment (no login
+   shell): HOME, USER, LANG/LC_*, XDG_*, DISPLAY/WAYLAND_DISPLAY, DBUS_SESSION_BUS_ADDRESS, CARGO_HOME
+   …; PATH = flutter's folder, `~/.cargo/bin`, then the core's PATH; FLUTTER per app (Theme the
+   folder, Narrator/Video the executable); the catalog's own variables; `MAPRISMA_MANAGER_JOB`.
+   stdout and stderr go to the log (4 MiB, then its last 256 KiB at the end) and to `lines(id)`.
+3. **commit** (not cancellable): **the rule**: the stat signature of every catalog path (type, size,
+   mode, mtime, ctime, link target) is compared every 150 ms; the first changed path starts the commit.
+   `jobs.cancel` pauses the script's group (SIGSTOP) and compares once more: unchanged → TERM to the
+   group (then SIGCONT; KILL after 5 s), changed → the group continues, the job enters its commit and the
+   cancel is refused with `not_cancellable`. So a cancel never ends a script that has touched one of the
+   app's files. At the commit (unless the installer does it itself: Launcher, Theme) the script is
+   paused while the app's systemd user units are stopped (`systemctl --user stop`, when active) and then
+   its processes (by `/proc/<pid>/exe` under its paths or its scripts' exact normalized path in argv;
+   the user's own, not the job's group; TERM, 5 s, identity (start time) checked again, KILL); then it
+   continues. A script that writes and ends between two polls has them stopped right after.
+4. **verify**: the postconditions (`checkPath`); a missing optional part (Narrator's settings window
+   without cmake) is `partial`, anything else failing is `verify_failed`.
+5. **finish**: post steps (`gtk-update-icon-cache -q -t <data>/icons/hicolor`, `update-desktop-database
+   -q <apps>`), the bar state from bar.json applied (`bar.apply`), the bar icon's old process ended
+   (COSMIC: an applet of cosmic-panel running from before; the panel starts the new one) or the KDE tray
+   started again (`setsid`, when its autostart file isn't hidden; kept stopped when it is), backups of
+   files the script left as they were dropped, then the receipt written (below).
+
+A failure leaves everything as it is (nothing is deleted, no receipt); `repair: true` when it had
+reached the commit. Remove: **prepare** (the plan, `revision`, dependents need `dependents_ok`) →
+**commit** (bar icon out of the panel/widget without changing bar.json, so a reinstall puts it back;
+units and processes stopped; the plan's files deleted, each checked again; emptied folders below the
+shared roots removed; displaced files with `restore` put back where the path is free; with
+`delete_settings` the app's own data, never Omarchy-shared data) → **verify** → **finish** (post steps,
+receipt dropped).
+
+### `jobs.start` `{app, kind, options?}`
+
+`options`: remove `{delete_settings?, dependents_ok?, revision?}`. Answers the job (short form) at once;
+it runs in the background of the core. `unavailable` for an app not for this desktop.
+
+### `jobs.get` `{id}` / `jobs.list` `{app?, limit?}`
+
+The job (`jobs.get` adds `cancellable`), or `{jobs: [...]}` newest first in the short form
+(`id, app, kind, state, phase, component, created, started, ended, committed, log, result`).
+
+### `jobs.cancel` `{id}`
+
+`{id, cancelled: true}` for a queued job, `{id, cancelling: true}` for one in prepare/build (it ends
+with `state: cancelled`); `not_cancellable`, `finished`, `not_owner`.
+
+### `jobs.log` `{id, from?}`
+
+`{id, from, next, size, text, finished}`: the log from byte `from`, at most 256 KiB; while the job runs
+the text ends at a full line. Poll with `from = next`. In-process, `CoreService.jobs.lines(id)` streams
+the lines and `jobs.done(id)` completes with the job.
+
 ## CLI
 
 ```
@@ -159,7 +268,15 @@ maprisma-manager-core fetch [--force] [<id>]
 maprisma-manager-core bar [--json] [--panel <name>]
 maprisma-manager-core bar <id> left|center|right|out [--index <n>] [--panel <name>]
 maprisma-manager-core bar apply
+maprisma-manager-core install|update|reinstall <id>
+maprisma-manager-core remove <id> [--delete-settings] [--yes]
+maprisma-manager-core jobs [<app>]
+maprisma-manager-core log <job>
 ```
+
+`install`/`update`/`reinstall` run the job in the CLI process and print its output; Ctrl-C cancels
+(refused in the commit). Exit code 0 done, 1 failed, 130 cancelled. `remove` prints the plan and asks
+(`--yes` without asking; without a terminal it needs `--yes`). `log` follows a running job's log.
 
 `bar` prints the areas (`[wlan]` = ours, COSMIC's applets shortened: `Time`, `Power`) and the icons that
 are out; `bar <id> <area>` places/moves it there (`out` takes it out) and prints the bar again.
@@ -167,16 +284,23 @@ are out; `bar <id> <area>` places/moves it there (`out` takes it out) and prints
 `status` prints a table (ID, STATE, VERSION, BUILD, FOLDER, UPSTREAM, BAR, RUN, NOTES); `--json` prints
 `apps.list` (or `apps.get` with an id).
 
-## Receipts (read in step 1, written from step 3)
+## Receipts (written by install jobs after verify)
 
 `~/.local/state/maprisma-manager/installed/<id>.json`:
 
 ```json
-{"id": "wlan", "at": "2026-11-09T10:00:00Z", "version": "…",
- "inputs": [{"repo": "maprisma-wlan-monitor", "commit": "<sha>", "dirty": false, "fingerprint": "…"}],
- "paths": [{"path": "…", "sha256": "…"}, {"path": "…", "link": "…"}, {"path": "…", "dir": true}],
- "displaced": [{"path": "…", "backup": "…"}]}
+{"schema": 1, "id": "wlan", "at": "2026-11-09T10:00:00Z", "version": "…", "manager": "0.1.0",
+ "job": "<job id>", "kind": "install", "components": ["main"], "partial": ["settings window"],
+ "inputs": [{"repo": "maprisma-wlan-monitor", "commit": "<sha>", "dirty": false, "fingerprint": "tree:<sha>"}],
+ "paths": [{"path": "…", "sha256": "…", "mode": "755"}, {"path": "…autostart….desktop", "sha256": "…", "mode": "644", "normalized": "hidden"},
+           {"path": "…", "link": "…"}, {"path": "…", "dir": true}],
+ "displaced": [{"path": "…", "backup": "…/displaced/wlan/<hash>-<name>", "restore": true, "reason": "changed since the install"}]}
 ```
+
+`fingerprint`: `tree:<HEAD's tree>` for a clean folder, else `dirty:<sha256 over HEAD and every
+changed/untracked file's path and content hash>`. Every catalog path present after the install is
+recorded (files with sha256 and mode, links with their target as written). `displaced/<app>/index.json`
+keeps the backups across jobs (the oldest backup of a path wins).
 
 A receipt whose `id` doesn't match its file name, or with missing `at`/`inputs`, is reported in
 `build.error` and not trusted.

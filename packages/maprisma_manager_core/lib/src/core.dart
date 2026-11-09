@@ -3,9 +3,11 @@ import 'dart:convert';
 import 'bar.dart';
 import 'catalog.dart';
 import 'context.dart';
+import 'jobs.dart';
 import 'paths.dart';
 import 'procs.dart';
 import 'protocol.dart';
+import 'removal.dart';
 import 'run.dart';
 import 'status.dart';
 
@@ -32,6 +34,7 @@ final class CoreService {
       clock: clock,
       uid: uid,
     );
+    jobs = JobEngine(ctx);
     routes = {
       'core.hello': (_) async => {
         'version': coreVersion,
@@ -55,14 +58,34 @@ final class CoreService {
       'bar.move': (params) => _bar((b) => b.move(params)),
       'bar.remove': (params) => _bar((b) => b.remove(params)),
       'bar.apply': (params) => _bar((b) => b.applyWanted()),
+      'jobs.start': (params) async => jobs.start(params),
+      'jobs.get': (params) async => jobs.get(params),
+      'jobs.list': (params) async => jobs.list(params),
+      'jobs.cancel': (params) => jobs.cancel(params),
+      'jobs.log': (params) async => jobs.readLog(params),
+      'apps.remove_plan': (params) async {
+        final id = _app(params);
+        final del = params['delete_settings'] ?? false;
+        if (del is! bool) throw RouteError('bad_params', 'delete_settings');
+        return (await removePlan(ctx, findApp(id)!, deleteSettings: del)).json;
+      },
     };
   }
 
   late final Ctx ctx;
   late final Map<String, Handler> routes;
 
-  /// Waits for cosmic-panel after a write; tests replace it.
-  Future<Map<String, dynamic>> Function(List<ProcInfo> before)? followPanel;
+  /// The job engine (install, update, reinstall, remove).
+  late final JobEngine jobs;
+
+  Future<Map<String, dynamic>> Function(List<ProcInfo> before)? _followPanel;
+
+  /// Waits for cosmic-panel after a write; tests replace it (the jobs' bar steps use it too).
+  Future<Map<String, dynamic>> Function(List<ProcInfo> before)? get followPanel => _followPanel;
+  set followPanel(Future<Map<String, dynamic>> Function(List<ProcInfo> before)? f) {
+    _followPanel = f;
+    jobs.follow = f;
+  }
 
   Future<Map<String, dynamic>> _bar(Future<Map<String, dynamic>> Function(Bar b) f) => f(Bar(ctx)..follow = followPanel);
 

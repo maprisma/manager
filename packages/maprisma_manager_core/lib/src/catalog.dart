@@ -76,7 +76,8 @@ AppEntry _rustApp({
   );
 }
 
-final List<AppEntry> catalog = [
+/// The built-in catalog; [catalog] is what everything uses (tests may set [catalogOverride]).
+final List<AppEntry> builtinCatalog = [
   // --- maprisma: the pacman package -------------------------------------------------------
   const AppEntry(
     id: 'maprisma',
@@ -126,6 +127,9 @@ final List<AppEntry> catalog = [
     bar: BarIcon(),
     version: VersionSource(pacman: 'maprisma-bin', folderFile: 'addons.py', folderPattern: r'^MAPRISMA_VERSION = "([0-9.]+)"'),
     postSteps: ['systemctl --user restart maprisma-providers.service'],
+    installation: Support.unsupportedYet,
+    removal: Support.unsupportedYet,
+    supportNote: 'the pacman package comes in step 5',
     note: 'Maprisma Control is its bar icon.',
   ),
 
@@ -181,6 +185,7 @@ final List<AppEntry> catalog = [
         repo: 'maprisma-launcher',
         install: ['tools/install-local'],
         flutter: FlutterEnv.path,
+        stopsOwnProcesses: true,
         prerequisites: [Prerequisite('python3'), Prerequisite('flutter'), Prerequisite('cargo'), _desktopDb],
         note: 'install-local hardcodes \$HOME/.local/share; it stops the running copies itself and refuses while its terminal runs a command.',
         paths: [
@@ -244,6 +249,7 @@ final List<AppEntry> catalog = [
         repo: 'maprisma-theme',
         install: ['tools/install-local'],
         flutter: FlutterEnv.dir,
+        stopsOwnProcesses: true,
         prerequisites: [Prerequisite('flutter'), Prerequisite('dart'), Prerequisite('cargo'), _gtkIconCache, _desktopDb],
         note: 'FLUTTER is the folder with flutter in it; on KDE the script starts the tray daemon itself.',
         paths: [
@@ -417,6 +423,8 @@ final List<AppEntry> catalog = [
       kdeTrayExe: '{bin}/maprisma-narrator-tray',
       iconName: 'audio-headphones',
     ),
+    removal: Support.unsupportedYet,
+    supportNote: 'removing the reader runtime (ocrvox, simple-reader) needs its own step (step 5)',
   ),
 
   // --- video translator --------------------------------------------------------------------
@@ -523,6 +531,9 @@ final List<AppEntry> catalog = [
       RuntimePath('{config}/kwinrc', note: '[Script-maprisma-tiling] keys (build = its hash), [Plugins] …Enabled'),
     ],
     processes: [ProcessMatch(MatchKind.script, '{bin}/maprisma-tiling-overlay', note: 'python, D-Bus activated')],
+    installation: Support.unsupportedYet,
+    removal: Support.unsupportedYet,
+    supportNote: 'the Krohnkite migration needs its own install and remove steps (step 5)',
     note: 'No bar icon; its settings are in Maprisma Theme.',
   ),
   const AppEntry(
@@ -552,6 +563,8 @@ final List<AppEntry> catalog = [
       RuntimePath('{config}/plasmarc', note: '[Theme] name while a generated theme is active'),
     ],
     processes: [ProcessMatch(MatchKind.script, '{bin}/maprisma-panel-color')],
+    removal: Support.unsupportedYet,
+    supportNote: 'removing the widget must switch away from its generated Plasma themes first (step 5)',
     note: 'It is the bar for the others on KDE.',
   ),
 
@@ -579,9 +592,17 @@ final List<AppEntry> catalog = [
     ],
     data: [DataPath('{config}/maprisma-manager'), DataPath('{state}/maprisma-manager')],
     processes: [ProcessMatch(MatchKind.exeUnder, '{lib}/maprisma-manager')],
+    installation: Support.unsupportedYet,
+    removal: Support.unsupportedYet,
+    supportNote: 'the Manager updates itself through its own helper (step 6)',
     note: 'Opens from the app menu.',
   ),
 ];
+
+/// Tests only: another catalog (e.g. the built-in one plus a fake app).
+List<AppEntry>? catalogOverride;
+
+List<AppEntry> get catalog => catalogOverride ?? builtinCatalog;
 
 AppEntry? findApp(String id) {
   for (final a in catalog) {

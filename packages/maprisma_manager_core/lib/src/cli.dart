@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -8,12 +9,16 @@ const usage = '''usage: maprisma-manager-core status [--json] [--desktop cosmic|
        maprisma-manager-core fetch [--force] [<id>]
        maprisma-manager-core bar [--json] [--panel <name>]
        maprisma-manager-core bar <id> left|center|right|out [--index <n>] [--panel <name>]
-       maprisma-manager-core bar apply''';
+       maprisma-manager-core bar apply
+       maprisma-manager-core install|update|reinstall <id>
+       maprisma-manager-core remove <id> [--delete-settings] [--yes]
+       maprisma-manager-core jobs [<id>]
+       maprisma-manager-core log <job>''';
 
 /// `maprisma-manager-core <command>`: a human table by default, JSON with --json.
 Future<int> runCli(List<String> args, {CoreService? service, IOSink? out}) async {
   final sink = out ?? stdout;
-  var json = false, force = false;
+  var json = false, force = false, yes = false, deleteSettings = false;
   String? desktop, panel;
   int? index;
   final rest = <String>[];
@@ -23,6 +28,10 @@ Future<int> runCli(List<String> args, {CoreService? service, IOSink? out}) async
       json = true;
     } else if (a == '--force') {
       force = true;
+    } else if (a == '--yes' || a == '-y') {
+      yes = true;
+    } else if (a == '--delete-settings') {
+      deleteSettings = true;
     } else if (a == '--desktop' && i + 1 < args.length) {
       desktop = args[++i];
     } else if (a == '--panel' && i + 1 < args.length) {
@@ -98,6 +107,61 @@ Future<int> runCli(List<String> args, {CoreService? service, IOSink? out}) async
                 : '${reload['note'] ?? reload['error'] ?? ''}');
           }
         }
+      case [final kind, final id] when ['install', 'update', 'reinstall'].contains(kind):
+        return await _runJob(core, sink, {'app': id, 'kind': kind});
+      case ['remove', final id]:
+        final plan = await core.call('apps.remove_plan', {'id': id, 'delete_settings': deleteSettings});
+        sink.writeln(planText(plan));
+        if ((plan['goes'] as List).isEmpty && (plan['data'] as List).every((d) => d['goes'] != true)) {
+          sink.writeln('Nothing of ${plan['name']} to remove.');
+        }
+        final dependents = plan['dependents'] as List;
+        if (!yes) {
+          if (!stdin.hasTerminal) {
+            stderr.writeln('error: confirm with --yes (no terminal to ask)');
+            return 2;
+          }
+          stdout.write('Remove ${plan['name']}? [y/N] ');
+          final answer = stdin.readLineSync()?.trim().toLowerCase();
+          if (answer != 'y' && answer != 'yes') {
+            sink.writeln('Nothing removed.');
+            return 1;
+          }
+        }
+        return await _runJob(core, sink, {
+          'app': id,
+          'kind': 'remove',
+          'options': {'delete_settings': deleteSettings, 'revision': plan['revision'], if (dependents.isNotEmpty) 'dependents_ok': true},
+        });
+      case ['jobs']:
+      case ['jobs', _]:
+        final r = await core.call('jobs.list', {if (rest.length == 2) 'app': rest[1]});
+        if (json) {
+          sink.writeln(const JsonEncoder.withIndent('  ').convert(r));
+        } else {
+          final jobs = (r['jobs'] as List).cast<Map<String, dynamic>>();
+          if (jobs.isEmpty) sink.writeln('no jobs yet');
+          for (final j in jobs) {
+            final result = j['result'] as Map<String, dynamic>?;
+            final why = result == null || result['ok'] == true ? '' : '  ${result['code']}: ${result['message'] ?? ''}${result['repair'] == true ? ' (repair: reinstall)' : ''}';
+            sink.writeln('${j['id']}  ${(j['state'] as String).padRight(11)} ${(j['phase'] as String).padRight(7)}$why');
+          }
+        }
+      case ['log', final id]:
+        var from = 0;
+        while (true) {
+          final r = await core.call('jobs.log', {'id': id, 'from': from});
+          sink.write(r['text']);
+          from = r['next'] as int;
+          if (r['finished'] == true) break;
+          final job = await core.call('jobs.get', {'id': id});
+          if (job['finished'] == true && from >= (r['size'] as int)) {
+            final last = await core.call('jobs.log', {'id': id, 'from': from});
+            sink.write(last['text']);
+            break;
+          }
+          if ((r['text'] as String).isEmpty) await Future<void>.delayed(const Duration(milliseconds: 300));
+        }
       default:
         stderr.writeln(usage);
         return 2;
@@ -107,6 +171,76 @@ Future<int> runCli(List<String> args, {CoreService? service, IOSink? out}) async
     stderr.writeln('error: ${e.code}${e.message == null ? '' : ' (${e.message})'}');
     return 1;
   }
+}
+
+/// Starts a job, prints its output as it comes, Ctrl-C cancels (refused in the commit phase).
+/// Exit code: 0 done, 1 failed, 130 cancelled.
+Future<int> _runJob(CoreService core, IOSink sink, Map<String, dynamic> params) async {
+  final started = await core.call('jobs.start', params);
+  final id = started['id'] as String;
+  final lines = core.jobs.lines(id)!.listen(sink.writeln);
+  StreamSubscription<ProcessSignal>? sigint;
+  try {
+    sigint = ProcessSignal.sigint.watch().listen((_) async {
+      try {
+        await core.call('jobs.cancel', {'id': id});
+        stderr.writeln('cancelling …');
+      } on RouteError catch (e) {
+        stderr.writeln('not cancelled: ${e.message ?? e.code}');
+      }
+    });
+  } on Object {
+    sigint = null; // no signal watching here (tests)
+  }
+  final job = await core.jobs.done(id)!;
+  await sigint?.cancel();
+  await lines.cancel();
+  final result = job['result'] as Map<String, dynamic>;
+  if (result['ok'] == true) {
+    sink.writeln('${job['kind']} ${job['app']}: done${result['partial'] != null ? ' (partly: no ${(result['partial'] as List).join(', ')})' : ''}');
+    return 0;
+  }
+  sink.writeln('${job['kind']} ${job['app']}: ${job['state']} (${result['code']}${result['message'] == null ? '' : ': ${result['message']}'})'
+      '${result['repair'] == true ? '. Repair: maprisma-manager-core reinstall ${job['app']}' : ''}');
+  sink.writeln('log: ${job['log']}');
+  return job['state'] == 'cancelled' ? 130 : 1;
+}
+
+/// The human view of apps.remove_plan.
+String planText(Map<String, dynamic> plan) {
+  final lines = <String>['Remove ${plan['name']}:'];
+  if (plan['verified'] != true) {
+    lines.add('  (no ${plan['receipt'] == 'broken' ? 'valid ' : ''}receipt: the catalog\'s files are removed, unverified)');
+  }
+  final goes = (plan['goes'] as List).cast<Map<String, dynamic>>();
+  lines.add('Goes:${goes.isEmpty ? ' nothing' : ''}');
+  for (final g in goes) {
+    lines.add('  ${g['path']}${g['kind'] == 'dir' ? '/ (if empty)' : ''}${g['unverified'] == true ? '  [unverified]' : ''}');
+  }
+  for (final d in (plan['data'] as List).cast<Map<String, dynamic>>().where((d) => d['goes'] == true)) {
+    lines.add('  ${d['path']}  [settings]');
+  }
+  final stays = [
+    ...(plan['stays'] as List).cast<Map<String, dynamic>>(),
+    ...(plan['data'] as List).cast<Map<String, dynamic>>().where((d) => d['goes'] != true),
+    ...(plan['runtime'] as List).cast<Map<String, dynamic>>(),
+  ];
+  lines.add('Stays:${stays.isEmpty ? ' nothing' : ''}');
+  for (final s in stays) {
+    lines.add('  ${s['path']}  (${s['why']})');
+  }
+  for (final r in (plan['restores'] as List).cast<Map<String, dynamic>>()) {
+    lines.add('Restored: ${r['path']} (${r['reason']})');
+  }
+  for (final b in (plan['backupsKept'] as List).cast<Map<String, dynamic>>()) {
+    lines.add('Backup kept, not restored: ${b['path']} (${b['reason']}) in ${b['backup']}');
+  }
+  final dependents = plan['dependents'] as List;
+  if (dependents.isNotEmpty) lines.add('Warning: needed by ${dependents.map((d) => d['name']).join(', ')}');
+  final bar = plan['bar'] as Map<String, dynamic>;
+  if (bar['takenOut'] == true) lines.add('Its bar icon is taken out first.');
+  if ((plan['running'] as int) > 0) lines.add('${plan['running']} running process(es) are stopped.');
+  return lines.join('\n');
 }
 
 /// The human view of bar.get: one line per area, ours marked with their app id.
@@ -182,6 +316,8 @@ String statusTable(Map<String, dynamic> r) {
     }
     final build = a['build'] as Map<String, dynamic>;
     if (build['error'] != null) notes.add('${build['error']}');
+    final job = a['job'] as Map<String, dynamic>?;
+    if (job != null && a['repair'] == true) notes.add('${job['kind']} ${job['state']} in ${job['phase']}: repair (reinstall)');
     final versions = a['versions'] as Map<String, dynamic>;
     final version = [
       versions['installed'] ?? '-',

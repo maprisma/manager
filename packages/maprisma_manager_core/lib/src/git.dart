@@ -1,4 +1,7 @@
+import 'dart:convert';
 import 'dart:io';
+
+import 'package:crypto/crypto.dart';
 
 import 'package:path/path.dart' as p;
 
@@ -180,6 +183,44 @@ final class Git {
       lastFetch: lastFetch,
       error: errors.isEmpty ? null : errors.join('; '),
     );
+  }
+
+  /// `git pull --ff-only` (an update job, only when clean, behind and the upstream is known).
+  Future<RunResult> pullFfOnly(String folder) => runner.run(
+    ['git', '-c', 'core.fsmonitor=false', '-C', folder, 'pull', '--ff-only', '--quiet'],
+    extraEnv: _gitEnv,
+    timeout: const Duration(seconds: 120),
+  );
+
+  /// A content fingerprint of the working tree: `tree:<HEAD's tree>` when clean, else
+  /// `dirty:<sha256 of HEAD and every changed/untracked file's path and content hash>`.
+  Future<String?> fingerprint(String folder, String Function(String path) hashFile) async {
+    final tree = await _git(folder, ['rev-parse', '-q', '--verify', 'HEAD^{tree}']);
+    if (!tree.ok) return null;
+    final st = await _git(folder, ['status', '--porcelain=v1', '-z', '--untracked-files=all']);
+    if (!st.ok) return null;
+    final fields = st.stdout.split('\u0000');
+    final changed = <String>[];
+    for (var i = 0; i < fields.length; i++) {
+      final f = fields[i];
+      if (f.length < 4) continue;
+      changed.add(f.substring(3));
+      if (f[0] == 'R' || f[0] == 'C') i++; // the original path follows
+    }
+    if (changed.isEmpty) return 'tree:${tree.stdout.trim()}';
+    changed.sort();
+    final parts = <String>['head ${tree.stdout.trim()}'];
+    for (final rel in changed) {
+      final path = p.join(folder, rel);
+      String h;
+      try {
+        h = FileSystemEntity.typeSync(path, followLinks: false) == FileSystemEntityType.file ? hashFile(path) : 'other';
+      } on FileSystemException {
+        h = 'unreadable';
+      }
+      parts.add('$rel\t${FileSystemEntity.typeSync(path, followLinks: false) == FileSystemEntityType.notFound ? 'deleted' : h}');
+    }
+    return 'dirty:${sha256.convert(utf8.encode(parts.join('\n')))}';
   }
 
   /// Fetches the upstream's remote (only that one). The caller decides about throttling.

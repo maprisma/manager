@@ -216,9 +216,12 @@ final class Bar {
     return _change(params, null, entry: entry, area: area, index: index, placed: true);
   }
 
-  Future<Map<String, dynamic>> remove(Map<String, dynamic> params) async {
+  /// [remember] false: bar.json keeps the user's choice (a remove job takes the icon out, the
+  /// choice comes back with a reinstall); [autostart] false: the tray's autostart file is left
+  /// alone (the remove job deletes it).
+  Future<Map<String, dynamic>> remove(Map<String, dynamic> params, {bool remember = true, bool autostart = true}) async {
     final a = app(params['app']);
-    return _change(params, a, placed: false);
+    return _change(params, a, placed: false, remember: remember, touchAutostart: autostart);
   }
 
   int? _index(Object? v, {required bool optional}) {
@@ -228,8 +231,10 @@ final class Bar {
   }
 
   /// One change, start to end (read, write, bar.json) under the state lock.
-  Future<Map<String, dynamic>> _change(Map<String, dynamic> params, AppEntry? a, {String? entry, Area? area, int? index, required bool placed}) =>
-      withStateLock(paths, () => _changeLocked(params, a, entry: entry, area: area, index: index, placed: placed));
+  Future<Map<String, dynamic>> _change(Map<String, dynamic> params, AppEntry? a,
+          {String? entry, Area? area, int? index, required bool placed, bool remember = true, bool touchAutostart = true}) =>
+      withStateLock(paths, () => _changeLocked(params, a,
+          entry: entry, area: area, index: index, placed: placed, remember: remember, touchAutostart: touchAutostart));
 
   Future<Map<String, dynamic>> _changeLocked(
     Map<String, dynamic> params,
@@ -238,6 +243,8 @@ final class Bar {
     Area? area,
     int? index,
     required bool placed,
+    bool remember = true,
+    bool touchAutostart = true,
   }) async {
     final id = entry ?? barId(a!)!;
     final revision = params['revision'];
@@ -268,7 +275,7 @@ final class Bar {
           final at = l.find(id);
           results.add({'panel': instance, 'written': w.written, 'backup': ?w.backup, 'area': ?at?.area.name, 'index': ?at?.index});
         }
-        if (a != null) {
+        if (a != null && remember) {
           _remember(a,
               placed: placed,
               at: placed ? (area: Area.values.byName(results.first['area'] as String), index: results.first['index'] as int) : null,
@@ -281,7 +288,7 @@ final class Bar {
         final found = await kdeWidget(params['widget']);
         final w = found.widget;
         final result = <String, dynamic>{'id': id, 'app': ?a?.id, 'placed': placed};
-        final autostart = a?.bar.kdeAutostart == null ? null : paths.expand(a!.bar.kdeAutostart!);
+        final autostart = a?.bar.kdeAutostart == null || !touchAutostart ? null : paths.expand(a!.bar.kdeAutostart!);
         // A broken autostart file stops the change before anything is written.
         if (autostart != null && File(autostart).existsSync()) checkDesktopFile(autostart);
         if (w != null) {
@@ -310,7 +317,7 @@ final class Bar {
         if (autostart != null) {
           result['autostart'] = File(autostart).existsSync() ? (setDesktopHidden(paths, autostart, !placed) ? 'changed' : 'unchanged') : 'missing';
         }
-        if (a != null) {
+        if (a != null && remember) {
           final idx = result['index'];
           _remember(a,
               placed: placed,
