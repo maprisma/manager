@@ -202,7 +202,7 @@ exit 1''');
       expect(validTag('a/b'), isFalse);
     });
 
-    test('the catalog: GitHub repos as checked 2026-11-09', () {
+    test('the catalog: GitHub repos as checked 2026-11-10', () {
       final slugs = {for (final a in builtinCatalog) for (final i in a.inputs) i.repo: i.github};
       expect(slugs, {
         'maprisma': 'maprisma/maprisma',
@@ -218,7 +218,7 @@ exit 1''');
         'maprisma-wlan-monitor': 'maprisma/wlan-monitor',
         'maprisma-narrator': 'maprisma/narrator',
         'maprisma-video-translator': null,
-        'maprisma-kwin-scripts': null,
+        'maprisma-kwin-scripts': 'maprisma/maprisma-kwin-scripts',
         'maprisma-panel': null,
         'maprisma-manager': null,
       });

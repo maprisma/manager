@@ -552,7 +552,7 @@ final List<AppEntry> builtinCatalog = [
     name: 'Maprisma Tiling (KDE)',
     kind: 'KWin scripts',
     desktops: _kde,
-    inputs: [Input('maprisma-kwin-scripts')],
+    inputs: [Input('maprisma-kwin-scripts', github: 'maprisma/maprisma-kwin-scripts')],
     components: [
       Component(
         id: 'main',
