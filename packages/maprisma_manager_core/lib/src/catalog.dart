@@ -1,4 +1,4 @@
-/// The 14 apps the Manager knows, as data. Every path was read from the repo's own install
+/// The 15 apps the Manager knows, as data. Every path was read from the repo's own install
 /// script (2026-11-09); docs/inventory.md is the human version of this file.
 ///
 /// Templates: `{bin}` = $HOME/.local/bin, `{lib}` = $HOME/.local/lib, `{data}` = XDG_DATA_HOME,
@@ -327,6 +327,69 @@ final List<AppEntry> builtinCatalog = [
     ),
     version: VersionSource(
       installedJson: '{lib}/maprisma-theme/data/flutter_assets/version.json',
+      folderFile: 'flutter_app/pubspec.yaml',
+      folderPattern: r'^version: *([0-9.]+)',
+    ),
+    postSteps: ['gtk-update-icon-cache', 'update-desktop-database'],
+  ),
+
+  // --- playground: maprisma-playground -----------------------------------------------------
+  const AppEntry(
+    id: 'playground',
+    open: ['{bin}/maprisma-playground'],
+    appIcon: 'com.maprisma.Playground',
+    name: 'Maprisma Playground',
+    kind: 'flutter + rust',
+    inputs: [Input('maprisma-playground', github: 'maprisma/playground')],
+    components: [
+      Component(
+        id: 'main',
+        name: 'Maprisma Playground',
+        repo: 'maprisma-playground',
+        install: ['tools/install-local'],
+        flutter: FlutterEnv.dir,
+        stopsOwnProcesses: true,
+        trees: [TreeRoot('{lib}/maprisma-playground', swap: true, note: 'the Flutter bundle with bin/ (core, applet, tray), swapped in atomically')],
+        prerequisites: [Prerequisite('flutter'), Prerequisite('dart'), Prerequisite('cargo'), _gtkIconCache, _desktopDb],
+        note: 'FLUTTER is the folder with flutter in it; on KDE the script starts the tray itself.',
+        paths: [
+          InstalledPath('{lib}/maprisma-playground/maprisma-playground', PathKind.executable, key: true),
+          InstalledPath('{lib}/maprisma-playground/bin/maprisma-playground-core', PathKind.executable),
+          InstalledPath('{lib}/maprisma-playground/bin/maprisma-playground-applet', PathKind.executable),
+          InstalledPath('{lib}/maprisma-playground/bin/maprisma-playground-tray', PathKind.executable),
+          InstalledPath('{lib}/maprisma-playground/lib/libapp.so', PathKind.file),
+          InstalledPath('{bin}/maprisma-playground', PathKind.link, target: '{lib}/maprisma-playground/maprisma-playground'),
+          InstalledPath('{bin}/maprisma-playground-core', PathKind.link, target: '{lib}/maprisma-playground/bin/maprisma-playground-core'),
+          InstalledPath('{bin}/maprisma-playground-applet', PathKind.link, target: '{lib}/maprisma-playground/bin/maprisma-playground-applet'),
+          InstalledPath('{bin}/maprisma-playground-tray', PathKind.link, target: '{lib}/maprisma-playground/bin/maprisma-playground-tray'),
+          InstalledPath('{apps}/com.maprisma.Playground.desktop', PathKind.file),
+          InstalledPath('{apps}/com.maprisma.Playground.Toggle.desktop', PathKind.file),
+          InstalledPath('{apps}/${_c}Playground.desktop', PathKind.file),
+          InstalledPath('{icons}/com.maprisma.Playground.svg', PathKind.file),
+          InstalledPath('{icons}/${_c}Playground-symbolic.svg', PathKind.file),
+          InstalledPath('{autostart}/com.maprisma.Playground.Tray.desktop', PathKind.file, note: 'the KDE tray'),
+        ],
+      ),
+    ],
+    data: [
+      DataPath('{config}/maprisma-playground', note: 'settings, saved chess games, Head to head scores'),
+      DataPath('{data}/maprisma-playground', note: 'Generate: stable-diffusion.cpp and the Z-Image-Turbo model (about 11 GB)'),
+      DataPath('{cache}/maprisma-playground'),
+    ],
+    runtime: [
+      RuntimePath('{config}/llama.cpp/models.ini', note: 'Analyze may add a vision projector entry here', stays: 'shared with the local LLM (llama.cpp): not removed with the app'),
+    ],
+    processes: [ProcessMatch(MatchKind.exeUnder, '{lib}/maprisma-playground', note: 'app, core, applet, tray')],
+    bar: BarIcon(
+      cosmicApplet: '${_c}Playground',
+      cosmicAppletExe: '{bin}/maprisma-playground-applet',
+      kdeId: 'maprisma-playground',
+      kdeAutostart: '{autostart}/com.maprisma.Playground.Tray.desktop',
+      kdeTrayExe: '{lib}/maprisma-playground/bin/maprisma-playground-tray',
+      iconName: '${_c}Playground-symbolic',
+    ),
+    version: VersionSource(
+      installedJson: '{lib}/maprisma-playground/data/flutter_assets/version.json',
       folderFile: 'flutter_app/pubspec.yaml',
       folderPattern: r'^version: *([0-9.]+)',
     ),

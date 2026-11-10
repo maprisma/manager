@@ -159,6 +159,23 @@ General:
 - **Bar:** tray id `maprisma-theme`.
 - **Git:** no remote.
 
+
+## playground: maprisma-playground (`tools/install-local`)
+
+- **Build:** flutter, `dart compile exe` (the core), cargo in `bar/` (applet, tray).
+- **Files:**
+  - `~/.local/lib/maprisma-playground/` (atomic swap), with the app, `bin/maprisma-playground-{core,applet,tray}`,
+    and links in `bin/`
+  - `apps/com.maprisma.Playground{,.Toggle}.desktop`, `apps/CPlayground.desktop`
+  - `icons/com.maprisma.Playground.svg`, `icons/CPlayground-symbolic.svg`
+  - `autostart/com.maprisma.Playground.Tray.desktop` (OnlyShowIn=KDE)
+- **Data:** `~/.config/maprisma-playground/` (settings, games, scores), `share/maprisma-playground/`
+  (Generate's program and model, about 11 GB), `~/.cache/maprisma-playground/`.
+- **Shared, stays:** `~/.config/llama.cpp/models.ini` (Analyze may add a vision projector).
+- **Bar:** COSMIC `CPlayground`; KDE tray id `maprisma-playground`.
+- **Processes:** everything whose exe is under `~/.local/lib/maprisma-playground`; agents it asks
+  end with the app.
+- **Git:** origin maprisma/playground.
 ## tiling: maprisma-kwin-scripts (KDE)
 
 - **Files:**

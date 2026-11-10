@@ -152,7 +152,8 @@ void main() {
       final wlan = (r['areas']['center'] as List)[4];
       expect(wlan, containsPair('app', 'wlan'));
       expect(wlan['iconName'], '${_c}WlanMonitor-symbolic');
-      expect(r['out'], isEmpty);
+      // Every app of the real panel is in it; Maprisma Playground came later and is out.
+      expect([for (final o in r['out'] as List) o['app']], ['playground']);
       expect(r['revision'], isA<String>());
     });
 
