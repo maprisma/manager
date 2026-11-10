@@ -60,6 +60,7 @@ if (( integrate )); then
 fi
 
 if (( build )); then
+  "$root/tools/gen-translations"
   (cd "$root/flutter_app" && flutter build linux --release >/dev/null)
   mkdir -p "$bundle/bin"
   (cd "$root/packages/maprisma_manager_core" && dart compile exe bin/maprisma_manager_core.dart -o "$bundle/bin/maprisma-manager-core" >/dev/null)

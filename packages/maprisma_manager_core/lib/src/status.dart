@@ -1,3 +1,4 @@
+import 'translations.dart';
 import 'dart:convert';
 import 'dart:io';
 
@@ -25,13 +26,13 @@ Map<String, dynamic> checkPath(Paths paths, InstalledPath ip) {
     case PathKind.link:
       final link = Link(path);
       if (!FileSystemEntity.isLinkSync(path)) {
-        problem = FileSystemEntity.typeSync(path, followLinks: false) == FileSystemEntityType.notFound ? 'missing' : 'not a link';
+        problem = FileSystemEntity.typeSync(path, followLinks: false) == FileSystemEntityType.notFound ? 'missing' : tr('not a link');
       } else {
         final raw = link.targetSync();
         final target = p.normalize(p.isAbsolute(raw) ? raw : p.join(p.dirname(path), raw));
         final want = ip.target == null ? null : p.normalize(paths.expand(ip.target!));
         if (want != null && !p.equals(target, want)) {
-          problem = 'points to $target';
+          problem = trf('points to {0}', [target]);
         } else if (FileSystemEntity.typeSync(path) == FileSystemEntityType.notFound) {
           problem = 'dangling';
         }
@@ -41,7 +42,7 @@ Map<String, dynamic> checkPath(Paths paths, InstalledPath ip) {
       if (t == FileSystemEntityType.notFound) {
         problem = 'missing';
       } else if (t != FileSystemEntityType.directory) {
-        problem = 'not a folder';
+        problem = tr('not a folder');
       }
     case PathKind.file:
     case PathKind.executable:
@@ -49,9 +50,9 @@ Map<String, dynamic> checkPath(Paths paths, InstalledPath ip) {
       if (t == FileSystemEntityType.notFound) {
         problem = 'missing';
       } else if (t != FileSystemEntityType.file) {
-        problem = 'not a file';
+        problem = tr('not a file');
       } else if (ip.kind == PathKind.executable && !isExecutableFile(path)) {
-        problem = 'not executable';
+        problem = tr('not executable');
       }
   }
   return {'path': path, 'kind': ip.kind.name, 'part': ip.part, if (ip.key) 'key': true, 'ok': problem == null, 'problem': ?problem};
@@ -143,12 +144,12 @@ final class StatusReader {
     if (c.kind == InstallKind.pacman && app.version.pacman != null) {
       final v = await pacmanVersion(app.version.pacman!);
       if (v == null) {
-        return ComponentStatus(c, state, checks, pre, applies, note: 'pacman not found: state from the files only');
+        return ComponentStatus(c, state, checks, pre, applies, note: tr('pacman not found: state from the files only'));
       }
       if (v.isEmpty) {
         // not a registered package: files left behind are partial, nothing is absent
         return ComponentStatus(c, state == InstallState.absent ? InstallState.absent : InstallState.partial, checks, pre, applies,
-            note: state == InstallState.absent ? null : 'files present, but pacman has no ${app.version.pacman}');
+            note: state == InstallState.absent ? null : trf('files present, but pacman has no {0}', [app.version.pacman]));
       }
       if (state == InstallState.absent) state = InstallState.partial;
       return ComponentStatus(c, state, checks, pre, applies, packageVersion: v);
@@ -248,7 +249,7 @@ final class StatusReader {
     final differReasons = <String>[];
     if (receipt != null && receipt.fromRelease) {
       // A release isn't built from the folder: the folder is only its installer.
-      differReasons.add('installed from release ${receipt.source!['tag']}');
+      differReasons.add(trf('installed from release {0}', [receipt.source!['tag']]));
     } else if (receipt != null) {
       var differs = false, unknown = false;
       for (final input in app.inputs) {
@@ -256,20 +257,20 @@ final class StatusReader {
         final r = receipt.input(input.repo);
         if (r == null) {
           differs = true;
-          differReasons.add('${input.repo}: not in the receipt');
+          differReasons.add(trf('{0}: not in the receipt', [input.repo]));
         } else if (!g.isRepo || g.head == null) {
           unknown = true;
-          differReasons.add('${input.repo}: no repo to compare');
+          differReasons.add(trf('{0}: no repo to compare', [input.repo]));
         } else if (r.commit != g.head) {
           differs = true;
-          differReasons.add('${input.repo}: built ${_short(r.commit)}, folder at ${_short(g.head)}');
+          differReasons.add(trf('{0}: built {1}, folder at {2}', [input.repo, _short(r.commit), _short(g.head)]));
         } else if (g.dirty == true || r.dirty) {
           // Same commit, but uncommitted changes on either side: not provably the same build.
           differs = true;
           differReasons.add('${input.repo}: ${g.dirty == true ? 'uncommitted changes in the folder' : 'built from uncommitted changes'}');
         } else if (g.dirty == null) {
           unknown = true;
-          differReasons.add('${input.repo}: its state is unknown (${g.error})');
+          differReasons.add(trf('{0}: its state is unknown ({1})', [input.repo, g.error]));
         }
       }
       // Unknown when nothing differs provably but something could not be compared.
@@ -282,12 +283,12 @@ final class StatusReader {
       if (g.upstream == null) continue;
       final n = g.newUpstreamCommits;
       if (n == null) {
-        upstreamNotes.add('${input.repo}: could not compare with ${g.upstream}');
+        upstreamNotes.add(trf('{0}: could not compare with {1}', [input.repo, g.upstream]));
         continue;
       }
       upstreamNew = (upstreamNew ?? 0) + n;
-      if (g.relation == Relation.diverged) upstreamNotes.add('${input.repo}: diverged from ${g.upstream}');
-      if (n > 0 && g.dirty != false) upstreamNotes.add('${input.repo}: uncommitted changes, no pull');
+      if (g.relation == Relation.diverged) upstreamNotes.add(trf('{0}: diverged from {1}', [input.repo, g.upstream]));
+      if (n > 0 && g.dirty != false) upstreamNotes.add(trf('{0}: uncommitted changes, no pull', [input.repo]));
     }
 
     // Where it exists, and what GitHub has (as of the last fetch / github.refresh).
@@ -299,16 +300,16 @@ final class StatusReader {
       if (src['github'] == null) continue;
       final folder = src['folder'] as Map;
       if (folder['present'] != true) {
-        githubNotes.add('${src['repo']}: no folder; it can be cloned from GitHub');
+        githubNotes.add(trf('{0}: no folder; it can be cloned from GitHub', [src['repo']]));
         continue;
       }
       if (src['remote'] == null) {
-        githubNotes.add('${src['repo']}: no remote of the folder is ${(src['github'] as Map)['url']}');
+        githubNotes.add(trf('{0}: no remote of the folder is {1}', [src['repo'], (src['github'] as Map)['url']]));
         continue;
       }
       if (cmp == null) continue;
       if (cmp['fetched'] != true) {
-        githubNotes.add('${src['repo']}: ${cmp['ref']} not fetched yet');
+        githubNotes.add(trf('{0}: {1} not fetched yet', [src['repo'], cmp['ref']]));
         continue;
       }
       final n = switch (cmp['relation']) {
@@ -318,8 +319,8 @@ final class StatusReader {
       };
       if (n == null) continue;
       githubNew = (githubNew ?? 0) + n;
-      if (cmp['relation'] == 'diverged') githubNotes.add('${src['repo']}: diverged from ${cmp['ref']}: no fast-forward');
-      if (n > 0 && folder['dirty'] != false) githubNotes.add('${src['repo']}: uncommitted changes: no fast-forward');
+      if (cmp['relation'] == 'diverged') githubNotes.add(trf('{0}: diverged from {1}: no fast-forward', [src['repo'], cmp['ref']]));
+      if (n > 0 && folder['dirty'] != false) githubNotes.add(trf('{0}: uncommitted changes: no fast-forward', [src['repo']]));
     }
     final pkgVersion = components.map((c) => c.packageVersion).whereType<String>().firstOrNull;
     final installedVersion = pkgVersion ?? bundleVersion(app);

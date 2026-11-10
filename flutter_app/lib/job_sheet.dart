@@ -1,3 +1,4 @@
+import 'package:maprisma_manager_core/maprisma_manager_core.dart' show tr, trf, uiLabel;
 import 'package:flutter/material.dart';
 
 import 'backend.dart' show ServiceError;
@@ -16,12 +17,12 @@ class JobSheet extends StatefulWidget {
 }
 
 String phaseName(String phase) => switch (phase) {
-  'queued' => 'Waiting',
-  'prepare' => 'Preparing',
-  'build' => 'Building',
-  'commit' => 'Installing',
-  'verify' => 'Checking',
-  'finish' => 'Finishing',
+  'queued' => tr('Waiting'),
+  'prepare' => tr('Preparing'),
+  'build' => tr('Building'),
+  'commit' => tr('Installing'),
+  'verify' => tr('Checking'),
+  'finish' => tr('Finishing'),
   _ => phase,
 };
 
@@ -42,12 +43,12 @@ class _JobSheetState extends State<JobSheet> {
   }
 
   String _cancelWhy(JobView j) {
-    if (j.finished) return 'It has ended';
+    if (j.finished) return tr('It has ended');
     if (j.phase == 'commit' || j.data['committed'] == true) {
-      return 'It has started changing the app\'s files: stopping it now would leave the app half replaced';
+      return tr('It has started changing the app\'s files: stopping it now would leave the app half replaced');
     }
-    if (j.phase == 'verify' || j.phase == 'finish') return 'The app is already replaced: it is being checked';
-    return 'Not yet (the job is starting)';
+    if (j.phase == 'verify' || j.phase == 'finish') return tr('The app is already replaced: it is being checked');
+    return tr('Not yet (the job is starting)');
   }
 
   @override
@@ -58,7 +59,7 @@ class _JobSheetState extends State<JobSheet> {
       listenable: widget.jobs,
       builder: (context, _) {
         final j = widget.jobs.shown;
-        if (j == null) return const SizedBox.shrink();
+        if (j == null) return SizedBox.shrink();
         final text = j.log.toString();
         if (text.length != _lastLength) {
           _lastLength = text.length;
@@ -87,12 +88,12 @@ class _JobSheetState extends State<JobSheet> {
         final message = !j.finished
             ? null
             : restart
-            ? 'The new build is checked: Maprisma Manager restarts with it now.'
+            ? tr('The new build is checked: Maprisma Manager restarts with it now.')
             : ok
-            ? (result['up_to_date'] == true ? 'Nothing new: the installed build is the folder\'s.' : 'Done.')
+            ? (result['up_to_date'] == true ? tr('Nothing new: the installed build is the folder\'s.') : tr('Done.'))
             : '${result['message'] ?? result['code'] ?? j.state}';
         return Material(
-          key: const ValueKey('job-sheet'),
+          key: ValueKey('job-sheet'),
           color: scheme.surfaceContainerLow,
           child: Container(
             height: widget.height,
@@ -113,18 +114,18 @@ class _JobSheetState extends State<JobSheet> {
                         child: Text(j.title, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
                       ),
                       const SizedBox(width: 8),
-                      _Chip(j.finished ? j.state : phaseName(j.phase), color: stateColor),
+                      _Chip(j.finished ? uiLabel(j.state) : phaseName(j.phase), color: stateColor),
                       if (queued > 0) ...[
                         const SizedBox(width: 6),
                         Tooltip(
-                          message: 'They start one after the other',
-                          child: _Chip('$queued more queued', color: scheme.onSurfaceVariant),
+                          message: tr('They start one after the other'),
+                          child: _Chip(trf('{0} more queued', [queued]), color: scheme.onSurfaceVariant),
                         ),
                       ],
-                      const Spacer(),
+                      Spacer(),
                       if (!j.finished)
                         Tooltip(
-                          message: j.cancellable ? 'Stop it: nothing of the app has been changed yet' : _cancelWhy(j),
+                          message: j.cancellable ? tr('Stop it: nothing of the app has been changed yet') : _cancelWhy(j),
                           child: TextButton(
                             onPressed: j.cancellable
                                 ? () async {
@@ -132,18 +133,18 @@ class _JobSheetState extends State<JobSheet> {
                                       await widget.jobs.cancel(j);
                                     } on ServiceError catch (e) {
                                       if (context.mounted) {
-                                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Not cancelled: ${e.reason ?? e.code}')));
+                                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(trf('Not cancelled: {0}', [e.reason ?? e.code]))));
                                       }
                                     }
                                   }
                                 : null,
-                            child: const Text('Cancel'),
+                            child: Text(tr('Cancel')),
                           ),
                         ),
                       IconButton(
-                        tooltip: 'Hide the log (Esc)',
+                        tooltip: tr('Hide the log (Esc)'),
                         onPressed: widget.onClose,
-                        icon: const Icon(Icons.expand_more),
+                        icon: Icon(Icons.expand_more),
                       ),
                     ],
                   ),
@@ -151,7 +152,7 @@ class _JobSheetState extends State<JobSheet> {
                 if (j.password && !j.finished)
                   _Note(
                     icon: Icons.lock_outline,
-                    text: 'This one asks for your password: pkexec shows its dialog when pacman runs (5 minutes, then it gives up and nothing changes).',
+                    text: tr('This one asks for your password: pkexec shows its dialog when pacman runs (5 minutes, then it gives up and nothing changes).'),
                   ),
                 if (message != null)
                   _Note(
@@ -162,7 +163,7 @@ class _JobSheetState extends State<JobSheet> {
                 Expanded(
                   child: Container(
                     margin: const EdgeInsets.fromLTRB(12, 4, 12, 10),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
                       color: scheme.surfaceContainerLowest,
                       borderRadius: BorderRadius.circular(corners(context).clamp(0, 8)),
@@ -173,7 +174,7 @@ class _JobSheetState extends State<JobSheet> {
                       child: SingleChildScrollView(
                         controller: _scroll,
                         child: SelectableText(
-                          text.isEmpty ? 'Waiting for the first output…' : text,
+                          text.isEmpty ? tr('Waiting for the first output…') : text,
                           style: TextStyle(fontFamily: 'monospace', fontSize: 12, height: 1.35, color: scheme.onSurfaceVariant),
                         ),
                       ),
@@ -195,7 +196,7 @@ class _Chip extends StatelessWidget {
   final Color color;
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
     decoration: BoxDecoration(
       color: color.withValues(alpha: .12),
       borderRadius: BorderRadius.circular(10),

@@ -3,6 +3,9 @@
 /// the displaced files' backups (plan: "Ownership").
 library;
 
+import 'translations.dart';
+
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -134,10 +137,10 @@ String? unsafeReach(String path, Set<String> roots) {
   for (final r in roots) {
     if (p.isWithin(r, n) && (root == null || r.length > root.length)) root = r;
   }
-  if (root == null) return 'outside the folders apps install into';
+  if (root == null) return tr('outside the folders apps install into');
   var d = p.dirname(n);
   while (d != root && p.isWithin(root, d)) {
-    if (FileSystemEntity.isLinkSync(d)) return 'reached through the linked folder $d';
+    if (FileSystemEntity.isLinkSync(d)) return trf('reached through the linked folder {0}', [d]);
     d = p.dirname(d);
   }
   return null;

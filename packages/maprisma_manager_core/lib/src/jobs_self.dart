@@ -71,7 +71,7 @@ extension _SelfUpdate on JobEngine {
     final prep = await _prepareInputs(r, [c], release: false);
     if (prep.upToDate) return {'up_to_date': true};
     final pending = pendingSelfUpdate(paths);
-    if (pending != null) throw JobFailure('busy', 'the self-update ${pending.job} is still being put in place (helper pid ${pending.pid})');
+    if (pending != null) throw JobFailure('busy', trf('the self-update {0} is still being put in place (helper pid {1})', [pending.job, pending.pid]));
     final dir = selfUpdateDir(paths);
     final stage = p.join(dir, r.id);
     if (FileSystemEntity.typeSync(stage, followLinks: false) != FileSystemEntityType.notFound) Directory(stage).deleteSync(recursive: true);
@@ -88,9 +88,9 @@ extension _SelfUpdate on JobEngine {
     for (final e in _stageFiles.entries) {
       final f = p.join(stage, e.key);
       if (FileSystemEntity.typeSync(f) != FileSystemEntityType.file) {
-        problems.add('${e.key} missing');
+        problems.add(trf('{0} missing', [e.key]));
       } else if (e.value && !isExecutableFile(f)) {
-        problems.add('${e.key} not executable');
+        problems.add(trf('{0} not executable', [e.key]));
       }
     }
     String? newVersion;
@@ -101,28 +101,28 @@ extension _SelfUpdate on JobEngine {
       } on Object {
         newVersion = null;
       }
-      if (newVersion == null) problems.add('version.json has no version');
+      if (newVersion == null) problems.add(tr('version.json has no version'));
       final ldd = ctx.runner.which('ldd');
       if (ldd != null) {
         final l = await ctx.runner.run([ldd, p.join(stage, 'bundle/maprisma-manager')], timeout: const Duration(seconds: 20));
-        final missing = [for (final line in l.stdout.split('\n')) if (line.contains('not found')) line.trim()];
-        if (missing.isNotEmpty) problems.add('missing libraries: ${missing.join(', ')}');
+        final missing = [for (final line in l.stdout.split('\n')) if (line.contains(tr('not found'))) line.trim()];
+        if (missing.isNotEmpty) problems.add(trf('missing libraries: {0}', [missing.join(', ')]));
       }
       final core = await ctx.runner.run([p.join(stage, 'bundle/bin/maprisma-manager-core'), 'version'], timeout: const Duration(seconds: 20));
       if (!core.ok || !core.stdout.startsWith('maprisma-manager-core ')) {
-        problems.add('the new core doesn\'t answer `version` (${core.ok ? core.stdout.trim() : core.stderr.trim()})');
+        problems.add(trf('the new core doesn\'t answer `version` ({0})', [core.ok ? core.stdout.trim() : core.stderr.trim()]));
       } else {
-        r.log.note('the new core: ${core.stdout.trim()}');
+        r.log.note(trf('the new core: {0}', [core.stdout.trim()]));
       }
     }
     if (problems.isNotEmpty) {
       for (final pr in problems) {
-        r.log.note('stage: $pr');
+        r.log.note(trf('stage: {0}', [pr]));
       }
       _dropStage(stage);
-      throw JobFailure('bad_stage', 'the new build isn\'t complete: ${problems.first}');
+      throw JobFailure('bad_stage', trf('the new build isn\'t complete: {0}', [problems.first]));
     }
-    r.log.note('stage checked: Maprisma Manager $newVersion in $stage');
+    r.log.note(trf('stage checked: Maprisma Manager {0} in {1}', [newVersion, stage]));
 
     // the Manager windows the helper waits for (this one, when the job runs in the app)
     // As written and as /proc reports it (a symlinked HOME or ~/.local/lib).
@@ -135,7 +135,7 @@ extension _SelfUpdate on JobEngine {
     final restart = waitFor.isNotEmpty;
 
     // commit: from here the helper owns it
-    await _enterCommit(r, '', scriptEnded: true, why: 'the self-update helper takes over');
+    await _enterCommit(r, '', scriptEnded: true, why: tr('the self-update helper takes over'));
     final helper = p.join(dir, 'helper');
     final tmp = '$helper.${r.id}.tmp';
     File(p.join(stage, 'tools/self-update')).copySync(tmp);
@@ -171,19 +171,19 @@ extension _SelfUpdate on JobEngine {
       if (prep.notes.isNotEmpty) 'sources': prep.notes,
     };
     _persist(r.job);
-    r.log.note('\$ setsid ${args.join(' ')}');
+    r.log.note(trf('\$ setsid {0}', [args.join(' ')]));
     try {
       await Process.start(ctx.runner.which('setsid') ?? '/usr/bin/setsid', args,
           mode: ProcessStartMode.detached, environment: env, includeParentEnvironment: false, workingDirectory: paths.home);
     } on ProcessException catch (e) {
       _dropStage(stage);
-      throw JobFailure('script_failed', 'the self-update helper didn\'t start: ${e.message}');
+      throw JobFailure('script_failed', trf('the self-update helper didn\'t start: {0}', [e.message]));
     }
-    r.log.note('the helper logs to $helperLog');
+    r.log.note(trf('the helper logs to {0}', [helperLog]));
 
     if (restart) {
-      r.log.note('the helper waits for the Manager (pid ${waitFor.map((w) => w['pid']).join(', ')}) to quit, '
-          'swaps the new build in and starts it; without a ready signal in ${selfReadyTimeout.inSeconds} s the old one comes back');
+      r.log.note(trf('the helper waits for the Manager (pid {0}) to quit, ', [waitFor.map((w) => w['pid']).join(', ')]) +
+          trf('swaps the new build in and starts it; without a ready signal in {0} s the old one comes back', [selfReadyTimeout.inSeconds]));
       return {
         'restart': true,
         'selfUpdate': {'state': 'waiting', 'version': newVersion, 'log': helperLog, 'waitFor': [for (final w in waitFor) w['pid']]},
@@ -197,7 +197,7 @@ extension _SelfUpdate on JobEngine {
     while (true) {
       s = readSelfStatus(statusFile);
       if (s.pid == null && s.state != 'missing') break;
-      if (DateTime.now().isAfter(until)) throw JobFailure('self_update_failed', 'the helper didn\'t finish (see $helperLog)');
+      if (DateTime.now().isAfter(until)) throw JobFailure('self_update_failed', trf('the helper didn\'t finish (see {0})', [helperLog]));
       await Future<void>.delayed(const Duration(milliseconds: 100));
     }
     _copyHelperLog(r, helperLog);
@@ -208,13 +208,13 @@ extension _SelfUpdate on JobEngine {
     final failing = [for (final ip in c.paths) checkPath(paths, ip)].where((ch) => ch['ok'] != true).toList();
     if (failing.isNotEmpty) {
       for (final f in failing) {
-        r.log.note('postcondition: ${f['path']}: ${f['problem']}');
+        r.log.note(trf('postcondition: {0}: {1}', [f['path'], f['problem']]));
       }
-      throw JobFailure('verify_failed', '${failing.length} path(s) not as the installer leaves them');
+      throw JobFailure('verify_failed', trf('{0} path(s) not as the installer leaves them', [failing.length]));
     }
     _phase(r, 'finish');
     _writeSelfReceipt(app, c, prep.inputs, r.id, r.kind.name, paths: paths);
-    r.log.note('receipt written');
+    r.log.note(tr('receipt written'));
     r.job['selfUpdate'] = {...(r.job['selfUpdate'] as Map), 'state': 'done'};
     return {
       'selfUpdate': {'state': 'done', 'version': newVersion, 'log': helperLog},
@@ -226,10 +226,10 @@ extension _SelfUpdate on JobEngine {
   void _copyHelperLog(_Run r, String helperLog) {
     try {
       for (final line in File(helperLog).readAsLinesSync()) {
-        r.log.note('helper: $line');
+        r.log.note(trf('helper: {0}', [line]));
       }
     } on FileSystemException {
-      r.log.note('the helper wrote no log');
+      r.log.note(tr('the helper wrote no log'));
     }
   }
 }
@@ -301,13 +301,13 @@ void _writeSelfReceipt(AppEntry app, Component c, List inputs, String job, Strin
 Map<String, dynamic> finishSelfUpdate(Paths paths, String id, {String? failed}) {
   if (!validJobId(id)) throw RouteError('bad_params', 'job');
   final job = loadJob(paths, id);
-  if (job == null) throw RouteError('not_found', 'no job $id');
+  if (job == null) throw RouteError('not_found', trf('no job {0}', [id]));
   final app = findApp(selfApp)!;
   final su = job['selfUpdate'];
   // The window may have been closed before the job wrote its result (it is `interrupted` then):
   // what counts is the self-update that waits.
   if (job['app'] != selfApp || su is! Map || su['state'] != 'waiting') {
-    throw RouteError('finished', 'job $id has no self-update waiting');
+    throw RouteError('finished', trf('job {0} has no self-update waiting', [id]));
   }
   final result = job['result'] is Map ? job['result'] as Map : const {};
   final c = app.components.single;
@@ -337,18 +337,18 @@ Map<String, dynamic> finishSelfUpdate(Paths paths, String id, {String? failed}) 
     }
       ..remove('code')
       ..remove('message');
-    note('self-update: the new build started and is ready; receipt written');
+    note(tr('self-update: the new build started and is ready; receipt written'));
   } else {
-    job['selfUpdate'] = {...su, 'state': 'rolled back', 'at': at, 'why': failed};
+    job['selfUpdate'] = {...su, 'state': tr('rolled back'), 'at': at, 'why': failed};
     job['state'] = 'failed';
     job['result'] = {
       'ok': false,
       'code': 'self_update_failed',
       'message': failed,
       'repair': false,
-      'selfUpdate': {...(result['selfUpdate'] as Map? ?? {}), 'state': 'rolled back', 'at': at},
+      'selfUpdate': {...(result['selfUpdate'] as Map? ?? {}), 'state': tr('rolled back'), 'at': at},
     };
-    note('self-update failed: $failed');
+    note(trf('self-update failed: {0}', [failed]));
   }
   atomicWrite(p.join(_jobsDir(paths), '$id.json'), const JsonEncoder.withIndent('  ').convert(job));
   return {'id': id, 'state': job['state'], 'selfUpdate': job['selfUpdate']['state']};

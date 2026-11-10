@@ -113,16 +113,16 @@ extension _Pacman on JobEngine {
   void _checkLock() {
     if (FileSystemEntity.typeSync(_lock, followLinks: false) != FileSystemEntityType.notFound) {
       throw JobFailure('pacman_locked',
-          'pacman\'s database is locked ($pacmanLockFile): another package manager runs, or one ended without removing it; nothing was changed');
+          trf('pacman\'s database is locked ({0}): another package manager runs, or one ended without removing it; nothing was changed', [pacmanLockFile]));
     }
   }
 
   /// A system tool the jobs run; refused when a test world (another root) would reach the real one.
   String _tool(String name) {
     final t = ctx.runner.which(name);
-    if (t == null) throw JobFailure('missing_prerequisite', 'Maprisma needs $name');
+    if (t == null) throw JobFailure('missing_prerequisite', trf('Maprisma needs {0}', [name]));
     if (paths.root != '/' && (t.startsWith('/usr/') || t.startsWith('/bin/'))) {
-      throw JobFailure('unsafe', '$name would be the system\'s ($t) with a test root (${paths.root}): refused');
+      throw JobFailure('unsafe', trf('{0} would be the system\'s ({1}) with a test root ({2}): refused', [name, t, paths.root]));
     }
     return t;
   }
@@ -140,7 +140,7 @@ extension _Pacman on JobEngine {
       try {
         final rel = await ctx.github.release(app.mainInput.github!, tag: tag);
         if (rel != null && rel['tag'] is String) relVersion = tagVersion(rel['tag'] as String);
-        if (rel == null) relError = tag == null ? 'no release' : 'no release $tag';
+        if (rel == null) relError = tag == null ? tr('no release') : trf('no release {0}', [tag]);
       } on Object catch (e) {
         relError = e is GitHubError ? e.message : 'offline? ($e)';
       }
@@ -151,22 +151,22 @@ extension _Pacman on JobEngine {
       folderVersion = StatusReader(ctx).folderVersion(app);
     }
     if (asked == 'release') {
-      if (relVersion == null) throw JobFailure(relError == 'no release' || (relError ?? '').startsWith('no release') ? 'no_release' : 'github_failed', 'the release: ${relError ?? 'unknown'}');
-      return (kind: 'release', version: relVersion, why: r.kind == JobKind.release ? 'a release job' : 'asked for');
+      if (relVersion == null) throw JobFailure(relError == tr('no release') || (relError ?? '').startsWith(tr('no release')) ? 'no_release' : 'github_failed', trf('the release: {0}', [relError ?? tr('unknown')]));
+      return (kind: 'release', version: relVersion, why: r.kind == JobKind.release ? tr('a release job') : tr('asked for'));
     }
     if (asked == 'folder') {
-      if (folderVersion == null) throw JobFailure('no_source', '$folder has no tools/build-release.py or no MAPRISMA_VERSION');
-      return (kind: 'folder', version: folderVersion, why: 'asked for');
+      if (folderVersion == null) throw JobFailure('no_source', trf('{0} has no tools/build-release.py or no MAPRISMA_VERSION', [folder]));
+      return (kind: 'folder', version: folderVersion, why: tr('asked for'));
     }
     if (relVersion != null && folderVersion != null) {
       final c = compareVersions(folderVersion, relVersion) ?? 0;
       return c > 0
-          ? (kind: 'folder', version: folderVersion, why: 'the folder ($folderVersion) is newer than the release ($relVersion)')
-          : (kind: 'release', version: relVersion, why: c == 0 ? 'the release and the folder are both $relVersion: the release' : 'the release ($relVersion) is newer than the folder ($folderVersion)');
+          ? (kind: 'folder', version: folderVersion, why: trf('the folder ({0}) is newer than the release ({1})', [folderVersion, relVersion]))
+          : (kind: 'release', version: relVersion, why: c == 0 ? trf('the release and the folder are both {0}: the release', [relVersion]) : trf('the release ({0}) is newer than the folder ({1})', [relVersion, folderVersion]));
     }
-    if (relVersion != null) return (kind: 'release', version: relVersion, why: 'no folder build possible');
-    if (folderVersion != null) return (kind: 'folder', version: folderVersion, why: 'no release (${relError ?? 'none'})');
-    throw JobFailure('no_source', 'neither a release (${relError ?? 'none'}) nor a folder with tools/build-release.py');
+    if (relVersion != null) return (kind: 'release', version: relVersion, why: tr('no folder build possible'));
+    if (folderVersion != null) return (kind: 'folder', version: folderVersion, why: trf('no release ({0})', [relError ?? tr('none')]));
+    throw JobFailure('no_source', trf('neither a release ({0}) nor a folder with tools/build-release.py', [relError ?? tr('none')]));
   }
 
   Future<Map<String, dynamic>> _installPacman(_Run r) async {
@@ -178,16 +178,16 @@ extension _Pacman on JobEngine {
       _tool(t);
     }
     final installed = await _installedPackage();
-    if (installed == null) throw JobFailure('missing_prerequisite', 'pacman not found');
+    if (installed == null) throw JobFailure('missing_prerequisite', tr('pacman not found'));
     final source = await _chooseSource(r, app);
-    r.log.note('source: ${source.kind} ${source.version} (${source.why}); installed: ${installed.isEmpty ? 'none' : installed}');
-    if (!_plainVersion.hasMatch(source.version)) throw JobFailure('no_source', 'version "${source.version}" is not a plain version');
+    r.log.note(trf('source: {0} {1} ({2}); installed: {3}', [source.kind, source.version, source.why, installed.isEmpty ? tr('none') : installed]));
+    if (!_plainVersion.hasMatch(source.version)) throw JobFailure('no_source', trf('version "{0}" is not a plain version', [source.version]));
     _checkCancel(r);
 
     if (r.kind == JobKind.update && installed.isNotEmpty) {
       final cmp = compareVersions(packageBaseVersion(installed), source.version);
       if (cmp != null && cmp >= 0) {
-        r.log.note('already up to date: $pacmanPackage $installed (the ${source.kind} is ${source.version})');
+        r.log.note(trf('already up to date: {0} {1} (the {2} is {3})', [pacmanPackage, installed, source.kind, source.version]));
         return {'up_to_date': true, 'installed': installed, 'source': source.kind, 'version': source.version};
       }
     }
@@ -212,7 +212,7 @@ extension _Pacman on JobEngine {
     } else {
       archive = await _folderBuild(r, app, c, source.version);
     }
-    if (archive.version != source.version) throw JobFailure('no_source', 'the archive is ${archive.version}, not ${source.version}');
+    if (archive.version != source.version) throw JobFailure('no_source', trf('the archive is {0}, not {1}', [archive.version, source.version]));
     _checkCancel(r);
 
     // The recipe and the package, unprivileged.
@@ -245,26 +245,26 @@ extension _Pacman on JobEngine {
     _phase(r, 'verify');
     final now = await _installedPackage();
     final failing = <String>[];
-    if (now != want) failing.add('pacman -Q $pacmanPackage says ${now == null || now.isEmpty ? 'not installed' : now}, not $want');
+    if (now != want) failing.add(trf('pacman -Q {0} says {1}, not {2}', [pacmanPackage, now == null || now.isEmpty ? tr('not installed') : now, want]));
     final bundle = _bundleVersion();
-    if (bundle != archive.version) failing.add('/usr/lib/maprisma/data/flutter_assets/version.json says ${bundle ?? 'nothing'}, not ${archive.version}');
+    if (bundle != archive.version) failing.add(trf('/usr/lib/maprisma/data/flutter_assets/version.json says {0}, not {1}', [bundle ?? 'nothing', archive.version]));
     for (final ip in c.paths) {
       final ch = checkPath(paths, ip);
       if (ch['ok'] != true) failing.add('${ch['path']}: ${ch['problem']}');
     }
     if (failing.isNotEmpty) {
       for (final f in failing) {
-        r.log.note('postcondition: $f');
+        r.log.note(trf('postcondition: {0}', [f]));
       }
       await _restoreUnits(r, units, enable: false);
       throw JobFailure('verify_failed', failing.first);
     }
-    r.log.note('installed: $pacmanPackage $now, version.json ${archive.version}');
+    r.log.note(trf('installed: {0} {1}, version.json {2}', [pacmanPackage, now, archive.version]));
 
     _phase(r, 'finish');
     final started = await _restoreUnits(r, units, enable: false);
     final notStarted = [for (final e in units.entries) if ((e.value.active || e.value.enabled) && !started.contains(e.key)) e.key];
-    if (notStarted.isNotEmpty) (r.job['warnings'] ??= <String>[]).add('not started again: ${notStarted.join(', ')}');
+    if (notStarted.isNotEmpty) (r.job['warnings'] ??= <String>[]).add(trf('not started again: {0}', [notStarted.join(', ')]));
     final receiptJson = <String, dynamic>{
       'schema': 1,
       'id': app.id,
@@ -292,7 +292,7 @@ extension _Pacman on JobEngine {
     };
     Receipt.parse(app.id, jsonDecode(jsonEncode(receiptJson)));
     atomicWrite(p.join(paths.receipts, '${app.id}.json'), const JsonEncoder.withIndent('  ').convert(receiptJson));
-    r.log.note('receipt written');
+    r.log.note(tr('receipt written'));
     return {
       'version': archive.version,
       'package': {'name': pacmanPackage, 'version': want, 'file': pkg.file, 'sha256': pkg.sha256},
@@ -318,27 +318,27 @@ extension _Pacman on JobEngine {
   /// exist (the Manager doesn't sign add-ons). Returns the new `dist/maprisma-<v>-x86_64.tar.gz`.
   Future<_Archive> _folderBuild(_Run r, AppEntry app, Component c, String version) async {
     for (final t in ['python3', 'flutter']) {
-      if (ctx.tool(t) == null) throw JobFailure('missing_prerequisite', 'a folder build of Maprisma needs $t');
+      if (ctx.tool(t) == null) throw JobFailure('missing_prerequisite', trf('a folder build of Maprisma needs {0}', [t]));
     }
     final folder = ctx.repoFolder(c.repo);
     final addons = ctx.repoFolder(app.inputs[1].repo);
     final zip = p.join(addons, 'dist', 'adapters-$version.zip');
     if (!File(zip).existsSync()) {
-      throw JobFailure('missing_addons', '$zip is missing: sign the $version add-ons first (tools/release-adapters.sh in ${app.inputs[1].repo}); the Manager doesn\'t sign add-ons');
+      throw JobFailure('missing_addons', trf('{0} is missing: sign the {1} add-ons first (tools/release-adapters.sh in {2}); the Manager doesn\'t sign add-ons', [zip, version, app.inputs[1].repo]));
     }
     final archive = p.join(folder, 'dist', 'maprisma-$version-x86_64.tar.gz');
-    if (File(archive).existsSync()) r.log.note('build-release.py replaces $archive (and its .sha256)');
+    if (File(archive).existsSync()) r.log.note(trf('build-release.py replaces {0} (and its .sha256)', [archive]));
     final started = DateTime.now().subtract(const Duration(seconds: 2));
     await _runScript(r, c, argv: ['python3', 'tools/build-release.py', '--addons', addons]);
     final st = FileSystemEntity.typeSync(archive, followLinks: false) == FileSystemEntityType.file ? File(archive).statSync() : null;
-    if (st == null || st.modified.isBefore(started)) throw JobFailure('build_failed', 'build-release.py made no new $archive');
+    if (st == null || st.modified.isBefore(started)) throw JobFailure('build_failed', trf('build-release.py made no new {0}', [archive]));
     final sha = await sha256OfFile(archive);
     final sumFile = File('$archive.sha256');
     if (sumFile.existsSync()) {
       final want = parseSha256File(sumFile.readAsStringSync(), p.basename(archive));
-      if (want != null && want != sha) throw JobFailure('checksum_mismatch', '$archive: sha256 $sha, its .sha256 says $want');
+      if (want != null && want != sha) throw JobFailure('checksum_mismatch', trf('{0}: sha256 {1}, its .sha256 says {2}', [archive, sha, want]));
     }
-    r.log.note('built $archive (sha256 $sha)');
+    r.log.note(trf('built {0} (sha256 {1})', [archive, sha]));
     return _Archive(kind: 'folder', version: version, file: archive, sha256: sha);
   }
 
@@ -348,7 +348,7 @@ extension _Pacman on JobEngine {
     final base = p.join(paths.cache, 'maprisma-manager', 'pkg');
     final dir = p.join(base, a.version);
     for (final d in [p.join(paths.cache, 'maprisma-manager'), base, dir]) {
-      if (FileSystemEntity.typeSync(d, followLinks: false) == FileSystemEntityType.link) throw JobFailure('unsafe', '$d is a link: not used');
+      if (FileSystemEntity.typeSync(d, followLinks: false) == FileSystemEntityType.link) throw JobFailure('unsafe', trf('{0} is a link: not used', [d]));
     }
     if (Directory(dir).existsSync()) Directory(dir).deleteSync(recursive: true);
     Directory(dir).createSync(recursive: true);
@@ -359,10 +359,10 @@ extension _Pacman on JobEngine {
       Directory(p.dirname(src)).createSync();
       File(a.file).copySync(src);
     }
-    final origin = a.kind == 'release' ? 'Source: release ${a.release!['tag']} (${a.asset})' : 'Source: a build of the maprisma folder';
+    final origin = a.kind == 'release' ? trf('Source: release {0} ({1})', [a.release!['tag'], a.asset]) : tr('Source: a build of the maprisma folder');
     final recipe = p.join(dir, 'PKGBUILD');
     File(recipe).writeAsStringSync(maprismaPkgbuild(version: a.version, pkgrel: pkgrel, url: 'file://$src', sha256: a.sha256, origin: origin));
-    r.log.note('recipe: $recipe ($pacmanPackage ${a.version}-$pkgrel from $src)');
+    r.log.note(trf('recipe: {0} ({1} {2}-{3} from {4})', [recipe, pacmanPackage, a.version, pkgrel, src]));
     final env = {
       'PKGDEST': dir,
       'SRCDEST': dir,
@@ -378,20 +378,20 @@ extension _Pacman on JobEngine {
         .map((l) => l.trim())
         .where((l) => l.isNotEmpty && p.isWithin(dir, l) && File(l).existsSync())
         .firstOrNull;
-    if (file == null) throw JobFailure('build_failed', 'makepkg made no package in $dir');
+    if (file == null) throw JobFailure('build_failed', trf('makepkg made no package in {0}', [dir]));
     final info = await ctx.runner.run(['pacman', '-Qip', file], extraEnv: const {'LC_ALL': 'C'});
     final fields = parsePacmanInfo(info.stdout);
     final want = '${a.version}-$pkgrel';
     if (!info.ok || fields['Name'] != pacmanPackage || fields['Version'] != want || fields['Architecture'] != 'x86_64') {
-      throw JobFailure('bad_package', '$file is ${fields['Name'] ?? '?'} ${fields['Version'] ?? '?'} ${fields['Architecture'] ?? '?'}, not $pacmanPackage $want x86_64');
+      throw JobFailure('bad_package', trf('{0} is {1} {2} {3}, not {4} {5} x86_64', [file, fields['Name'] ?? '?', fields['Version'] ?? '?', fields['Architecture'] ?? '?', pacmanPackage, want]));
     }
     final files = await ctx.runner.run(['pacman', '-Qlp', file], extraEnv: const {'LC_ALL': 'C'}, timeout: const Duration(seconds: 60));
     final listed = {for (final l in const LineSplitter().convert(files.stdout)) l.trim().split(' ').last};
     for (final need in ['/usr/lib/maprisma/maprisma', '/usr/lib/maprisma/lib/maprisma-core', '/usr/bin/maprisma']) {
-      if (!listed.contains(need)) throw JobFailure('bad_package', '$file has no $need');
+      if (!listed.contains(need)) throw JobFailure('bad_package', trf('{0} has no {1}', [file, need]));
     }
     final sha = await sha256OfFile(file);
-    r.log.note('package: $file ($pacmanPackage $want x86_64, ${listed.length} entries, sha256 $sha)');
+    r.log.note(trf('package: {0} ({1} {2} x86_64, {3} entries, sha256 {4})', [file, pacmanPackage, want, listed.length, sha]));
     r.job['package'] = {'file': file, 'sha256': sha, 'version': want};
     _persist(r.job);
     return (file: file, sha256: sha, recipe: recipe);
@@ -415,11 +415,11 @@ extension _Pacman on JobEngine {
     for (final e in units.entries) {
       if (enable && e.value.enabled) {
         final s = await ctx.runner.run(['systemctl', '--user', 'enable', e.key], timeout: const Duration(seconds: 60));
-        r.log.note('systemctl --user enable ${e.key}: ${s.ok ? 'ok' : 'failed (${s.stderr.trim()})'}');
+        r.log.note(trf('systemctl --user enable {0}: {1}', [e.key, s.ok ? tr('ok') : trf('failed ({0})', [s.stderr.trim()])]));
       }
       if (!e.value.active && !e.value.enabled) continue;
       final s = await ctx.runner.run(['systemctl', '--user', 'start', e.key], timeout: const Duration(seconds: 60));
-      r.log.note('systemctl --user start ${e.key}: ${s.ok ? 'ok' : 'failed (${s.stderr.trim()})'}');
+      r.log.note(trf('systemctl --user start {0}: {1}', [e.key, s.ok ? tr('ok') : trf('failed ({0})', [s.stderr.trim()])]));
       if (s.ok) started.add(e.key);
     }
     return started;
@@ -430,7 +430,7 @@ extension _Pacman on JobEngine {
     r.job['committed'] = true;
     r.job['phase'] = 'commit';
     _persist(r.job);
-    r.log.note('phase: commit ($what; not cancellable from here)');
+    r.log.note(trf('phase: commit ({0}; not cancellable from here)', [what]));
   }
 
   /// The password dialog or pacman's lock refused: pacman changed nothing.
@@ -438,10 +438,10 @@ extension _Pacman on JobEngine {
 
   JobFailure _pacmanFailure(_Run r, int code, String what) {
     final out = r.recent.toString();
-    if (code == -126) return JobFailure('auth_timeout', 'the password dialog was not answered within ${pkexecWait.inSeconds} s: $what not started; nothing was changed');
-    if (code == 126 || code == 127) return JobFailure('auth_cancelled', 'authentication was cancelled or refused (pkexec exit $code): $what not started; nothing was changed');
-    if (out.contains('unable to lock database')) return JobFailure('pacman_locked', 'pacman\'s database is locked ($pacmanLockFile): nothing was changed');
-    return JobFailure('pacman_failed', 'pacman failed (exit $code) $what: repair (reinstall) when files were changed');
+    if (code == -126) return JobFailure('auth_timeout', trf('the password dialog was not answered within {0} s: {1} not started; nothing was changed', [pkexecWait.inSeconds, what]));
+    if (code == 126 || code == 127) return JobFailure('auth_cancelled', trf('authentication was cancelled or refused (pkexec exit {0}): {1} not started; nothing was changed', [code, what]));
+    if (out.contains('unable to lock database')) return JobFailure('pacman_locked', trf('pacman\'s database is locked ({0}): nothing was changed', [pacmanLockFile]));
+    return JobFailure('pacman_failed', trf('pacman failed (exit {0}) {1}: repair (reinstall) when files were changed', [code, what]));
   }
 
   /// `pkexec /usr/bin/pacman <args>`: pkexec shows the password dialog, then becomes pacman (the
@@ -450,7 +450,7 @@ extension _Pacman on JobEngine {
   /// the log. Returns the exit code.
   Future<int> _pkexecPacman(_Run r, List<String> args) async {
     final pk = _tool('pkexec');
-    r.log.note('\$ pkexec /usr/bin/pacman ${args.join(' ')}   (a password dialog asks for the administrator password)');
+    r.log.note(trf('\$ pkexec /usr/bin/pacman {0}   (a password dialog asks for the administrator password)', [args.join(' ')]));
     r.recent.clear();
     final Process proc;
     try {
@@ -459,7 +459,7 @@ extension _Pacman on JobEngine {
           includeParentEnvironment: false,
           workingDirectory: paths.home);
     } on ProcessException catch (e) {
-      throw JobFailure('pacman_failed', 'pkexec could not start: ${e.message}');
+      throw JobFailure('pacman_failed', trf('pkexec could not start: {0}', [e.message]));
     }
     r.job['pkexec'] = {'pid': proc.pid, 'start': procStat(proc.pid)?.start};
     _persist(r.job);
@@ -495,19 +495,19 @@ extension _Pacman on JobEngine {
         final n = name();
         if (n != null && n != 'pkexec') {
           authenticated = true;
-          r.log.note('authenticated: $n runs');
+          r.log.note(trf('authenticated: {0} runs', [n]));
         } else if (DateTime.now().isAfter(until)) {
           // still pkexec (asking): ended; a pacman it has become meanwhile runs as root and can't be signalled
           if (name() == 'pkexec') {
             proc.kill(ProcessSignal.sigterm);
             ended = true;
-            r.log.note('no answer to the password dialog within ${pkexecWait.inSeconds} s: pkexec ended');
+            r.log.note(trf('no answer to the password dialog within {0} s: pkexec ended', [pkexecWait.inSeconds]));
             break;
           }
         }
       } else if (DateTime.now().difference(lastNote) > const Duration(minutes: 1)) {
         lastNote = DateTime.now();
-        r.log.note('pacman still runs (it is never interrupted)');
+        r.log.note(tr('pacman still runs (it is never interrupted)'));
       }
     }
     final c = await code;
@@ -516,7 +516,7 @@ extension _Pacman on JobEngine {
     } on TimeoutException {
       // a child holds the output
     }
-    r.log.note('pkexec exit code $c');
+    r.log.note(trf('pkexec exit code {0}', [c]));
     return ended && !authenticated ? -126 : c;
   }
 
@@ -527,11 +527,11 @@ extension _Pacman on JobEngine {
     final plan = await removePlan(ctx, app, deleteSettings: options['delete_settings'] == true);
     r.job['plan'] = {'revision': plan.revision, 'goes': plan.goes.length};
     if (options['revision'] != null && options['revision'] != plan.revision) {
-      throw JobFailure('changed', 'what would be removed changed since the plan was shown');
+      throw JobFailure('changed', tr('what would be removed changed since the plan was shown'));
     }
     final dependents = plan.json['dependents'] as List;
     if (dependents.isNotEmpty && options['dependents_ok'] != true) {
-      throw JobFailure('needed_by', 'needed by ${dependents.map((d) => d['name']).join(', ')}');
+      throw JobFailure('needed_by', trf('needed by {0}', [dependents.map((d) => d['name']).join(', ')]));
     }
     if (plan.blocked != null) throw JobFailure('blocked', plan.blocked!);
     _tool('pkexec');
@@ -545,11 +545,11 @@ extension _Pacman on JobEngine {
     for (final e in units.entries) {
       if (e.value.active) {
         final s = await ctx.runner.run(['systemctl', '--user', 'stop', e.key], timeout: const Duration(seconds: 60));
-        r.log.note('systemctl --user stop ${e.key}: ${s.ok ? 'ok' : 'failed (${s.stderr.trim()})'}');
+        r.log.note(trf('systemctl --user stop {0}: {1}', [e.key, s.ok ? tr('ok') : trf('failed ({0})', [s.stderr.trim()])]));
       }
       if (e.value.enabled) {
         final s = await ctx.runner.run(['systemctl', '--user', 'disable', e.key], timeout: const Duration(seconds: 60));
-        r.log.note('systemctl --user disable ${e.key}: ${s.ok ? 'ok' : 'failed (${s.stderr.trim()})'}');
+        r.log.note(trf('systemctl --user disable {0}: {1}', [e.key, s.ok ? tr('ok') : trf('failed ({0})', [s.stderr.trim()])]));
       }
     }
     final int code;
@@ -569,7 +569,7 @@ extension _Pacman on JobEngine {
 
     _phase(r, 'verify');
     final now = await _installedPackage();
-    if (now != null && now.isNotEmpty) throw JobFailure('verify_failed', 'pacman -Q $pacmanPackage still says $now');
+    if (now != null && now.isNotEmpty) throw JobFailure('verify_failed', trf('pacman -Q {0} still says {1}', [pacmanPackage, now]));
 
     final reach = sharedRoots(paths);
     final settings = <String>[];
@@ -584,13 +584,13 @@ extension _Pacman on JobEngine {
         File(path).deleteSync();
       }
       settings.add(path);
-      r.log.note('deleted settings $path');
+      r.log.note(trf('deleted settings {0}', [path]));
     }
 
     _phase(r, 'finish');
     final receipt = File(p.join(paths.receipts, '${app.id}.json'));
     if (receipt.existsSync()) receipt.deleteSync();
-    r.log.note('receipt dropped');
+    r.log.note(tr('receipt dropped'));
     return {
       'removed': {'name': pacmanPackage, 'version': installed},
       'units': {for (final e in units.entries) e.key: {'wasActive': e.value.active, 'wasEnabled': e.value.enabled}},

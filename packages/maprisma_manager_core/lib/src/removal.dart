@@ -2,6 +2,9 @@
 /// deleted. The remove job re-plans and deletes exactly what the plan says goes.
 library;
 
+import 'translations.dart';
+
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -17,9 +20,9 @@ import 'status.dart';
 import 'trees.dart';
 
 /// Why something stays (shown as such in the plan).
-const whyChanged = 'changed since the Manager installed it';
-const whyForeign = 'not what the Manager installed';
-const whyNotInReceipt = 'not in the receipt';
+String get whyChanged => tr('changed since the Manager installed it');
+String get whyForeign => tr('not what the Manager installed');
+String get whyNotInReceipt => tr('not in the receipt');
 
 final class RemovePlan {
   RemovePlan(this.app, this.json, this.goes, this.settingsGo, this.restores, {this.trees = const [], this.recipe, this.blocked});
@@ -48,14 +51,14 @@ final class RemovePlan {
 /// Refuses an app whose remove needs a step of its own that isn't there yet.
 void checkRemovable(AppEntry app, [DesktopId? desktop]) {
   if (app.removal == Support.terminal) {
-    throw RouteError('self_remove', '${app.name} doesn\'t remove itself${app.supportNote == null ? '' : ': ${app.supportNote}'}');
+    throw RouteError('self_remove', trf('{0} doesn\'t remove itself{1}', [app.name, app.supportNote == null ? '' : ': ${app.supportNote}']));
   }
   if (app.removal == Support.unsupportedYet) {
-    throw RouteError('unsupported_yet', 'removing ${app.name} is not supported yet${app.supportNote == null ? '' : ': ${app.supportNote}'}');
+    throw RouteError('unsupported_yet', trf('removing {0} is not supported yet{1}', [app.name, app.supportNote == null ? '' : ': ${app.supportNote}']));
   }
   // Apps of one desktop (Tiling, Icons: KDE) are removed only there (their steps need it).
   if (desktop != null && !app.desktops.contains(desktop)) {
-    throw RouteError('unavailable', '${app.name} is removed only on ${app.desktops.map((d) => d.name).join('/')} (this is ${desktop.name})');
+    throw RouteError('unavailable', trf('{0} is removed only on {1} (this is {2})', [app.name, app.desktops.map((d) => d.name).join('/'), desktop.name]));
   }
 }
 
@@ -82,7 +85,7 @@ Future<RemovePlan> removePlan(Ctx ctx, AppEntry app, {bool deleteSettings = fals
       final now = pathState(path, normalized: e['normalized'] as String?);
       if (now['exists'] != true) continue; // already gone
       if (!known.containsKey(path)) {
-        stays.add({'path': path, 'why': 'in the receipt, but no longer in the catalog'});
+        stays.add({'path': path, 'why': tr('in the receipt, but no longer in the catalog')});
       } else if (e.containsKey('sha256')) {
         if (now['type'] == 'file' && now['sha256'] == e['sha256']) {
           goes.add({'path': path, 'kind': 'file', 'sha256': e['sha256'], 'normalized': ?e['normalized']});
@@ -93,7 +96,7 @@ Future<RemovePlan> removePlan(Ctx ctx, AppEntry app, {bool deleteSettings = fals
         if (now['type'] == 'link' && now['link'] == e['link']) {
           goes.add({'path': path, 'kind': 'link', 'link': e['link']});
         } else {
-          stays.add({'path': path, 'why': now['type'] == 'link' ? 'the link points elsewhere now' : whyForeign});
+          stays.add({'path': path, 'why': now['type'] == 'link' ? tr('the link points elsewhere now') : whyForeign});
         }
       } else if (e['dir'] == true) {
         if (now['type'] == 'dir') {
@@ -120,7 +123,7 @@ Future<RemovePlan> removePlan(Ctx ctx, AppEntry app, {bool deleteSettings = fals
           if (now['type'] == 'file') {
             goes.add({'path': path, 'kind': 'file', 'sha256': now['sha256'], 'normalized': ?now['normalized'], 'unverified': true});
           } else {
-            stays.add({'path': path, 'why': 'not a file'});
+            stays.add({'path': path, 'why': tr('not a file')});
           }
         case PathKind.link:
           final want = ip.target == null ? null : p.normalize(paths.expand(ip.target!));
@@ -129,13 +132,13 @@ Future<RemovePlan> removePlan(Ctx ctx, AppEntry app, {bool deleteSettings = fals
           if (now['type'] == 'link' && want != null && target == want) {
             goes.add({'path': path, 'kind': 'link', 'link': raw, 'unverified': true});
           } else {
-            stays.add({'path': path, 'why': now['type'] == 'link' ? 'the link points elsewhere' : 'not a link'});
+            stays.add({'path': path, 'why': now['type'] == 'link' ? tr('the link points elsewhere') : tr('not a link')});
           }
         case PathKind.dir:
           if (now['type'] == 'dir') {
             goes.add({'path': path, 'kind': 'dir', 'onlyIfEmpty': true, 'unverified': true});
           } else {
-            stays.add({'path': path, 'why': 'not a folder'});
+            stays.add({'path': path, 'why': tr('not a folder')});
           }
       }
     }
@@ -152,32 +155,32 @@ Future<RemovePlan> removePlan(Ctx ctx, AppEntry app, {bool deleteSettings = fals
     final rec = receipt?.tree(root);
     String? why;
     if (receipt == null) {
-      why = 'no receipt: the files of this folder are unknown (reinstall through the Manager, then remove)';
-      blocked ??= 'Reinstall ${app.name} through the Manager first: without a receipt the files of $root are unknown';
+      why = tr('no receipt: the files of this folder are unknown (reinstall through the Manager, then remove)');
+      blocked ??= trf('Reinstall {0} through the Manager first: without a receipt the files of {1} are unknown', [app.name, root]);
     } else if (rec == null) {
-      why = 'its files are not in the receipt (reinstall through the Manager, then remove)';
+      why = tr('its files are not in the receipt (reinstall through the Manager, then remove)');
     } else if (rec['overflow'] == true) {
-      why = 'too many files to own (${rec['files']})';
+      why = trf('too many files to own ({0})', [rec['files']]);
     } else if (rec['preexisting'] == true) {
-      why = 'it was there before the Manager installed ${app.name} (it may not be only ${app.name}\'s)';
+      why = trf('it was there before the Manager installed {0} (it may not be only {1}\'s)', [app.name, app.name]);
     } else if (FileSystemEntity.typeSync(root, followLinks: false) == FileSystemEntityType.link) {
-      why = 'a link, not the folder the installer made';
+      why = tr('a link, not the folder the installer made');
     } else {
       why = unsafeReach(root, roots);
     }
     if (why != null) {
       if (exists) stays.add({'path': root, 'why': why});
       for (final l in leftovers) {
-        stays.add({'path': l, 'why': 'left by an interrupted install (not checked: $why)'});
+        stays.add({'path': l, 'why': trf('left by an interrupted install (not checked: {0})', [why])});
       }
       keptTrees.add(root);
       continue;
     }
     final entries = (rec!['entries'] as List).cast<Map<String, dynamic>>();
     if (exists) {
-      final c = checkTree(root, entries, foreignWhy: (_) => 'not installed by the Manager (added later)');
+      final c = checkTree(root, entries, foreignWhy: (_) => tr('not installed by the Manager (added later)'));
       if (t.wholeOnly && !c.whole) {
-        stays.add({'path': root, 'why': 'changed since the Manager installed it: the package stays as a whole'});
+        stays.add({'path': root, 'why': tr('changed since the Manager installed it: the package stays as a whole')});
         stays.addAll(c.stays);
         keptTrees.add(root);
       } else {
@@ -187,12 +190,12 @@ Future<RemovePlan> removePlan(Ctx ctx, AppEntry app, {bool deleteSettings = fals
       }
     }
     for (final l in leftovers) {
-      final c = checkTree(l, entries, foreignWhy: (_) => 'not in the installed build');
+      final c = checkTree(l, entries, foreignWhy: (_) => tr('not in the installed build'));
       if (c.whole && unsafeReach(l, roots) == null) {
         goes.add(c.goesJson(leftover: true));
         treeChecks.add(c);
       } else {
-        stays.add({'path': l, 'why': 'left by an interrupted install; it isn\'t the installed build'});
+        stays.add({'path': l, 'why': tr('left by an interrupted install; it isn\'t the installed build')});
       }
     }
   }
@@ -208,7 +211,7 @@ Future<RemovePlan> removePlan(Ctx ctx, AppEntry app, {bool deleteSettings = fals
     final wasKept = k != null && ((k['sha256'] != null && k['sha256'] == g['sha256']) || (k['link'] != null && k['link'] == g['link']));
     if (unsafe != null || wasKept) {
       goes.remove(g);
-      stays.add({'path': path, 'why': unsafe ?? 'kept by an earlier remove (not the Manager\'s)'});
+      stays.add({'path': path, 'why': unsafe ?? tr('kept by an earlier remove (not the Manager\'s)')});
     }
   }
 
@@ -220,25 +223,25 @@ Future<RemovePlan> removePlan(Ctx ctx, AppEntry app, {bool deleteSettings = fals
     final exists = FileSystemEntity.typeSync(path, followLinks: false) != FileSystemEntityType.notFound;
     if (!exists) continue;
     if (d.neverDelete) {
-      data.add({'path': path, 'goes': false, 'why': d.sharedWithOmarchy ? 'shared with Omarchy (never deleted)' : 'never deleted${d.note == null ? '' : ' (${d.note})'}'});
+      data.add({'path': path, 'goes': false, 'why': d.sharedWithOmarchy ? tr('shared with Omarchy (never deleted)') : trf('never deleted{0}', [d.note == null ? '' : ' (${uiLabel(d.note)})'])});
     } else if (deleteSettings && unsafeReach(path, roots) != null) {
       data.add({'path': path, 'goes': false, 'why': unsafeReach(path, roots)});
     } else if (deleteSettings) {
       data.add({'path': path, 'goes': true});
       settingsGo.add(path);
     } else {
-      data.add({'path': path, 'goes': false, 'why': 'user data (kept; "delete settings" removes it)'});
+      data.add({'path': path, 'goes': false, 'why': tr('user data (kept; "delete settings" removes it)')});
     }
   }
   final runtime = <Map<String, dynamic>>[];
   for (final r in app.runtime) {
     final info = StatusReader(ctx).pathInfo(r.path, glob: r.glob, marker: r.marker);
     if (info['exists'] != true) continue;
-    runtime.add({'path': info['path'], if (r.glob) 'matches': info['matches'], 'markedOurs': ?info['markedOurs'], 'why': 'made at runtime (${r.note}); not removed by this step'});
+    runtime.add({'path': info['path'], if (r.glob) 'matches': info['matches'], 'markedOurs': ?info['markedOurs'], 'why': trf('made at runtime ({0}); not removed by this step', [uiLabel(r.note)])});
     // Runtime things that outlive the app are told under "stays" with the reason.
     if (r.stays != null) {
       for (final path in r.glob ? (info['matches'] as List).cast<String>() : [info['path'] as String]) {
-        stays.add({'path': path, 'why': r.stays, 'runtime': true, if (info['markedOurs'] == true) 'marked': true});
+        stays.add({'path': path, 'why': uiLabel(r.stays), 'runtime': true, if (info['markedOurs'] == true) 'marked': true});
       }
     }
   }
@@ -321,14 +324,14 @@ Future<RemovePlan> _pacmanPlan(Ctx ctx, AppEntry app, {required bool deleteSetti
   final installed = await status.pacmanVersion(pkg);
   String? blocked;
   if (installed == null) {
-    blocked = 'pacman not found';
+    blocked = tr('pacman not found');
   } else if (installed.isEmpty) {
-    blocked = '$pkg is not installed (pacman -Q $pkg)';
+    blocked = trf('{0} is not installed (pacman -Q {1})', [pkg, pkg]);
   } else if (ctx.runner.which('pkexec') == null) {
-    blocked = 'pkexec not found: it asks for the password pacman needs';
+    blocked = tr('pkexec not found: it asks for the password pacman needs');
   }
   final goes = <Map<String, dynamic>>[
-    if (installed != null && installed.isNotEmpty) {'path': pkg, 'kind': 'package', 'version': installed, 'note': 'pacman removes every file of the package'},
+    if (installed != null && installed.isNotEmpty) {'path': pkg, 'kind': 'package', 'version': installed, 'note': tr('pacman removes every file of the package')},
   ];
   final settingsGo = <String>[];
   final data = <Map<String, dynamic>>[];
@@ -337,20 +340,20 @@ Future<RemovePlan> _pacmanPlan(Ctx ctx, AppEntry app, {required bool deleteSetti
     if (FileSystemEntity.typeSync(path, followLinks: false) == FileSystemEntityType.notFound) continue;
     final unsafe = unsafeReach(path, roots);
     if (d.neverDelete) {
-      data.add({'path': path, 'goes': false, 'why': d.sharedWithOmarchy ? 'shared with Omarchy (never deleted)' : 'never deleted'});
+      data.add({'path': path, 'goes': false, 'why': d.sharedWithOmarchy ? tr('shared with Omarchy (never deleted)') : tr('never deleted')});
     } else if (deleteSettings && unsafe != null) {
       data.add({'path': path, 'goes': false, 'why': unsafe});
     } else if (deleteSettings) {
       data.add({'path': path, 'goes': true});
       settingsGo.add(path);
     } else {
-      data.add({'path': path, 'goes': false, 'why': 'user data (kept; "delete settings" removes it)'});
+      data.add({'path': path, 'goes': false, 'why': tr('user data (kept; "delete settings" removes it)')});
     }
   }
   final stays = <Map<String, dynamic>>[
     for (final u in app.units)
       if (File(paths.expand(u.fileTemplate)).existsSync())
-        {'path': paths.expand(u.fileTemplate), 'why': 'written by Maprisma itself: disabled, not deleted', 'runtime': true},
+        {'path': paths.expand(u.fileTemplate), 'why': tr('written by Maprisma itself: disabled, not deleted'), 'runtime': true},
   ];
   final dependents = <Map<String, dynamic>>[];
   for (final other in catalog) {
@@ -360,8 +363,8 @@ Future<RemovePlan> _pacmanPlan(Ctx ctx, AppEntry app, {required bool deleteSetti
   }
   final steps = [
     for (final u in app.units)
-      {'id': 'unit', 'title': 'Stop and disable ${u.name}', 'commands': ['systemctl --user stop ${u.name}', 'systemctl --user disable ${u.name}'], 'when': 'before'},
-    {'id': 'package', 'title': 'Remove the package (a password dialog asks)', 'commands': ['pkexec /usr/bin/pacman -R --noconfirm $pkg'], 'when': 'before', 'required': true},
+      {'id': 'unit', 'title': trf('Stop and disable {0}', [u.name]), 'commands': ['systemctl --user stop ${u.name}', 'systemctl --user disable ${u.name}'], 'when': 'before'},
+    {'id': 'package', 'title': tr('Remove the package (a password dialog asks)'), 'commands': ['pkexec /usr/bin/pacman -R --noconfirm $pkg'], 'when': 'before', 'required': true},
   ];
   final rec = readReceipt(paths, app.id);
   final revision = sha256Text(jsonEncode([goes, settingsGo, steps])).substring(0, 16);

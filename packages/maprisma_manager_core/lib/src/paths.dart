@@ -93,7 +93,7 @@ final class Paths {
   }
 }
 
-/// The user's settings (`~/.config/maprisma-manager/settings.json`), read only here.
+/// The user's settings (`~/.config/maprisma-manager/settings.json`); settings routes persist changes.
 final class Settings {
   Settings(this.values);
 

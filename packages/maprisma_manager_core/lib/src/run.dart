@@ -1,3 +1,4 @@
+import 'translations.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -37,7 +38,7 @@ final class Runner {
     Duration timeout = const Duration(seconds: 20),
   }) async {
     final exe = which(argv.first);
-    if (exe == null) return RunResult(127, '', '${argv.first}: not found');
+    if (exe == null) return RunResult(127, '', trf('{0}: not found', [argv.first]));
     final Process process;
     try {
       process = await Process.start(
@@ -74,7 +75,7 @@ final class Runner {
     } on TimeoutException {
       // keep what came
     }
-    if (timedOut) return RunResult(124, '$out', '$err\ntimed out');
+    if (timedOut) return RunResult(124, '$out', trf('{0}\ntimed out', [err]));
     return RunResult(code, '$out', '$err');
   }
 }

@@ -9,6 +9,9 @@
 /// every install or update of the app; then the icon cache and the bar icon are refreshed.
 library;
 
+import 'translations.dart';
+
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -42,26 +45,26 @@ const _svgNs = 'http://www.w3.org/2000/svg';
 /// or linked images, animations, event handlers, and every reference (`href`, `url(…)`) inside the
 /// file (`#id`); no `@import` in styles.
 String? svgProblem(List<int> bytes) {
-  if (bytes.length > maxIconBytes) return 'larger than ${maxIconBytes ~/ 1024} KiB';
+  if (bytes.length > maxIconBytes) return trf('larger than {0} KiB', [maxIconBytes ~/ 1024]);
   if (bytes.isEmpty) return 'empty';
   final String text;
   try {
     text = utf8.decode(bytes);
   } on FormatException {
-    return 'not UTF-8 text';
+    return tr('not UTF-8 text');
   }
   final lower = text.toLowerCase();
-  if (lower.contains('<!doctype') || lower.contains('<!entity')) return 'has a DOCTYPE or entities';
+  if (lower.contains('<!doctype') || lower.contains('<!entity')) return tr('has a DOCTYPE or entities');
   final XmlDocument doc;
   try {
     doc = XmlDocument.parse(text);
   } on XmlException catch (e) {
-    return 'not well-formed XML (${e.message})';
+    return trf('not well-formed XML ({0})', [e.message]);
   }
   final root = doc.rootElement;
-  if (root.name.local != 'svg' || (root.namespaceUri ?? root.getAttribute('xmlns')) != _svgNs) return 'not an SVG (the root is <${root.name.qualified}>)';
+  if (root.name.local != 'svg' || (root.namespaceUri ?? root.getAttribute('xmlns')) != _svgNs) return trf('not an SVG (the root is <{0}>)', [root.name.qualified]);
   for (final node in doc.descendants) {
-    if (node is XmlProcessing) return 'has a processing instruction (<?${node.target}?>)';
+    if (node is XmlProcessing) return trf('has a processing instruction (<?{0}?>)', [node.target]);
   }
   const forbidden = {
     'script', 'foreignobject', 'iframe', 'embed', 'object', 'audio', 'video', 'image', 'feimage',
@@ -69,32 +72,32 @@ String? svgProblem(List<int> bytes) {
   };
   String? cssProblem(String css) {
     // CSS escapes (`u\72l(`, `@\69mport`) could hide a reference: refused, icons don't need them
-    if (css.contains('\\')) return 'a CSS escape (backslash)';
+    if (css.contains('\\')) return tr('a CSS escape (backslash)');
     final c = css.toLowerCase();
     if (c.contains('@import')) return '@import';
-    if (c.contains('javascript:') || c.contains('expression(')) return 'script in a style';
+    if (c.contains('javascript:') || c.contains('expression(')) return tr('script in a style');
     for (final m in RegExp(r'url\(\s*([^)]*)\)').allMatches(c)) {
       final target = m.group(1)!.trim().replaceAll(RegExp(r'''^['"]|['"]$'''), '').trim();
-      if (!target.startsWith('#')) return 'a reference outside the file (url($target))';
+      if (!target.startsWith('#')) return trf('a reference outside the file (url({0}))', [target]);
     }
     return null;
   }
 
   for (final e in [root, ...root.descendantElements]) {
     final name = e.name.local.toLowerCase();
-    if (forbidden.contains(name)) return 'has a <${e.name.local}> element';
+    if (forbidden.contains(name)) return trf('has a <{0}> element', [e.name.local]);
     if (name == 'style') {
       final why = cssProblem(e.innerText);
-      if (why != null) return 'its style has $why';
+      if (why != null) return trf('its style has {0}', [why]);
     }
     for (final a in e.attributes) {
       final an = a.name.local.toLowerCase();
       final v = a.value.trim();
-      if (an.startsWith('on')) return 'has an event handler (${a.name.qualified})';
-      if (an == 'href' && !v.startsWith('#')) return 'links outside the file (${a.name.qualified}="$v")';
+      if (an.startsWith('on')) return trf('has an event handler ({0})', [a.name.qualified]);
+      if (an == 'href' && !v.startsWith('#')) return trf('links outside the file ({0}="{1}")', [a.name.qualified, v]);
       final why = cssProblem(v);
-      if (why != null) return 'has $why in ${a.name.qualified}';
-      if (v.toLowerCase().contains('javascript:')) return 'has a script URL in ${a.name.qualified}';
+      if (why != null) return trf('has {0} in {1}', [why, a.name.qualified]);
+      if (v.toLowerCase().contains('javascript:')) return trf('has a script URL in {0}', [a.name.qualified]);
     }
   }
   return null;
@@ -116,7 +119,7 @@ String? svgProblem(List<int> bytes) {
           continue;
         }
       }
-      return (name: 'Cosmic', source: 'COSMIC\'s default');
+      return (name: 'Cosmic', source: tr('COSMIC\'s default'));
     case DesktopId.kde:
       final f = p.join(paths.config, 'kdeglobals');
       try {
@@ -129,7 +132,7 @@ String? svgProblem(List<int> bytes) {
       } on FileSystemException {
         // Plasma's default
       }
-      return (name: 'breeze', source: 'Plasma\'s default');
+      return (name: 'breeze', source: tr('Plasma\'s default'));
     case DesktopId.other:
       final f = p.join(paths.config, 'gtk-3.0/settings.ini');
       try {
@@ -140,7 +143,7 @@ String? svgProblem(List<int> bytes) {
       } on FileSystemException {
         // GTK's default
       }
-      return (name: 'Adwaita', source: 'GTK\'s default');
+      return (name: 'Adwaita', source: tr('GTK\'s default'));
   }
 }
 
@@ -262,7 +265,7 @@ final class IconService {
     final id = params['app'] ?? params['id'];
     if (id is! String || id.isEmpty) throw RouteError('bad_params', 'app');
     final app = findApp(id);
-    if (app == null) throw RouteError('not_found', 'no app $id');
+    if (app == null) throw RouteError('not_found', trf('no app {0}', [id]));
     return app;
   }
 
@@ -270,13 +273,13 @@ final class IconService {
   /// installer writes (shared and system names would change other apps' icons too).
   String? whyNot(AppEntry app) {
     final name = app.bar.iconName;
-    if (app.bar.none || name == null) return '${app.name} has no bar icon';
+    if (app.bar.none || name == null) return trf('{0} has no bar icon', [app.name]);
     if (!name.startsWith('io.github.ubruckhaus.CosmicMaprisma') || !name.endsWith('-symbolic')) {
-      return '${app.name}\'s bar icon $name is not a name of its own (changing it would change other icons too)';
+      return trf('{0}\'s bar icon {1} is not a name of its own (changing it would change other icons too)', [app.name, name]);
     }
     final file = iconFile(app)!;
     final installed = app.components.any((c) => c.paths.any((ip) => paths.expand(ip.path) == file));
-    if (!installed) return '${app.name}\'s installer doesn\'t install $file';
+    if (!installed) return trf('{0}\'s installer doesn\'t install {1}', [app.name, file]);
     return null;
   }
 
@@ -318,7 +321,7 @@ final class IconService {
       },
       'current': choice == null
           ? 'original'
-          : (now == choice['sha256'] ? 'changed' : 'changed, not applied (the file is not the choice)'),
+          : (now == choice['sha256'] ? 'changed' : tr('changed, not applied (the file is not the choice)')),
       'choice': choice,
       'original': {'kept': originalKept, if (originalKept) 'file': st.original, 'sha256': ?origSha},
       'theme': {'name': theme.name, 'source': theme.source, 'chain': chain},
@@ -331,26 +334,26 @@ final class IconService {
 
   /// The SVG for `icon` (a theme name, or a file path): checked, at most [maxIconBytes].
   ({List<int> bytes, Map<String, dynamic> choice}) _resolve(Object? icon) {
-    if (icon is! String || icon.trim().isEmpty) throw RouteError('bad_params', 'icon (a theme icon name or an SVG file)');
+    if (icon is! String || icon.trim().isEmpty) throw RouteError('bad_params', tr('icon (a theme icon name or an SVG file)'));
     String file;
     Map<String, dynamic> choice;
     if (icon.contains('/')) {
       final f = icon.startsWith('~/') ? p.join(paths.home, icon.substring(2)) : icon;
-      if (!p.isAbsolute(f)) throw RouteError('bad_params', 'icon: a file must be an absolute path');
-      if (FileSystemEntity.typeSync(f) != FileSystemEntityType.file) throw RouteError('not_found', 'no file $f');
+      if (!p.isAbsolute(f)) throw RouteError('bad_params', tr('icon: a file must be an absolute path'));
+      if (FileSystemEntity.typeSync(f) != FileSystemEntityType.file) throw RouteError('not_found', trf('no file {0}', [f]));
       file = f;
       choice = {'kind': 'file', 'from': p.normalize(f)};
     } else {
-      if (!RegExp(r'^[A-Za-z0-9][A-Za-z0-9._+-]{0,200}$').hasMatch(icon)) throw RouteError('bad_params', 'icon: not an icon name');
+      if (!RegExp(r'^[A-Za-z0-9][A-Za-z0-9._+-]{0,200}$').hasMatch(icon)) throw RouteError('bad_params', tr('icon: not an icon name'));
       final theme = currentIconTheme(ctx);
       final all = themeSvgs(ctx, themeChain(ctx, theme.name), symbolicOnly: false);
       final hit = all[icon];
-      if (hit == null) throw RouteError('not_found', 'no SVG icon $icon in ${theme.name} or what it inherits');
+      if (hit == null) throw RouteError('not_found', trf('no SVG icon {0} in {1} or what it inherits', [icon, theme.name]));
       file = hit.file;
       choice = {'kind': 'name', 'name': icon, 'theme': hit.theme, 'from': hit.file};
     }
     final len = File(file).lengthSync();
-    if (len > maxIconBytes) throw RouteError('bad_icon', '$file is larger than ${maxIconBytes ~/ 1024} KiB');
+    if (len > maxIconBytes) throw RouteError('bad_icon', trf('{0} is larger than {1} KiB', [file, maxIconBytes ~/ 1024]));
     final bytes = File(file).readAsBytesSync();
     final why = svgProblem(bytes);
     if (why != null) throw RouteError('bad_icon', '$file: $why');
@@ -360,7 +363,7 @@ final class IconService {
   void _checkFree(AppEntry app) {
     final why = whyNot(app);
     if (why != null) throw RouteError('unavailable', why);
-    if (jobs.activeFor(app.id)) throw RouteError('busy', 'a job for ${app.name} runs: try again when it has ended');
+    if (jobs.activeFor(app.id)) throw RouteError('busy', trf('a job for {0} runs: try again when it has ended', [app.name]));
   }
 
   /// The bytes the Manager wrote as a choice (the recorded one and `chosen.svg`): a file with
@@ -379,7 +382,7 @@ final class IconService {
     return jobs.exclusive(() async {
       final written = await withStateLock(paths, () async {
         if (FileSystemEntity.typeSync(file, followLinks: false) != FileSystemEntityType.file) {
-          throw RouteError('not_installed', '$file is missing (or not a file): install ${app.name} first');
+          throw RouteError('not_installed', trf('{0} is missing (or not a file): install {1} first', [file, app.name]));
         }
         final st = _IconState.load(paths, app.id);
         final now = File(file).readAsBytesSync();
@@ -394,7 +397,7 @@ final class IconService {
           st.data['original'] = {'sha256': nowSha, 'at': ctx.clock().toUtc().toIso8601String()};
           st.save();
         } else if (!hasOriginal) {
-          throw RouteError('changed', '$file is an earlier choice but the original is missing: reinstall ${app.name}, then try again');
+          throw RouteError('changed', trf('{0} is an earlier choice but the original is missing: reinstall {1}, then try again', [file, app.name]));
         }
         final sha = _sha(icon.bytes);
         atomicWriteBytes(st.chosen, icon.bytes);
@@ -420,11 +423,11 @@ final class IconService {
         final st = _IconState.load(paths, app.id);
         final hasOriginal = File(st.original).existsSync();
         if (!Directory(st.dir).existsSync() || (st.choice == null && !hasOriginal && !File(st.chosen).existsSync())) {
-          return {'reset': false, 'note': 'the icon is the original'};
+          return {'reset': false, 'note': tr('the icon is the original')};
         }
         final now = File(file).existsSync() ? sha256File(file) : null;
         if (now == null || _ours(st).contains(now)) {
-          if (!hasOriginal) throw RouteError('changed', 'the kept original of ${app.name}\'s icon is missing: reinstall ${app.name}');
+          if (!hasOriginal) throw RouteError('changed', trf('the kept original of {0}\'s icon is missing: reinstall {1}', [app.name, app.name]));
           final bytes = File(st.original).readAsBytesSync();
           atomicWriteBytes(file, bytes);
           _receiptFollows(app, file, _sha(bytes));
@@ -447,17 +450,17 @@ final class IconService {
     if (choice == null || !File(st.chosen).existsSync()) return null;
     final file = iconFile(app)!;
     if (FileSystemEntity.typeSync(file, followLinks: false) != FileSystemEntityType.file) {
-      return 'the chosen bar icon is not applied: the installer wrote no $file';
+      return trf('the chosen bar icon is not applied: the installer wrote no {0}', [file]);
     }
     final now = File(file).readAsBytesSync();
     final chosen = File(st.chosen).readAsBytesSync();
-    if (_sha(chosen) != choice['sha256']) return 'the chosen bar icon is not applied: ${st.chosen} changed';
-    if (_sha(now) == choice['sha256']) return 'the chosen bar icon is in place';
+    if (_sha(chosen) != choice['sha256']) return trf('the chosen bar icon is not applied: {0} changed', [st.chosen]);
+    if (_sha(now) == choice['sha256']) return tr('the chosen bar icon is in place');
     atomicWriteBytes(st.original, now);
     st.data['original'] = {'sha256': _sha(now), 'at': ctx.clock().toUtc().toIso8601String()};
     st.save();
     atomicWriteBytes(file, chosen);
-    return 'the chosen bar icon (${choice['name'] ?? choice['from']}) written over the installer\'s $file again';
+    return trf('the chosen bar icon ({0}) written over the installer\'s {1} again', [choice['name'] ?? choice['from'], file]);
   }
 
   /// The receipt's entry for [file] follows a change the Manager made (so a remove still takes it).
@@ -494,14 +497,14 @@ final class IconService {
         return c.error == null && c.layout.find(app.bar.cosmicApplet!) != null;
       });
       if (!placed) {
-        out['bar'] = {'note': 'not in a panel'};
+        out['bar'] = {'note': tr('not in a panel')};
       } else {
         try {
           out['bar'] = <String, dynamic>{'panel': await jobs.nudgeApplet(app.bar.cosmicApplet!)};
         } on RouteError catch (e) {
           out['bar'] = <String, dynamic>{'error': '${e.code}: ${e.message}'};
         }
-        if (app.bar.cosmicIconBuiltIn) (out['bar'] as Map)['note'] = 'the applet draws a built-in icon: ${app.bar.iconNote ?? ''}';
+        if (app.bar.cosmicIconBuiltIn) (out['bar'] as Map)['note'] = trf('the applet draws a built-in icon: {0}', [uiLabel(app.bar.iconNote ?? '')]);
       }
     } else if (ctx.desktop == DesktopId.kde && app.bar.kdeTrayExe != null && app.bar.kdeAutostart != null) {
       final exe = paths.expand(app.bar.kdeTrayExe!);
@@ -509,13 +512,13 @@ final class IconService {
       final autostart = paths.expand(app.bar.kdeAutostart!);
       final shown = File(autostart).existsSync() && !desktopHidden(autostart);
       if (trays.isEmpty || !shown) {
-        out['bar'] = {'note': trays.isEmpty ? 'the tray doesn\'t run' : 'the tray is out of the bar'};
+        out['bar'] = {'note': trays.isEmpty ? tr('the tray doesn\'t run') : tr('the tray is out of the bar')};
       } else {
         await stopProcesses(trays, signaller: jobs.signaller, procRoot: paths.proc, uid: ctx.uid, grace: jobs.stopGrace);
         out['bar'] = {'trayRestarted': await jobs.startDetached(exe, app.bar.kdeTrayArgs)};
       }
     } else {
-      out['bar'] = {'note': 'no bar icon on this desktop'};
+      out['bar'] = {'note': tr('no bar icon on this desktop')};
     }
     return out;
   }

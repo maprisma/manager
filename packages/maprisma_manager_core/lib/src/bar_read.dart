@@ -1,3 +1,4 @@
+import 'translations.dart';
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
@@ -28,7 +29,7 @@ final class BarSnapshot {
       case DesktopId.kde:
         try {
           widget = (await bar.kdeWidget(null)).widget;
-          if (widget == null) widgetError = 'Maprisma Icons is not in a panel';
+          if (widget == null) widgetError = tr('Maprisma Icons is not in a panel');
         } on RouteError catch (e) {
           widgetError = e.message ?? e.code;
         }
@@ -60,7 +61,7 @@ final class BarSnapshot {
         final broken = panels.values.where((c) => c.error != null).firstOrNull;
         if (panels.isEmpty || broken != null) {
           // An unreadable panel config is not "out of the bar".
-          return {'has': true, 'id': id, 'state': 'unknown', 'error': broken?.error ?? 'no panel', 'iconName': b.iconName, 'wanted': ?wanted};
+          return {'has': true, 'id': id, 'state': 'unknown', 'error': broken?.error ?? tr('no panel'), 'iconName': b.iconName, 'wanted': ?wanted};
         }
         String? panel, zone;
         for (final e in panels.entries) {
@@ -124,7 +125,7 @@ final class BarSnapshot {
           'wanted': ?wanted,
         };
       case DesktopId.other:
-        return {'has': false, 'state': 'none', 'reason': 'no bar icons on this desktop'};
+        return {'has': false, 'state': 'none', 'reason': tr('no bar icons on this desktop')};
     }
   }
 

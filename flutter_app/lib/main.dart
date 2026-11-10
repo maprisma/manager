@@ -1,3 +1,4 @@
+import 'package:maprisma_manager_core/maprisma_manager_core.dart' show configureLanguage;
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -10,6 +11,8 @@ import 'backend.dart';
 Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
   final backend = await Backend.start();
+  final settings = await backend.call('settings.get');
+  configureLanguage(settings['language'] as String?);
   final look = await backend.call('desktop.look').catchError((_) => <String, dynamic>{});
   final ready = Platform.environment['MAPRISMA_MANAGER_READY'];
   if (ready != null && ready.isNotEmpty) {

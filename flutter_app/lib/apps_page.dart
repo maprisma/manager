@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:maprisma_manager_core/maprisma_manager_core.dart' show tr, trf, languageNames, systemLanguage;
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -19,7 +21,9 @@ import 'theme.dart';
 /// plugins: sections by bar state, a ⋮ menu per app (also on right-click), update marks with the
 /// number of new commits, and the log sheet of the jobs at the bottom.
 class AppsPage extends StatefulWidget {
-  const AppsPage({super.key, required this.core, required this.jobs, this.onRestart, this.checkOnStart = true});
+  const AppsPage({super.key, required this.core, required this.jobs, this.onRestart, this.checkOnStart = true, this.onLanguageChanged, this.languageSetting = 'auto'});
+  final Future<void> Function()? onLanguageChanged;
+  final String languageSetting;
   final CoreCall core;
   final JobsModel jobs;
 
@@ -90,7 +94,7 @@ class AppsPageState extends State<AppsPage> {
       if (mounted) {
         setState(() {
           loading = false;
-          error = 'The list could not be read (${e.code}${e.reason == null ? '' : ': ${e.reason}'})';
+          error = trf('The list could not be read ({0}{1})', [e.code, e.reason == null ? '' : ': ${e.reason}']);
         });
       }
     }
@@ -123,7 +127,7 @@ class AppsPageState extends State<AppsPage> {
       await _load();
       if (force && mounted) {
         final n = apps.where((a) => updateReasons(a).isNotEmpty).length;
-        tell(n == 0 ? 'Everything is up to date' : (n == 1 ? '1 app has an update' : '$n apps have updates'));
+        tell(n == 0 ? tr('Everything is up to date') : (n == 1 ? tr('1 app has an update') : trf('{0} apps have updates', [n])));
       }
     } finally {
       if (mounted) setState(() => checking = false);
@@ -141,7 +145,7 @@ class AppsPageState extends State<AppsPage> {
     if (j.app == 'manager' && r['restart'] == true) {
       // Jobs this window already started finish first (the core starts no new one meanwhile).
       if (widget.jobs.busy) {
-        tell('Maprisma Manager restarts with the new build when the other jobs have finished');
+        tell(tr('Maprisma Manager restarts with the new build when the other jobs have finished'));
         void waitThem() {
           if (widget.jobs.busy) return;
           widget.jobs.removeListener(waitThem);
@@ -151,13 +155,13 @@ class AppsPageState extends State<AppsPage> {
         widget.jobs.addListener(waitThem);
         return;
       }
-      tell('Maprisma Manager restarts with the new build…');
+      tell(tr('Maprisma Manager restarts with the new build…'));
       Timer(const Duration(milliseconds: 1500), () => widget.onRestart?.call());
       return;
     }
     tell(switch (j.state) {
-      'succeeded' => r['up_to_date'] == true ? '${j.name} is up to date' : '${j.name}: done',
-      'cancelled' => '${j.name}: cancelled, nothing was changed',
+      'succeeded' => r['up_to_date'] == true ? trf('{0} is up to date', [j.name]) : trf('{0}: done', [j.name]),
+      'cancelled' => trf('{0}: cancelled, nothing was changed', [j.name]),
       _ => '${j.name}: ${r['message'] ?? r['code'] ?? j.state}',
     });
   }
@@ -167,7 +171,7 @@ class AppsPageState extends State<AppsPage> {
       await widget.core(route, params);
       if (done != null) tell(done);
     } on ServiceError catch (e) {
-      tell('That did not work (${e.code})${e.reason == null || e.reason!.isEmpty ? '' : ': ${e.reason}'}');
+      tell(trf('That did not work ({0}){1}', [e.code, e.reason == null || e.reason!.isEmpty ? '' : ': ${e.reason}']));
     }
     await _load();
   }
@@ -194,20 +198,20 @@ class AppsPageState extends State<AppsPage> {
       final areas = bar['areas'] as Map? ?? const {};
       final id = (a['bar'] as Map)['id'];
       for (final area in ['left', 'center', 'right']) {
-        final list = (areas[area] as List?) ?? const [];
+        final list = (areas[area] as List?) ?? [];
         final i = list.indexWhere((e) => (e as Map)['app'] == a['id'] || e['id'] == id);
         if (i < 0) continue;
         final to = i + by;
         if (to < 0 || to >= list.length) {
-          tell('It is already at the ${by < 0 ? 'start' : 'end'} of the ${zoneName(area)} area');
+          tell(trf('It is already at the {0} of the {1} area', [by < 0 ? tr('start') : tr('end'), zoneName(area)]));
           return;
         }
         await _do('bar.move', {'app': a['id'], 'area': area, 'index': to, 'revision': bar['revision']});
         return;
       }
-      tell('It is not in the bar');
+      tell(tr('It is not in the bar'));
     } on ServiceError catch (e) {
-      tell('That did not work (${e.code})');
+      tell(trf('That did not work ({0})', [e.code]));
     }
   }
 
@@ -247,47 +251,47 @@ class AppsPageState extends State<AppsPage> {
     final canInstall = here && support['install'] != false && !busy;
     final rel = latestRelease(a);
     final newer = newerRelease(a);
-    final bar = a['bar'] as Map? ?? const {};
+    final bar = a['bar'] as Map? ?? {};
     final barHere = desktop != 'other' && hasBar(a) && inst;
     final icon = icons[a['id']];
     final folder = mainFolder(a);
     PopupMenuItem<String> item(String value, String text, {bool enabled = true, IconData? icon}) =>
         PopupMenuItem(value: value, enabled: enabled, child: Text(text));
     return [
-      item('open', 'Open', enabled: inst && a['open'] == true),
-      item('details', 'Details…'),
-      const PopupMenuDivider(),
+      item('open', tr('Open'), enabled: inst && a['open'] == true),
+      item('details', tr('Details…')),
+      PopupMenuDivider(),
       if (!inst) ...[
-        item('install', 'Install', enabled: canInstall),
-        if (releaseInstallable(a)) item('release', 'Install release ${rel!['tag']}', enabled: canInstall),
+        item('install', tr('Install'), enabled: canInstall),
+        if (releaseInstallable(a)) item('release', trf('Install release {0}', [rel!['tag']]), enabled: canInstall),
       ] else ...[
-        if (canUpdate(a)) item('update', 'Update', enabled: canInstall),
-        if (newer != null) item('release', 'Update to release ${newer['tag']}', enabled: canInstall),
+        if (canUpdate(a)) item('update', tr('Update'), enabled: canInstall),
+        if (newer != null) item('release', trf('Update to release {0}', [newer['tag']]), enabled: canInstall),
         if (needsRepair(a) || a['state'] == 'partial')
-          item('reinstall', 'Repair', enabled: canInstall)
+          item('reinstall', tr('Repair'), enabled: canInstall)
         else
-          item('reinstall', 'Reinstall', enabled: canInstall),
+          item('reinstall', tr('Reinstall'), enabled: canInstall),
       ],
       if (barHere) ...[
-        const PopupMenuDivider(),
+        PopupMenuDivider(),
         if (bar['state'] == 'in') ...[
-          item('out', 'Take out of the bar'),
-          item('left1', 'Move left'),
-          item('right1', 'Move right'),
+          item('out', tr('Take out of the bar')),
+          item('left1', tr('Move left')),
+          item('right1', tr('Move right')),
           for (final area in ['left', 'center', 'right'])
-            if (bar['zone'] != area) item('in:$area', 'Move to the ${zoneName(area)} area'),
+            if (bar['zone'] != area) item('in:$area', trf('Move to the {0} area', [zoneName(area)])),
         ] else
-          for (final area in ['left', 'center', 'right']) item('in:$area', 'Put into the bar: ${zoneName(area)}'),
-        item('icon', 'Change icon…'),
-        item('reseticon', 'Reset icon', enabled: icon == null || icon['current'] != 'original'),
+          for (final area in ['left', 'center', 'right']) item('in:$area', trf('Put into the bar: {0}', [zoneName(area)])),
+        item('icon', tr('Change icon…')),
+        item('reseticon', tr('Reset icon'), enabled: icon == null || icon['current'] != 'original'),
       ],
       const PopupMenuDivider(),
-      item('github', 'Open on GitHub', enabled: githubUrl(a) != null),
-      item('copyurl', 'Copy GitHub URL', enabled: githubUrl(a) != null),
-      item('copyfolder', 'Copy folder path', enabled: folder?['path'] != null),
+      item('github', tr('Open on GitHub'), enabled: githubUrl(a) != null),
+      item('copyurl', tr('Copy GitHub URL'), enabled: githubUrl(a) != null),
+      item('copyfolder', tr('Copy folder path'), enabled: folder?['path'] != null),
       if (inst) ...[
         const PopupMenuDivider(),
-        item('remove', 'Uninstall…', enabled: !busy),
+        item('remove', tr('Uninstall…'), enabled: !busy),
       ],
     ];
   }
@@ -313,27 +317,27 @@ class AppsPageState extends State<AppsPage> {
         final tag = (newerRelease(a) ?? latestRelease(a))?['tag'];
         await startJob(a, 'release', options: {'tag': ?tag});
       case 'out':
-        await _do('bar.remove', {'app': a['id']}, done: '${a['name']} is out of the bar');
+        await _do('bar.remove', {'app': a['id']}, done: trf('{0} is out of the bar', [a['name']]));
       case 'left1':
         await _nudge(a, -1);
       case 'right1':
         await _nudge(a, 1);
       case final String c when c.startsWith('in:'):
-        await _do('bar.place', {'app': a['id'], 'area': c.substring(3)}, done: '${a['name']}: bar, ${zoneName(c.substring(3))}');
+        await _do('bar.place', {'app': a['id'], 'area': c.substring(3)}, done: trf('{0}: bar, {1}', [a['name'], zoneName(c.substring(3))]));
       case 'icon':
         await _changeIcon(a);
       case 'reseticon':
-        await _do('icons.reset', {'app': a['id']}, done: '${a['name']}: the original icon is back');
+        await _do('icons.reset', {'app': a['id']}, done: trf('{0}: the original icon is back', [a['name']]));
         icons.remove(a['id']);
         unawaited(_loadIcons());
       case 'github':
         await _openGithub(a);
       case 'copyurl':
         await Clipboard.setData(ClipboardData(text: githubUrl(a)!));
-        tell('Copied');
+        tell(tr('Copied'));
       case 'copyfolder':
         await Clipboard.setData(ClipboardData(text: '${mainFolder(a)!['path']}'));
-        tell('Copied');
+        tell(tr('Copied'));
       case 'remove':
         await _uninstall(a);
     }
@@ -350,12 +354,12 @@ class AppsPageState extends State<AppsPage> {
       position: RelativeRect.fromLTRB(at.dx, at.dy, at.dx, at.dy),
       items: [
         if (folder == null && gh != null)
-          n['cloneTo'] != null ? item('clone', 'Clone into ${n['cloneTo']}') : item('clone', 'Not cloneable: ${n['cloneBlocked']}', enabled: false),
-        if (folder != null) item('folder', 'Open folder'),
-        item('github', 'Open on GitHub', enabled: gh != null),
-        const PopupMenuDivider(),
-        item('copyurl', 'Copy GitHub URL', enabled: gh != null),
-        item('copyfolder', 'Copy folder path', enabled: folder != null),
+          n['cloneTo'] != null ? item('clone', trf('Clone into {0}', [n['cloneTo']])) : item('clone', trf('Not cloneable: {0}', [n['cloneBlocked']]), enabled: false),
+        if (folder != null) item('folder', tr('Open folder')),
+        item('github', tr('Open on GitHub'), enabled: gh != null),
+        PopupMenuDivider(),
+        item('copyurl', tr('Copy GitHub URL'), enabled: gh != null),
+        item('copyfolder', tr('Copy folder path'), enabled: folder != null),
       ],
     );
     switch (choice) {
@@ -367,10 +371,10 @@ class AppsPageState extends State<AppsPage> {
         await _do('links.open', {'url': gh!['url']});
       case 'copyurl':
         await Clipboard.setData(ClipboardData(text: '${gh!['url']}'));
-        tell('Copied');
+        tell(tr('Copied'));
       case 'copyfolder':
         await Clipboard.setData(ClipboardData(text: folder!));
-        tell('Copied');
+        tell(tr('Copied'));
     }
   }
 
@@ -380,12 +384,12 @@ class AppsPageState extends State<AppsPage> {
     if (cloning) return;
     setState(() => cloning = true);
     final gh = n['github'] as Map;
-    tell('Cloning ${gh['repo']}…');
+    tell(trf('Cloning {0}…', [gh['repo']]));
     try {
       final r = await widget.core('discovered.clone', {'repo': gh['repo']});
-      tell('${n['name']} is in ${r['folder']}');
+      tell(trf('{0} is in {1}', [n['name'], r['folder']]));
     } on ServiceError catch (e) {
-      tell('${n['name']} could not be cloned (${e.code})${e.reason == null || e.reason!.isEmpty ? '' : ': ${e.reason}'}');
+      tell(trf('{0} could not be cloned ({1}){2}', [n['name'], e.code, e.reason == null || e.reason!.isEmpty ? '' : ': ${e.reason}']));
     } finally {
       if (mounted) setState(() => cloning = false);
     }
@@ -398,7 +402,7 @@ class AppsPageState extends State<AppsPage> {
     final folder = n['folder'] as String?;
     final about = [
       if (gh?['description'] is String && (gh!['description'] as String).isNotEmpty) gh['description'],
-      folder ?? 'on GitHub only: ${gh?['url']}',
+      folder ?? trf('on GitHub only: {0}', [gh?['url']]),
     ].join(' · ');
     return GestureDetector(
       onSecondaryTapDown: (d) => _newMenu(n, d.globalPosition),
@@ -408,25 +412,25 @@ class AppsPageState extends State<AppsPage> {
         title: Row(
           children: [
             Flexible(child: Text('${n['name']}', overflow: TextOverflow.ellipsis)),
-            if (gh?['public'] == false) _sourceChip('private'),
+            if (gh?['public'] == false) _sourceChip(tr('private')),
           ],
         ),
         subtitle: Row(
           children: [
             Flexible(child: Text(about, maxLines: 1, overflow: TextOverflow.ellipsis)),
-            if (folder != null) _sourceChip('Folder'),
-            if (gh != null) _sourceChip('GitHub'),
+            if (folder != null) _sourceChip(tr('Folder')),
+            if (gh != null) _sourceChip(tr('GitHub')),
           ],
         ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             if (folder == null && gh != null && n['cloneTo'] != null)
-              TextButton(onPressed: cloning ? null : () => _clone(n), child: const Text('Clone')),
+              TextButton(onPressed: cloning ? null : () => _clone(n), child: Text(tr('Clone'))),
             Builder(
               builder: (context) => IconButton(
-                tooltip: 'Actions',
-                icon: const Icon(Icons.more_vert, size: 18),
+                tooltip: tr('Actions'),
+                icon: Icon(Icons.more_vert, size: 18),
                 onPressed: () {
                   final box = context.findRenderObject()! as RenderBox;
                   _newMenu(n, box.localToGlobal(box.size.bottomLeft(Offset.zero)));
@@ -449,7 +453,7 @@ class AppsPageState extends State<AppsPage> {
     final scheme = Theme.of(context).colorScheme;
     return Container(
       margin: const EdgeInsets.only(left: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 1),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: scheme.outlineVariant),
@@ -465,7 +469,7 @@ class AppsPageState extends State<AppsPage> {
     final version = '${(a['versions'] as Map?)?['installed'] ?? ''}';
     final reasons = updateReasons(a);
     final job = widget.jobs.jobs.where((j) => j.app == a['id'] && !j.finished).firstOrNull;
-    final icon = a['icon'] as Map? ?? const {};
+    final icon = a['icon'] as Map? ?? {};
     final missing = missingParts(a);
     return GestureDetector(
       onSecondaryTapDown: (d) => menu(a, d.globalPosition),
@@ -497,15 +501,15 @@ class AppsPageState extends State<AppsPage> {
                 if (reasons.isNotEmpty) _mark(reasons.join('\n'), Icons.arrow_circle_up, marks.update),
                 if (a['state'] == 'partial')
                   _mark(
-                    'Partly installed${missing.isEmpty ? '' : ': no ${missing.join(', ')}'}${prerequisitesMissing(a).isEmpty ? '' : ' (missing: ${prerequisitesMissing(a).join(', ')})'}',
+                    trf('Partly installed{0}{1}', [missing.isEmpty ? '' : trf(': no {0}', [missing.join(', ')]), prerequisitesMissing(a).isEmpty ? '' : trf(' (missing: {0})', [prerequisitesMissing(a).join(', ')])]),
                     Icons.incomplete_circle,
                     marks.fresh,
                   ),
                 if (inst && buildUnknown(a))
-                  _mark('Installed before the Manager: the build is unknown (Reinstall records it)', Icons.help_outline, scheme.onSurfaceVariant),
+                  _mark(tr('Installed before the Manager: the build is unknown (Reinstall records it)'), Icons.help_outline, scheme.onSurfaceVariant),
                 if (needsRepair(a))
                   _mark(
-                    'The last job was interrupted or failed while it changed files: ${(a['job'] as Map?)?['result']?['message'] ?? 'Repair reinstalls it'}',
+                    trf('The last job was interrupted or failed while it changed files: {0}', [(a['job'] as Map?)?['result']?['message'] ?? tr('Repair reinstalls it')]),
                     Icons.warning_amber_rounded,
                     scheme.error,
                   ),
@@ -514,7 +518,7 @@ class AppsPageState extends State<AppsPage> {
                     padding: const EdgeInsets.only(left: 8),
                     child: Tooltip(
                       message: '${job.title}: ${phaseName(job.phase)}',
-                      child: const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
+                      child: SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
                     ),
                   ),
               ],
@@ -527,8 +531,8 @@ class AppsPageState extends State<AppsPage> {
             ),
             trailing: Builder(
               builder: (context) => IconButton(
-                tooltip: 'App actions',
-                icon: const Icon(Icons.more_vert, size: 18),
+                tooltip: tr('App actions'),
+                icon: Icon(Icons.more_vert, size: 18),
                 onPressed: () {
                   final box = context.findRenderObject()! as RenderBox;
                   menu(a, box.localToGlobal(box.size.bottomLeft(Offset.zero)));
@@ -600,12 +604,30 @@ class AppsPageState extends State<AppsPage> {
               child: Row(
                 children: [
                   Text(
-                    'MAPRISMA APPS',
+                    tr('MAPRISMA APPS'),
                     style: TextStyle(letterSpacing: 1.2, fontWeight: FontWeight.w700, color: scheme.onSurfaceVariant),
                   ),
                   const Spacer(),
+                  PopupMenuButton<String>(
+                    tooltip: tr('Language'),
+                    icon: Icon(Icons.language),
+                    itemBuilder: (_) => [
+                      CheckedPopupMenuItem(value: 'auto', checked: widget.languageSetting == 'auto', child: Text(trf('System ({0})', [languageNames[systemLanguage(Platform.environment)]]))),
+                      for (final entry in languageNames.entries)
+                        CheckedPopupMenuItem(value: entry.key, checked: entry.key == widget.languageSetting, child: Text(entry.value)),
+                    ],
+                    onSelected: (value) async {
+                      try {
+                        await widget.core('settings.language', {'language': value});
+                        await widget.onLanguageChanged?.call();
+                        await _load();
+                      } on Object {
+                        if (mounted) tell(tr('Could not save the language setting.'));
+                      }
+                    },
+                  ),
                   IconButton(
-                    tooltip: 'Check for updates (F5)',
+                    tooltip: tr('Check for updates (F5)'),
                     onPressed: checking ? null : () => checkUpdates(force: true),
                     icon: checking
                         ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
@@ -613,12 +635,12 @@ class AppsPageState extends State<AppsPage> {
                   ),
                   if (desktop != 'other')
                     IconButton(
-                      tooltip: 'Bar editor (Ctrl+B)',
+                      tooltip: tr('Bar editor (Ctrl+B)'),
                       onPressed: openBarEditor,
-                      icon: const Icon(Icons.view_week_outlined),
+                      icon: Icon(Icons.view_week_outlined),
                     ),
                   IconButton(
-                    tooltip: 'Job log (Ctrl+L)',
+                    tooltip: tr('Job log (Ctrl+L)'),
                     isSelected: sheet,
                     onPressed: widget.jobs.jobs.isEmpty ? null : () => setState(() => sheet = !sheet),
                     icon: Badge(
@@ -634,11 +656,11 @@ class AppsPageState extends State<AppsPage> {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
               child: TextField(
-                key: const ValueKey('filter'),
+                key: ValueKey('filter'),
                 controller: filter,
                 focusNode: filterFocus,
                 autofocus: true,
-                decoration: const InputDecoration(hintText: 'Type to filter', prefixIcon: Icon(Icons.search, size: 20)),
+                decoration: InputDecoration(hintText: tr('Type to filter'), prefixIcon: Icon(Icons.search, size: 20)),
                 onChanged: (v) => setState(() => query = v),
                 onSubmitted: (_) {
                   final first = secs.expand((s) => s.$2).firstOrNull;
@@ -656,31 +678,31 @@ class AppsPageState extends State<AppsPage> {
                         children: [
                           Text(error!, style: TextStyle(color: scheme.error)),
                           const SizedBox(height: 8),
-                          TextButton(onPressed: _load, child: const Text('Try again')),
+                          TextButton(onPressed: _load, child: Text(tr('Try again'))),
                         ],
                       ),
                     )
                   : ListView(
                       key: const ValueKey('app-list'),
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      padding: EdgeInsets.symmetric(horizontal: 8),
                       children: [
                         for (final (title, items) in secs)
                           if (items.isNotEmpty) ...[
                             Padding(
                               padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
-                              child: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+                              child: Text(title, style: TextStyle(fontWeight: FontWeight.w700)),
                             ),
                             for (final x in items) _row(x),
                           ],
                         if (shownNew.isNotEmpty) ...[
                           Padding(
                             padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-                            child: Text('New, not in the catalog', style: const TextStyle(fontWeight: FontWeight.w700)),
+                            child: Text(tr('New, not in the catalog'), style: TextStyle(fontWeight: FontWeight.w700)),
                           ),
                           Padding(
                             padding: const EdgeInsets.fromLTRB(12, 2, 12, 4),
                             child: Text(
-                              'Found in the projects folder or the maprisma GitHub org. The Manager can install them once they have a catalog entry.',
+                              tr('Found in the projects folder or the maprisma GitHub org. The Manager can install them once they have a catalog entry.'),
                               style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
                             ),
                           ),
@@ -689,7 +711,7 @@ class AppsPageState extends State<AppsPage> {
                         if (shown.isEmpty && shownNew.isEmpty)
                           Padding(
                             padding: const EdgeInsets.all(24),
-                            child: Center(child: Text('No app matches "$query"', style: TextStyle(color: scheme.onSurfaceVariant))),
+                            child: Center(child: Text(trf('No app matches "{0}"', [query]), style: TextStyle(color: scheme.onSurfaceVariant))),
                           ),
                       ],
                     ),

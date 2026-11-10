@@ -1,3 +1,4 @@
+import 'package:maprisma_manager_core/maprisma_manager_core.dart' show tr, trf;
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -68,7 +69,7 @@ class BarEditorPageState extends State<BarEditorPage> {
   List<Map> entries(String area) => (((bar?['areas'] as Map?)?[area] as List?) ?? const []).cast<Map>();
   /// Our icons that are out of the bar, of installed apps only.
   List<Map> get out => [
-    for (final o in ((bar?['out'] as List?) ?? const []).cast<Map>())
+    for (final o in ((bar?['out'] as List?) ?? []).cast<Map>())
       if (_app(o['app']) case final a? when installed(a)) o,
   ];
 
@@ -85,7 +86,7 @@ class BarEditorPageState extends State<BarEditorPage> {
       }
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text('That did not work (${e.code})${e.reason == null ? '' : ': ${e.reason}'}')));
+        ..showSnackBar(SnackBar(content: Text(trf('That did not work ({0}){1}', [e.code, e.reason == null ? '' : ': ${e.reason}']))));
     } finally {
       if (mounted) setState(() => working = false);
     }
@@ -134,7 +135,7 @@ class BarEditorPageState extends State<BarEditorPage> {
     Widget box({Key? key}) => Container(
       key: key,
       margin: const EdgeInsets.symmetric(horizontal: 3, vertical: 4),
-      padding: const EdgeInsets.fromLTRB(6, 4, 10, 4),
+      padding: EdgeInsets.fromLTRB(6, 4, 10, 4),
       decoration: BoxDecoration(
         color: ours ? scheme.secondaryContainer.withValues(alpha: .7) : scheme.surfaceContainer,
         borderRadius: BorderRadius.circular(corners(context).clamp(4, 12)),
@@ -154,7 +155,7 @@ class BarEditorPageState extends State<BarEditorPage> {
           ),
           if (hidden) ...[
             const SizedBox(width: 4),
-            Tooltip(message: 'Not running: it keeps its place but isn\'t drawn', child: Icon(Icons.visibility_off, size: 14, color: scheme.onSurfaceVariant)),
+            Tooltip(message: tr('Not running: it keeps its place but isn\'t drawn'), child: Icon(Icons.visibility_off, size: 14, color: scheme.onSurfaceVariant)),
           ],
         ],
       ),
@@ -173,11 +174,11 @@ class BarEditorPageState extends State<BarEditorPage> {
         },
         child: Tooltip(
           message: area == null
-              ? '${_label(e)}: drag it into an area (Enter: the end of the centre)'
+              ? trf('{0}: drag it into an area (Enter: the end of the centre)', [_label(e)])
               : ours
-              ? '${_label(e)}: drag it, or use the arrow keys (Delete takes it out)'
-              : '${_label(e)} (the desktop\'s own): it can be moved, not taken out',
-          waitDuration: const Duration(milliseconds: 700),
+              ? trf('{0}: drag it, or use the arrow keys (Delete takes it out)', [_label(e)])
+              : trf('{0} (the desktop\'s own): it can be moved, not taken out', [_label(e)]),
+          waitDuration: Duration(milliseconds: 700),
           child: body,
         ),
       ),
@@ -243,11 +244,11 @@ class BarEditorPageState extends State<BarEditorPage> {
     final scheme = Theme.of(context).colorScheme;
     final list = entries(area);
     final title = switch (area) {
-      'left' => 'Left',
-      'center' => 'Centre',
-      _ => 'Right',
+      'left' => tr('Left'),
+      'center' => tr('Centre'),
+      _ => tr('Right'),
     };
-    Widget line() => Container(width: 3, height: 30, margin: const EdgeInsets.symmetric(horizontal: 1), color: scheme.primary);
+    Widget line() => Container(width: 3, height: 30, margin: EdgeInsets.symmetric(horizontal: 1), color: scheme.primary);
     return DragTarget<Map>(
       onWillAcceptWithDetails: (_) => !working,
       onMove: (d) {
@@ -268,7 +269,7 @@ class BarEditorPageState extends State<BarEditorPage> {
       builder: (context, candidates, _) => Container(
         key: ValueKey('area-$area'),
         margin: const EdgeInsets.symmetric(vertical: 5),
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+        padding: EdgeInsets.fromLTRB(12, 8, 12, 8),
         decoration: BoxDecoration(
           color: scheme.surfaceContainerLow,
           borderRadius: BorderRadius.circular(corners(context).clamp(4, 14)),
@@ -292,7 +293,7 @@ class BarEditorPageState extends State<BarEditorPage> {
                     if (list.isEmpty)
                       Padding(
                         padding: const EdgeInsets.all(8),
-                        child: Text('Empty: drop an icon here', style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12.5)),
+                        child: Text(tr('Empty: drop an icon here'), style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12.5)),
                       ),
                   ],
                 ),
@@ -311,8 +312,8 @@ class BarEditorPageState extends State<BarEditorPage> {
       onAcceptWithDetails: (d) => unawaited(takeOut(d.data)),
       builder: (context, candidates, _) => Container(
         key: const ValueKey('area-out'),
-        margin: const EdgeInsets.symmetric(vertical: 5),
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+        margin: EdgeInsets.symmetric(vertical: 5),
+        padding: EdgeInsets.fromLTRB(12, 8, 12, 8),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(corners(context).clamp(4, 14)),
           border: Border.all(color: candidates.isNotEmpty ? scheme.primary : scheme.outlineVariant, style: BorderStyle.solid),
@@ -320,14 +321,14 @@ class BarEditorPageState extends State<BarEditorPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Not in the bar', style: TextStyle(fontWeight: FontWeight.w700, color: scheme.onSurfaceVariant, fontSize: 12.5)),
+            Text(tr('Not in the bar'), style: TextStyle(fontWeight: FontWeight.w700, color: scheme.onSurfaceVariant, fontSize: 12.5)),
             Wrap(
               children: [
                 for (final o in out) _chip(o, area: null),
                 if (out.isEmpty)
                   Padding(
                     padding: const EdgeInsets.all(8),
-                    child: Text('Every installed Maprisma icon is in the bar: drop one here to take it out',
+                    child: Text(tr('Every installed Maprisma icon is in the bar: drop one here to take it out'),
                         style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12.5)),
                   ),
               ],
@@ -347,38 +348,38 @@ class BarEditorPageState extends State<BarEditorPage> {
     if (b == null) {
       body = error != null ? Center(child: Text(error!, style: TextStyle(color: scheme.error))) : const Center(child: CircularProgressIndicator());
     } else if (kind == 'none') {
-      body = const Center(child: Text('This desktop has no bar the Manager can edit.'));
+      body = Center(child: Text(tr('This desktop has no bar the Manager can edit.')));
     } else if (kind == 'systemTray') {
       final trays = ((b['trays'] as List?) ?? const []).cast<Map>();
       body = ListView(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(16),
         children: [
-          Text('${b['note'] ?? b['error'] ?? 'Without Maprisma Icons in the panel the icons sit in the system tray: their order is Plasma\'s.'}'),
-          const SizedBox(height: 12),
+          Text('${b['note'] ?? b['error'] ?? tr('Without Maprisma Icons in the panel the icons sit in the system tray: their order is Plasma\'s.')}'),
+          SizedBox(height: 12),
           for (final t in trays)
             ListTile(
               title: Text(_label({'app': t['app'], 'id': t['id']})),
-              subtitle: Text('${t['startsAtLogin'] == true ? 'starts at login' : 'doesn\'t start at login'} · ${t['running'] == true ? 'running' : 'not running'}'),
+              subtitle: Text('${t['startsAtLogin'] == true ? tr('starts at login') : tr('doesn\'t start at login')} · ${t['running'] == true ? 'running' : tr('not running')}'),
             ),
         ],
       );
     } else {
       body = ListView(
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+        padding: EdgeInsets.fromLTRB(16, 4, 16, 16),
         children: [
-          if (error != null) Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(error!, style: TextStyle(color: scheme.error))),
+          if (error != null) Padding(padding: EdgeInsets.only(bottom: 8), child: Text(error!, style: TextStyle(color: scheme.error))),
           Text(
             kind == 'cosmicPanel'
-                ? 'COSMIC panel "${b['panel']}": drag the icons where you want them. The greyed ones are COSMIC\'s own.'
-                : 'Maprisma Icons in the panel: drag the icons where you want them. The greyed ones are Plasma\'s own.',
+                ? trf('COSMIC panel "{0}": drag the icons where you want them. The greyed ones are COSMIC\'s own.', [b['panel']])
+                : tr('Maprisma Icons in the panel: drag the icons where you want them. The greyed ones are Plasma\'s own.'),
             style: TextStyle(color: scheme.onSurfaceVariant),
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           for (final a in _areas) _area(a),
           _outRow(),
           const SizedBox(height: 6),
           Text(
-            'Keys: Tab to a chip; Left and Right move it, Up and Down to the area above or below, Delete takes it out; Enter puts one from "Not in the bar" into the centre.',
+            tr('Keys: Tab to a chip; Left and Right move it, Up and Down to the area above or below, Delete takes it out; Enter puts one from "Not in the bar" into the centre.'),
             style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
           ),
         ],
@@ -398,12 +399,12 @@ class BarEditorPageState extends State<BarEditorPage> {
                     TextButton.icon(
                       onPressed: () => Navigator.maybePop(context),
                       icon: const Icon(Icons.arrow_back, size: 18),
-                      label: const Text('Back'),
+                      label: Text(tr('Back')),
                     ),
                     const Spacer(),
-                    if (working) const Padding(padding: EdgeInsets.only(right: 8), child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))),
-                    IconButton(tooltip: 'Reload', onPressed: load, icon: const Icon(Icons.refresh)),
-                    Text('BAR', style: TextStyle(letterSpacing: 1.2, fontWeight: FontWeight.w700, color: scheme.onSurfaceVariant)),
+                    if (working) Padding(padding: EdgeInsets.only(right: 8), child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))),
+                    IconButton(tooltip: tr('Reload'), onPressed: load, icon: Icon(Icons.refresh)),
+                    Text(tr('BAR'), style: TextStyle(letterSpacing: 1.2, fontWeight: FontWeight.w700, color: scheme.onSurfaceVariant)),
                   ],
                 ),
               ),
@@ -412,8 +413,8 @@ class BarEditorPageState extends State<BarEditorPage> {
                   key: const ValueKey('bar-changed'),
                   backgroundColor: scheme.surfaceContainerHigh,
                   leading: Icon(Icons.sync_problem, color: markColors(context).update),
-                  content: const Text('The bar was changed meanwhile (by COSMIC\'s settings or another program): nothing was written. Reload to see it as it is now.'),
-                  actions: [TextButton(onPressed: load, child: const Text('Reload'))],
+                  content: Text(tr('The bar was changed meanwhile (by COSMIC\'s settings or another program): nothing was written. Reload to see it as it is now.')),
+                  actions: [TextButton(onPressed: load, child: Text(tr('Reload')))],
                 ),
               Expanded(child: body),
             ],

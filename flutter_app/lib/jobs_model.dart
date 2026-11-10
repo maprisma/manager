@@ -1,3 +1,4 @@
+import 'package:maprisma_manager_core/maprisma_manager_core.dart' show tr;
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
@@ -128,11 +129,11 @@ class JobView {
 
   /// "Installing Maprisma WLAN Monitor" …
   String get title => '${switch (kind) {
-    'install' => 'Installing',
-    'update' => 'Updating',
-    'reinstall' => 'Reinstalling',
-    'remove' => 'Uninstalling',
-    'release' => 'Installing the release of',
+    'install' => tr('Installing'),
+    'update' => tr('Updating'),
+    'reinstall' => tr('Reinstalling'),
+    'remove' => tr('Uninstalling'),
+    'release' => tr('Installing the release of'),
     _ => kind,
   }} $name';
 }

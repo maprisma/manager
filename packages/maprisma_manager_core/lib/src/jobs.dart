@@ -13,6 +13,9 @@
 /// script continues.
 library;
 
+import 'translations.dart';
+
+
 import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
@@ -116,7 +119,7 @@ final class JobLog {
       var tail = _tail.length > tailMax ? _tail.sublist(_tail.length - tailMax) : _tail;
       final nl = tail.indexOf(10);
       if (nl >= 0 && nl < tail.length - 1) tail = tail.sublist(nl + 1);
-      _raf.writeFromSync(utf8.encode('\n» [${_dropped - tail.length} bytes of output left out]\n'));
+      _raf.writeFromSync(utf8.encode(trf('\n» [{0} bytes of output left out]\n', [_dropped - tail.length])));
       _raf.writeFromSync(tail);
     }
     _closed = true;
@@ -257,10 +260,10 @@ final class JobEngine {
     final appId = params['app'];
     if (appId is! String || appId.isEmpty) throw RouteError('bad_params', 'app');
     final app = findApp(appId);
-    if (app == null) throw RouteError('not_found', 'no app $appId');
+    if (app == null) throw RouteError('not_found', trf('no app {0}', [appId]));
     final kindName = params['kind'];
     final kind = JobKind.values.where((k) => k.name == kindName).firstOrNull;
-    if (kind == null) throw RouteError('bad_params', 'kind (install, update, reinstall, remove, release)');
+    if (kind == null) throw RouteError('bad_params', tr('kind (install, update, reinstall, remove, release)'));
     final rawOptions = params['options'] ?? const {};
     if (rawOptions is! Map) throw RouteError('bad_params', 'options');
     final options = Map<String, dynamic>.from(rawOptions);
@@ -272,14 +275,14 @@ final class JobEngine {
     const known = {'delete_settings', 'dependents_ok', 'revision', 'tag', 'source'};
     for (final k in options.keys) {
       if (known.contains(k)) continue;
-      if (!app.components.any((c) => c.flags.containsKey(k))) throw RouteError('bad_params', 'options.$k: ${app.name} has no such option');
+      if (!app.components.any((c) => c.flags.containsKey(k))) throw RouteError('bad_params', trf('options.{0}: {1} has no such option', [k, app.name]));
       if (options[k] is! bool) throw RouteError('bad_params', 'options.$k');
-      if (kind == JobKind.remove) throw RouteError('bad_params', 'options.$k is for installs');
+      if (kind == JobKind.remove) throw RouteError('bad_params', trf('options.{0} is for installs', [k]));
     }
     if (options['source'] != null) {
-      if (options['source'] != 'release' && options['source'] != 'folder') throw RouteError('bad_params', 'options.source (release or folder)');
+      if (options['source'] != 'release' && options['source'] != 'folder') throw RouteError('bad_params', tr('options.source (release or folder)'));
       if (!app.components.any((c) => c.kind == InstallKind.pacman) || kind == JobKind.remove || kind == JobKind.release) {
-        throw RouteError('bad_params', 'options.source is for a pacman package\'s install, update and reinstall');
+        throw RouteError('bad_params', tr('options.source is for a pacman package\'s install, update and reinstall'));
       }
     }
     if (params['tag'] != null && options['tag'] == null) options['tag'] = params['tag'];
@@ -290,31 +293,31 @@ final class JobEngine {
       checkRemovable(app, ctx.desktop);
     } else if (kind == JobKind.release) {
       final spec = app.release;
-      if (spec == null) throw RouteError('unavailable', '${app.name} has no GitHub releases');
+      if (spec == null) throw RouteError('unavailable', trf('{0} has no GitHub releases', [app.name]));
       if (!spec.supported) {
-        throw RouteError('unsupported_yet', 'installing a ${app.name} release is not supported yet${spec.note == null ? '' : ': ${spec.note}'}');
+        throw RouteError('unsupported_yet', trf('installing a {0} release is not supported yet{1}', [app.name, spec.note == null ? '' : ': ${spec.note}']));
       }
       final c = app.components.where((c) => c.id == spec.component).firstOrNull;
       if (!app.desktops.contains(ctx.desktop) || c == null || !c.desktops.contains(ctx.desktop)) {
-        throw RouteError('unavailable', '${app.name} is not for ${ctx.desktop.name}');
+        throw RouteError('unavailable', trf('{0} is not for {1}', [app.name, ctx.desktop.name]));
       }
     } else {
       if (app.installation == Support.unsupportedYet) {
-        throw RouteError('unsupported_yet', 'installing ${app.name} is not supported yet${app.supportNote == null ? '' : ': ${app.supportNote}'}');
+        throw RouteError('unsupported_yet', trf('installing {0} is not supported yet{1}', [app.name, app.supportNote == null ? '' : ': ${app.supportNote}']));
       }
       if (!app.desktops.contains(ctx.desktop) || !app.components.any((c) => c.desktops.contains(ctx.desktop))) {
-        throw RouteError('unavailable', '${app.name} is not for ${ctx.desktop.name}');
+        throw RouteError('unavailable', trf('{0} is not for {1}', [app.name, ctx.desktop.name]));
       }
     }
-    if (_exclusive) throw RouteError('busy', 'a bar icon is being changed: try again in a moment');
+    if (_exclusive) throw RouteError('busy', tr('a bar icon is being changed: try again in a moment'));
     // While the Manager's update waits to be swapped in, nothing new starts (the window that quits
     // for it would leave the job behind).
     final pending = pendingSelfUpdate(paths);
     if (pending != null) {
-      throw RouteError('busy', 'the Manager\'s update ${pending.job} waits to be put in place (helper pid ${pending.pid}): close Maprisma Manager to finish it');
+      throw RouteError('busy', trf('the Manager\'s update {0} waits to be put in place (helper pid {1}): close Maprisma Manager to finish it', [pending.job, pending.pid]));
     }
     if (_runs.values.any((r) => r.job['app'] == appId && r.job['finished'] != true)) {
-      throw RouteError('busy', 'a job for ${app.name} is already queued or running');
+      throw RouteError('busy', trf('a job for {0} is already queued or running', [app.name]));
     }
     _acquire();
     final now = ctx.clock().toUtc();
@@ -410,24 +413,24 @@ final class JobEngine {
     final run = id is String ? _runs[id] : null;
     if (run == null) {
       final job = _job(id);
-      if (job['finished'] == true) throw RouteError('finished', 'the job has ended');
-      throw RouteError('not_owner', 'the job runs in another Maprisma Manager (pid ${(job['owner'] as Map?)?['pid']})');
+      if (job['finished'] == true) throw RouteError('finished', tr('the job has ended'));
+      throw RouteError('not_owner', trf('the job runs in another Maprisma Manager (pid {0})', [(job['owner'] as Map?)?['pid']]));
     }
     final job = run.job;
-    if (job['finished'] == true) throw RouteError('finished', 'the job has ended');
+    if (job['finished'] == true) throw RouteError('finished', tr('the job has ended'));
     if (job['state'] == 'queued') {
       _queue.remove(run);
-      run.log.note('cancelled before it started');
+      run.log.note(tr('cancelled before it started'));
       _end(run, 'cancelled', {'ok': false, 'code': 'cancelled'});
       return {'id': run.id, 'cancelled': true};
     }
     if (run.committed || !['prepare', 'build'].contains(job['phase'])) {
-      throw RouteError('not_cancellable', 'the job is in its ${job['phase']} phase (it changes files now)');
+      throw RouteError('not_cancellable', trf('the job is in its {0} phase (it changes files now)', [job['phase']]));
     }
     if (run.process == null || run.pgid == null) {
       // prepare, or the script is being started: it is ended as soon as its group is known.
       run.cancelRequested = true;
-      run.log.note('cancel asked: the job stops before the next step');
+      run.log.note(tr('cancel asked: the job stops before the next step'));
       return {'id': run.id, 'cancelling': true};
     }
     await _cancelScript(run);
@@ -463,7 +466,7 @@ final class JobEngine {
   Future<void> _cancelScript(_Run run) async {
     run.cancelRequested = false;
     if (!await _pause(run)) {
-      throw RouteError('not_cancellable', 'the script could not be paused to check it');
+      throw RouteError('not_cancellable', tr('the script could not be paused to check it'));
     }
     final changed = firstChanged(run.signatures);
     if (changed != null) {
@@ -472,15 +475,15 @@ final class JobEngine {
       } finally {
         _signalGroup(run, sigCont);
       }
-      throw RouteError('not_cancellable', 'the install has started writing its files ($changed)');
+      throw RouteError('not_cancellable', trf('the install has started writing its files ({0})', [changed]));
     }
     run.cancelRequested = true;
     run.cancelAt = DateTime.now();
-    run.log.note('cancel: TERM to the script\'s process group ${run.pgid}');
+    run.log.note(trf('cancel: TERM to the script\'s process group {0}', [run.pgid]));
     _signalGroup(run, sigTerm);
     _signalGroup(run, sigCont);
     run.killTimer = Timer(killAfter, () {
-      if (_signalGroup(run, sigKill)) run.log.note('cancel: KILL to the process group ${run.pgid}');
+      if (_signalGroup(run, sigKill)) run.log.note(trf('cancel: KILL to the process group {0}', [run.pgid]));
     });
   }
 
@@ -495,14 +498,14 @@ final class JobEngine {
   void _acquire() {
     if (_lock != null) return;
     final holder = _holders[lockPath];
-    if (holder != null && holder != this) throw RouteError('busy', 'another job runs in this process');
+    if (holder != null && holder != this) throw RouteError('busy', tr('another job runs in this process'));
     final f = File(lockPath);
     f.createSync(recursive: true);
     // A script whose Manager is gone may still be writing (an interrupted job's orphan).
     final orphan = loadJobs(paths).where((j) => j['state'] == 'interrupted' && orphanRunning(j)).firstOrNull;
     if (orphan != null) {
       final who = (orphan['pkexec'] ?? orphan['script']) as Map;
-      throw RouteError('busy', 'the ${orphan['pkexec'] != null ? 'pkexec/pacman' : 'script'} of the interrupted job ${orphan['id']} still runs (pid ${who['pid']}); wait for it to end');
+      throw RouteError('busy', trf('the {0} of the interrupted job {1} still runs (pid {2}); wait for it to end', [orphan['pkexec'] != null ? 'pkexec/pacman' : 'script', orphan['id'], who['pid']]));
     }
     final raf = f.openSync(mode: FileMode.append);
     try {
@@ -510,7 +513,7 @@ final class JobEngine {
     } on FileSystemException {
       raf.closeSync();
       final other = loadJobs(paths).where((j) => j['finished'] != true).firstOrNull;
-      throw RouteError('busy', other == null ? 'another Maprisma Manager runs a job' : 'another Maprisma Manager runs ${other['kind']} ${other['app']} (${other['id']})');
+      throw RouteError('busy', other == null ? tr('another Maprisma Manager runs a job') : trf('another Maprisma Manager runs {0} {1} ({2})', [other['kind'], other['app'], other['id']]));
     }
     _lock = raf;
     _holders[lockPath] = this;
@@ -558,7 +561,7 @@ final class JobEngine {
     // A finished job's file is the truth (the self-update helper finishes the Manager's later).
     if (live != null && live.job['finished'] != true) return live.job;
     final j = loadJob(paths, id) ?? live?.job;
-    if (j == null) throw RouteError('not_found', 'no job $id');
+    if (j == null) throw RouteError('not_found', trf('no job {0}', [id]));
     return j;
   }
 
@@ -576,7 +579,7 @@ final class JobEngine {
       r.job['component'] = component.id;
     }
     _persist(r.job);
-    r.log.note('phase: $phase${component == null ? '' : ' (${component.name})'}');
+    r.log.note(trf('phase: {0}{1}', [phase, component == null ? '' : ' (${component.name})']));
   }
 
   void _checkCancel(_Run r) {
@@ -590,7 +593,7 @@ final class JobEngine {
     r.job['ended'] = ctx.clock().toUtc().toIso8601String();
     r.job['committed'] = r.committed;
     _persist(r.job);
-    r.log.note('$state${result['code'] == null ? '' : ': ${result['code']}'}${result['message'] == null ? '' : ' (${result['message']})'}');
+    r.log.note('${uiLabel(state)}${result['code'] == null ? '' : ': ${result['code']}'}${result['message'] == null ? '' : ' (${result['message']})'}');
     r.log.close();
     if (!r.done.isCompleted) r.done.complete(r.job);
   }
@@ -612,7 +615,7 @@ final class JobEngine {
     r.job['state'] = 'running';
     r.job['started'] = ctx.clock().toUtc().toIso8601String();
     _persist(r.job);
-    r.log.note('${r.kind.name} ${r.app.name} (job ${r.id})');
+    r.log.note(trf('{0} {1} (job {2})', [r.kind.name, r.app.name, r.id]));
     try {
       final pacman = r.app.components.any((c) => c.kind == InstallKind.pacman);
       final result = r.kind == JobKind.remove
@@ -623,7 +626,7 @@ final class JobEngine {
       _end(r, 'succeeded', {'ok': true, ...result});
     } on _Cancelled {
       _dropNewBackups(r);
-      _end(r, 'cancelled', {'ok': false, 'code': 'cancelled', 'message': 'nothing was changed'});
+      _end(r, 'cancelled', {'ok': false, 'code': 'cancelled', 'message': tr('nothing was changed')});
     } on JobFailure catch (f) {
       if (!r.committed) _dropNewBackups(r);
       if (r.committed && r.kind != JobKind.remove) {
@@ -631,7 +634,7 @@ final class JobEngine {
         try {
           await (Bar(ctx)..follow = follow).applyWanted();
         } on Object catch (e) {
-          r.log.note('bar state not applied: $e');
+          r.log.note(trf('bar state not applied: {0}', [e]));
         }
       }
       _end(r, 'failed', {
@@ -641,7 +644,7 @@ final class JobEngine {
         'repair': r.committed,
       });
     } catch (e, st) {
-      r.log.note('internal error: $e\n$st');
+      r.log.note(trf('internal error: {0}\n{1}', [e, st]));
       _end(r, 'failed', {'ok': false, 'code': 'internal', 'message': '$e', 'repair': r.committed});
     } finally {
       r.killTimer?.cancel();
@@ -730,18 +733,18 @@ final class JobEngine {
       if (d == null) continue;
       final states = [for (final c in _components(d)) (await status.component(d, c)).state];
       if (states.isEmpty || states.any((s) => s != InstallState.installed)) {
-        throw JobFailure('missing_dependency', '${app.name} needs ${d.name} installed first');
+        throw JobFailure('missing_dependency', trf('{0} needs {1} installed first', [app.name, d.name]));
       }
     }
     for (final c in comps) {
       for (final pr in c.prerequisites) {
         if (pr.optional || ctx.tool(pr.command) != null) continue;
         if (pr.part != null && c.optionalParts.contains(pr.part)) {
-          r.log.note('${pr.command} not found: the ${pr.part} is skipped by the installer');
-          (r.job['warnings'] ??= <String>[]).add('${pr.command} missing: no ${pr.part}');
+          r.log.note(trf('{0} not found: the {1} is skipped by the installer', [pr.command, pr.part]));
+          (r.job['warnings'] ??= <String>[]).add(trf('{0} missing: no {1}', [pr.command, pr.part]));
           continue;
         }
-        throw JobFailure('missing_prerequisite', '${c.name} needs ${pr.command}');
+        throw JobFailure('missing_prerequisite', trf('{0} needs {1}', [c.name, pr.command]));
       }
     }
     final repos = release ? [comps.single.repo] : _repos(app, comps);
@@ -754,32 +757,32 @@ final class JobEngine {
         notes.add({'repo': repo, 'cloned': ctx.github.cloneUrlOf(input)});
       }
       final g = await ctx.git.inspect(repo, folder);
-      if (!g.present) throw JobFailure('no_source', '$folder is missing');
+      if (!g.present) throw JobFailure('no_source', trf('{0} is missing', [folder]));
       if (!g.isRepo || g.head == null) throw JobFailure('no_source', '$folder: ${g.error ?? 'not a git repository with a commit'}');
       if (r.kind != JobKind.update) continue;
       // The GitHub remote fetched first (the comparisons below then see what GitHub has now).
       final ghSlug = ctx.github.slugOf(input);
       final gh = ghSlug == null ? null : await githubRemote(ctx, folder, ghSlug, upstreamRemote: g.upstreamRemote);
       if (gh != null) {
-        r.log.note('$repo: git fetch ${gh.name} (GitHub, ${gh.url})');
+        r.log.note(trf('{0}: git fetch {1} (GitHub, {2})', [repo, gh.name, gh.url]));
         final f = await ctx.git.fetch(folder, gh.name);
         if (f.stderr.trim().isNotEmpty) r.log.add(utf8.encode(f.stderr.endsWith('\n') ? f.stderr : '${f.stderr}\n'));
-        if (!f.ok) r.log.note('$repo: fetching ${gh.name} failed; compared with what was fetched before');
+        if (!f.ok) r.log.note(trf('{0}: fetching {1} failed; compared with what was fetched before', [repo, gh.name]));
         _checkCancel(r);
       }
       final g2 = gh == null ? g : await ctx.git.inspect(repo, folder);
       if (g2.upstream == null) {
-        r.log.note('$repo: no upstream, built as it is');
+        r.log.note(trf('{0}: no upstream, built as it is', [repo]));
       } else if (g2.dirty != false) {
-        r.log.note('$repo: uncommitted changes, no pull; built as it is');
+        r.log.note(trf('{0}: uncommitted changes, no pull; built as it is', [repo]));
       } else if (g2.relation == Relation.behind) {
-        r.log.note('$repo: git pull --ff-only (${g2.behind} new from ${g2.upstream})');
+        r.log.note(trf('{0}: git pull --ff-only ({1} new from {2})', [repo, g2.behind, g2.upstream]));
         final pull = await ctx.git.pullFfOnly(folder);
         if (pull.stdout.isNotEmpty) r.log.add(utf8.encode(pull.stdout));
         if (pull.stderr.isNotEmpty) r.log.add(utf8.encode(pull.stderr));
-        if (!pull.ok) throw JobFailure('pull_failed', '$repo: git pull --ff-only failed');
+        if (!pull.ok) throw JobFailure('pull_failed', trf('{0}: git pull --ff-only failed', [repo]));
       } else {
-        r.log.note('$repo: ${g2.relation.name} against ${g2.upstream}, no pull');
+        r.log.note(trf('{0}: {1} against {2}, no pull', [repo, g2.relation.name, g2.upstream]));
       }
       _checkCancel(r);
       final ff = await _githubUpdate(r, input, folder, fetched: gh != null);
@@ -812,7 +815,7 @@ final class JobEngine {
       if (rec != null && !rec.fromRelease && inputs.every(same) && rec.inputs.length == inputs.length) {
         final states = [for (final c in comps) (await status.component(app, c)).state];
         if (states.every((s) => s == InstallState.installed)) {
-          r.log.note('already up to date: the installed build is ${inputs.map((i) => '${i['repo']}@${'${i['commit']}'.substring(0, 7)}').join(', ')}');
+          r.log.note(trf('already up to date: the installed build is {0}', [inputs.map((i) => '${i['repo']}@${'${i['commit']}'.substring(0, 7)}').join(', ')]));
           return (status: status, repos: repos, notes: notes, inputs: inputs, upToDate: true);
         }
       }
@@ -855,7 +858,7 @@ final class JobEngine {
           root,
     };
     for (final root in preexisting) {
-      r.log.note('$root was there before: it stays on remove');
+      r.log.note(trf('{0} was there before: it stays on remove', [root]));
     }
     // Icons: the Plasma style before a generated one, to switch back to on remove.
     final saved = <String, String>{...?receipt?.saved};
@@ -872,13 +875,13 @@ final class JobEngine {
       if (ours) continue;
       final e = displaced.add(path, st,
           restore: receipt != null,
-          reason: receipt == null ? 'before the Manager' : (owned == null ? 'not in the receipt' : 'changed since the install'),
+          reason: receipt == null ? tr('before the Manager') : (owned == null ? tr('not in the receipt') : tr('changed since the install')),
           job: r.id,
           at: at);
       if (e != null) r.newBackups.add(e);
     }
     displaced.save();
-    if (r.newBackups.isNotEmpty) r.log.note('backed up ${r.newBackups.length} file(s) that weren\'t the Manager\'s');
+    if (r.newBackups.isNotEmpty) r.log.note(trf('backed up {0} file(s) that weren\'t the Manager\'s', [r.newBackups.length]));
     r.signatures = signatures([for (final (_, path) in cat) path]);
     _checkCancel(r);
 
@@ -914,11 +917,11 @@ final class JobEngine {
     }
     if (failing.isNotEmpty) {
       for (final f in failing) {
-        r.log.note('postcondition: ${f['path']}: ${f['problem']}');
+        r.log.note(trf('postcondition: {0}: {1}', [f['path'], f['problem']]));
       }
-      throw JobFailure('verify_failed', '${failing.length} path(s) not as the installer leaves them');
+      throw JobFailure('verify_failed', trf('{0} path(s) not as the installer leaves them', [failing.length]));
     }
-    if (partial.isNotEmpty) r.log.note('partly installed: no ${partial.join(', ')}');
+    if (partial.isNotEmpty) r.log.note(trf('partly installed: no {0}', [partial.join(', ')]));
 
     _phase(r, 'finish');
     // A bar icon the user changed through the Manager: the installer put the default back.
@@ -926,14 +929,14 @@ final class JobEngine {
       final icon = IconService(ctx, this).reapply(app);
       if (icon != null) r.log.note(icon);
     } on Object catch (e) {
-      r.log.note('the chosen bar icon could not be applied again: $e');
+      r.log.note(trf('the chosen bar icon could not be applied again: {0}', [e]));
     }
     await _postSteps(r, app.postSteps);
     // Units stopped at the commit are started again (Narrator's reader).
     final unitsStarted = <String>[];
     for (final u in (r.job['units'] as List? ?? const []).cast<String>()) {
       final s = await ctx.runner.run(['systemctl', '--user', 'start', u], timeout: const Duration(seconds: 60));
-      r.log.note('systemctl --user start $u: ${s.ok ? 'ok' : 'failed (${s.stderr.trim()})'}');
+      r.log.note(trf('systemctl --user start {0}: {1}', [u, s.ok ? tr('ok') : trf('failed ({0})', [s.stderr.trim()])]));
       if (s.ok) unitsStarted.add(u);
     }
     final bar = await _barFinish(r);
@@ -963,7 +966,7 @@ final class JobEngine {
       if (m == null) continue;
       if (preexisting.contains(root)) m['preexisting'] = true;
       trees.add(m);
-      r.log.note(m['overflow'] == true ? '$root: too many files to own (${m['files']})' : '$root: ${m['files']} files owned');
+      r.log.note(m['overflow'] == true ? trf('{0}: too many files to own ({1})', [root, m['files']]) : trf('{0}: {1} files owned', [root, m['files']]));
     }
     final otherRoots = {for (final c in otherComps) for (final t in c.trees) paths.expand(t.path)};
     if (release && receipt != null) {
@@ -1004,7 +1007,7 @@ final class JobEngine {
     atomicWrite(p.join(paths.receipts, '${app.id}.json'), const JsonEncoder.withIndent('  ').convert(receiptJson));
     final keptRecord = File(keptFile(paths, app.id));
     if (keptRecord.existsSync()) keptRecord.deleteSync(); // the receipt says what is the app's now
-    r.log.note('receipt written (${(receiptJson['paths'] as List).length} paths)');
+    r.log.note(trf('receipt written ({0} paths)', [(receiptJson['paths'] as List).length]));
     return {
       if (partial.isNotEmpty) 'partial': partial.toList(),
       if (rel != null) 'release': {'tag': rel.release['tag'], 'asset': rel.asset, 'sha256': rel.sha256},
@@ -1020,9 +1023,9 @@ final class JobEngine {
   /// when complete, so a cancelled or failed clone leaves nothing behind. Cancellable.
   Future<void> _clone(_Run r, Input input, String folder) async {
     final slug = ctx.github.slugOf(input);
-    if (slug == null) throw JobFailure('no_source', '$folder is missing and ${input.repo} is not on GitHub');
+    if (slug == null) throw JobFailure('no_source', trf('{0} is missing and {1} is not on GitHub', [folder, input.repo]));
     final git = ctx.runner.which('git');
-    if (git == null) throw JobFailure('missing_prerequisite', 'git is needed to clone ${input.repo}');
+    if (git == null) throw JobFailure('missing_prerequisite', trf('git is needed to clone {0}', [input.repo]));
     final url = ctx.cloneUrlFor(slug);
     final parent = p.dirname(folder);
     Directory(parent).createSync(recursive: true);
@@ -1032,25 +1035,25 @@ final class JobEngine {
     }
 
     drop();
-    r.log.note('${input.repo}: the folder is missing: git clone $url $folder');
+    r.log.note(trf('{0}: the folder is missing: git clone {1} {2}', [input.repo, url, folder]));
     final (:code, :stopped, :startFailed) = await cloneInGroup(ctx, git, url, tmp,
         killAfter: killAfter, cancelled: () => r.cancelRequested, onOutput: r.log.add);
-    if (startFailed != null) throw JobFailure('clone_failed', 'git clone could not start: $startFailed');
+    if (startFailed != null) throw JobFailure('clone_failed', trf('git clone could not start: {0}', [startFailed]));
     if (r.cancelRequested) {
       drop();
-      r.log.note('clone cancelled; nothing kept');
+      r.log.note(tr('clone cancelled; nothing kept'));
       throw _Cancelled();
     }
     if (code != 0 || stopped) {
       drop();
-      throw JobFailure('clone_failed', 'git clone $url failed (${stopped ? 'took too long' : 'exit code $code'})');
+      throw JobFailure('clone_failed', trf('git clone {0} failed ({1})', [url, stopped ? tr('took too long') : trf('exit code {0}', [code])]));
     }
     if (FileSystemEntity.typeSync(folder, followLinks: false) != FileSystemEntityType.notFound) {
       drop();
-      throw JobFailure('no_source', '$folder appeared while cloning: left as it is');
+      throw JobFailure('no_source', trf('{0} appeared while cloning: left as it is', [folder]));
     }
     Directory(tmp).renameSync(folder);
-    r.log.note('${input.repo}: cloned into $folder');
+    r.log.note(trf('{0}: cloned into {1}', [input.repo, folder]));
   }
 
   /// An update of a folder whose configured upstream isn't its GitHub remote (fetched just
@@ -1065,7 +1068,7 @@ final class JobEngine {
     final g = await ctx.git.inspect(repo, folder);
     final gh = await githubRemote(ctx, folder, slug, upstreamRemote: g.upstreamRemote);
     if (gh == null) {
-      final why = 'no remote of the folder is ${githubWebUrl(slug)}: GitHub not checked';
+      final why = trf('no remote of the folder is {0}: GitHub not checked', [githubWebUrl(slug)]);
       r.log.note('$repo: $why');
       return {'repo': repo, 'github': githubWebUrl(slug), 'fastForward': false, 'why': why};
     }
@@ -1073,39 +1076,39 @@ final class JobEngine {
     final ref = '${gh.name}/${githubBranch(ctx.github.facts(slug), g)}';
     String? why;
     if (!fetched) {
-      why = 'fetching ${gh.name} failed';
+      why = trf('fetching {0} failed', [gh.name]);
     } else {
       final c = await ctx.git.compare(folder, ref);
       if (!c.exists) {
-        why = '$ref does not exist';
+        why = trf('{0} does not exist', [ref]);
       } else if (c.relation == Relation.upToDate) {
-        why = 'up to date with $ref';
+        why = trf('up to date with {0}', [ref]);
       } else if (c.relation == Relation.ahead) {
-        why = 'the folder is ahead of $ref';
+        why = trf('the folder is ahead of {0}', [ref]);
       } else if (c.relation == Relation.diverged) {
-        why = 'diverged from $ref (${c.ahead} local, ${c.behind} there)';
+        why = trf('diverged from {0} ({1} local, {2} there)', [ref, c.ahead, c.behind]);
       } else if (c.relation != Relation.behind) {
-        why = 'could not compare with $ref';
+        why = trf('could not compare with {0}', [ref]);
       } else {
         // checked again right before the merge: HEAD, branch and a clean tree as compared
         final now = await ctx.git.inspect(repo, folder);
         if (now.branch == null) {
-          why = 'detached HEAD';
+          why = tr('detached HEAD');
         } else if (now.dirty != false) {
-          why = 'uncommitted changes';
+          why = tr('uncommitted changes');
         } else if (now.head != g.head || now.branch != g.branch) {
-          why = 'the folder changed while checking';
+          why = tr('the folder changed while checking');
         } else {
-          r.log.note('$repo: git merge --ff-only $ref (${c.commit!.substring(0, 12)}, ${c.behind} new from GitHub)');
+          r.log.note(trf('{0}: git merge --ff-only {1} ({2}, {3} new from GitHub)', [repo, ref, c.commit!.substring(0, 12), c.behind]));
           final m = await ctx.git.mergeFfOnly(folder, c.commit!);
           if (m.stdout.isNotEmpty) r.log.add(utf8.encode(m.stdout));
           if (m.stderr.isNotEmpty) r.log.add(utf8.encode(m.stderr));
-          if (!m.ok) throw JobFailure('pull_failed', '$repo: git merge --ff-only $ref failed');
+          if (!m.ok) throw JobFailure('pull_failed', trf('{0}: git merge --ff-only {1} failed', [repo, ref]));
           return {'repo': repo, 'remote': gh.name, 'ref': ref, 'commit': c.commit, 'fastForward': true, 'new': c.behind};
         }
       }
     }
-    r.log.note('$repo: no fast-forward to $ref: $why');
+    r.log.note(trf('{0}: no fast-forward to {1}: {2}', [repo, ref, why]));
     return {'repo': repo, 'remote': gh.name, 'ref': ref, 'fastForward': false, 'why': why};
   }
 
@@ -1114,7 +1117,7 @@ final class JobEngine {
   Future<({Map<String, dynamic> release, String asset, String file, String sha256})> _downloadRelease(_Run r, AppEntry app) async {
     final spec = app.release!;
     final slug = app.mainInput.github;
-    if (slug == null) throw JobFailure('no_release', '${app.name} is not on GitHub');
+    if (slug == null) throw JobFailure('no_release', trf('{0} is not on GitHub', [app.name]));
     final tag = (r.job['options'] as Map)['tag'] as String?;
     Map<String, dynamic>? rel;
     try {
@@ -1122,18 +1125,18 @@ final class JobEngine {
     } on GitHubError catch (e) {
       throw JobFailure('github_failed', '$slug: ${e.message}');
     } on Object catch (e) {
-      throw JobFailure('github_failed', '$slug: offline? ($e)');
+      throw JobFailure('github_failed', trf('{0}: offline? ({1})', [slug, e]));
     }
-    if (rel == null) throw JobFailure('no_release', tag == null ? '$slug has no release' : '$slug has no release $tag');
+    if (rel == null) throw JobFailure('no_release', tag == null ? trf('{0} has no release', [slug]) : trf('{0} has no release {1}', [slug, tag]));
     final relTag = rel['tag'];
-    if (relTag is! String || !validTag(relTag)) throw JobFailure('no_release', 'the release has no usable tag');
+    if (relTag is! String || !validTag(relTag)) throw JobFailure('no_release', tr('the release has no usable tag'));
     final asset = spec.asset(tagVersion(relTag));
     final assets = [for (final a in (rel['assets'] as List? ?? const [])) if (a is Map) a];
     final tar = assets.where((a) => a['name'] == asset).firstOrNull;
     final sum = assets.where((a) => a['name'] == '$asset.sha256').firstOrNull;
-    if (tar == null || tar['url'] is! String) throw JobFailure('no_asset', 'release $relTag has no $asset');
-    if (sum == null || sum['url'] is! String) throw JobFailure('no_checksum', 'release $relTag has no $asset.sha256: not installed');
-    r.log.note('release $relTag of $slug: $asset (${tar['size'] ?? '?'} bytes)');
+    if (tar == null || tar['url'] is! String) throw JobFailure('no_asset', trf('release {0} has no {1}', [relTag, asset]));
+    if (sum == null || sum['url'] is! String) throw JobFailure('no_checksum', trf('release {0} has no {1}.sha256: not installed', [relTag, asset]));
+    r.log.note(trf('release {0} of {1}: {2} ({3} bytes)', [relTag, slug, asset, tar['size'] ?? '?']));
     final dir = p.join(ctx.github.downloads, slug.replaceAll('/', '_'), relTag);
     Directory(dir).createSync(recursive: true);
 
@@ -1157,20 +1160,20 @@ final class JobEngine {
     final sumFile = p.join(dir, '$asset.sha256');
     await get(sum['url'] as String, sumFile);
     final want = parseSha256File(File(sumFile).readAsStringSync(), asset);
-    if (want == null) throw JobFailure('bad_checksum', '$asset.sha256 holds no sha256 for $asset: not installed');
+    if (want == null) throw JobFailure('bad_checksum', trf('{0}.sha256 holds no sha256 for {1}: not installed', [asset, asset]));
     final file = p.join(dir, asset);
     if (File(file).existsSync() && await sha256OfFile(file) == want) {
-      r.log.note('$asset: already downloaded ($file)');
+      r.log.note(trf('{0}: already downloaded ({1})', [asset, file]));
     } else {
-      r.log.note('downloading ${tar['url']}');
+      r.log.note(trf('downloading {0}', [tar['url']]));
       await get(tar['url'] as String, file);
     }
     final got = await sha256OfFile(file);
     if (got != want) {
       File(file).deleteSync();
-      throw JobFailure('checksum_mismatch', '$asset: sha256 $got, its .sha256 says $want: not installed');
+      throw JobFailure('checksum_mismatch', trf('{0}: sha256 {1}, its .sha256 says {2}: not installed', [asset, got, want]));
     }
-    r.log.note('$asset: sha256 $got matches $asset.sha256');
+    r.log.note(trf('{0}: sha256 {1} matches {2}.sha256', [asset, got, asset]));
     r.job['release'] = {'tag': relTag, 'asset': asset, 'sha256': got, 'file': file};
     _persist(r.job);
     _checkCancel(r);
@@ -1200,7 +1203,7 @@ final class JobEngine {
         if (placed && type(target) == FileSystemEntityType.file && sha256File(target) == sha) {
           File(target).deleteSync();
         } else if (placed && type(target) != FileSystemEntityType.notFound) {
-          r.log.note('$target was replaced during the install: left as it is');
+          r.log.note(trf('{0} was replaced during the install: left as it is', [target]));
         }
         if (aside != null) {
           if (type(target) == FileSystemEntityType.notFound) {
@@ -1208,13 +1211,13 @@ final class JobEngine {
             r.job.remove('dist');
             _persist(r.job);
           } else {
-            r.log.note('the earlier $asset is kept as $aside ($target is taken)');
+            r.log.note(trf('the earlier {0} is kept as {1} ({2} is taken)', [asset, aside, target]));
           }
         }
         if (reusedMtime != null && type(target) == FileSystemEntityType.file) File(target).setLastModifiedSync(reusedMtime);
         if (madeDist && Directory(dist).existsSync() && Directory(dist).listSync().isEmpty) Directory(dist).deleteSync();
       } on FileSystemException catch (e) {
-        r.log.note('cleaning up $dist: $e');
+        r.log.note(trf('cleaning up {0}: {1}', [dist, e]));
       }
     }
 
@@ -1234,7 +1237,7 @@ final class JobEngine {
           _persist(r.job);
           type(target) == FileSystemEntityType.link ? Link(target).renameSync(to) : File(target).renameSync(to);
           aside = to;
-          r.log.note('a different $asset in ${spec.dist}/ was moved aside to $to for the install');
+          r.log.note(trf('a different {0} in {1}/ was moved aside to {2} for the install', [asset, spec.dist, to]));
         }
       }
       if (reusedMtime == null) {
@@ -1250,7 +1253,7 @@ final class JobEngine {
       undo();
       rethrow;
     }
-    r.log.note('${placed ? 'placed' : 'using'} $target (the newest in ${spec.dist}/)');
+    r.log.note(trf('{0} {1} (the newest in {2}/)', [placed ? tr('placed') : tr('using'), target, spec.dist]));
     return undo;
   }
 
@@ -1296,7 +1299,7 @@ final class JobEngine {
           target: kdeTarget ?? (panel == null || panel == _mainPanel() ? null : {'panel': panel}));
       wanted.save(paths);
     });
-    r.log.note('bar state recorded ${r.kind == JobKind.remove ? 'before the remove (a later install puts it back there)' : 'before the install'}: '
+    r.log.note('${trf('bar state recorded {0}: ', [r.kind == JobKind.remove ? tr('before the remove (a later install puts it back there)') : tr('before the install')])}'
         '${st['state']}${area == null ? '' : ' (${area.name}${index == null ? '' : ' #$index'}${panel == null ? '' : ', $panel'})'}');
   }
 
@@ -1359,14 +1362,14 @@ final class JobEngine {
     final setsid = ctx.runner.which('setsid') ?? '/usr/bin/setsid';
     final options = r.job['options'] as Map? ?? const {};
     argv ??= [...c.install, for (final f in c.flags.entries) if (options[f.key] == true) f.value];
-    r.log.note('\$ ${argv.join(' ')}   (in $folder)');
+    r.log.note(trf('\$ {0}   (in {1})', [argv.join(' '), folder]));
     r.recent.clear();
     final Process proc;
     try {
       proc = await Process.start(setsid, argv,
           workingDirectory: folder, environment: {...scriptEnv(c, job: r.id), ...extraEnv}, includeParentEnvironment: false);
     } on ProcessException catch (e) {
-      throw JobFailure('script_failed', 'could not start ${argv.first}: ${e.message}');
+      throw JobFailure('script_failed', trf('could not start {0}: {1}', [argv.first, e.message]));
     }
     r.process = proc;
     // Not reaped yet, so this pid is the script's: its start time is its identity.
@@ -1384,7 +1387,7 @@ final class JobEngine {
       if (DateTime.now().isAfter(until)) break;
       await Future<void>.delayed(const Duration(milliseconds: 2));
     }
-    if (r.pgid == null) r.log.note('the script\'s process group is unknown: it can\'t be cancelled');
+    if (r.pgid == null) r.log.note(tr('the script\'s process group is unknown: it can\'t be cancelled'));
     r.job['script'] = {'pid': proc.pid, 'pgid': r.pgid, 'start': r.scriptStart, 'component': c.id};
     _persist(r.job);
     void out(List<int> d) {
@@ -1399,7 +1402,7 @@ final class JobEngine {
       try {
         await _cancelScript(r);
       } on RouteError catch (e) {
-        r.log.note('cancel came too late: ${e.message}');
+        r.log.note(trf('cancel came too late: {0}', [e.message]));
       }
     }
     final timer = Timer.periodic(pollEvery, (_) {
@@ -1417,22 +1420,22 @@ final class JobEngine {
     try {
       await Future.wait([outDone, errDone]).timeout(const Duration(seconds: 2));
     } on TimeoutException {
-      r.log.note('a child of the script still holds its output; not waited for');
+      r.log.note(tr('a child of the script still holds its output; not waited for'));
     }
     if (!r.committed) {
       final changed = firstChanged(r.signatures);
       if (changed != null) await _enterCommit(r, changed, scriptEnded: true);
     }
-    r.log.note('exit code $code');
+    r.log.note(trf('exit code {0}', [code]));
     if (r.cancelRequested) {
-      if (r.committed) throw JobFailure('cancelled', 'cancelled, but the script had started writing: repair (reinstall)');
+      if (r.committed) throw JobFailure('cancelled', tr('cancelled, but the script had started writing: repair (reinstall)'));
       throw _Cancelled();
     }
     if (code != 0 && !r.committed && c.busyMarker != null && r.recent.toString().contains(c.busyMarker!)) {
       throw JobFailure('app_busy',
-          '${c.name} ${c.busyMarker}: let it finish (or close it) and try again${c.flags.containsKey('force') ? ', or choose "force" (it is ended)' : ''}; nothing was changed');
+          trf('{0} {1}: let it finish (or close it) and try again{2}; nothing was changed', [c.name, c.busyMarker, c.flags.containsKey('force') ? tr(', or choose "force" (it is ended)') : '']));
     }
-    if (code != 0) throw JobFailure('script_failed', '${argv.join(' ')} exited with $code');
+    if (code != 0) throw JobFailure('script_failed', trf('{0} exited with {1}', [argv.join(' '), code]));
   }
 
   /// After a cancelled script's leader ended: its group's other members (a child that ignored
@@ -1447,10 +1450,10 @@ final class JobEngine {
       final now = DateTime.now();
       if (!killed && now.isAfter(killAt)) {
         killed = _signalGroup(r, sigKill);
-        r.log.note('cancel: KILL to what is left of the process group $pg');
+        r.log.note(trf('cancel: KILL to what is left of the process group {0}', [pg]));
       }
       if (now.isAfter(giveUp)) {
-        r.log.note('members of the process group $pg are still running');
+        r.log.note(trf('members of the process group {0} are still running', [pg]));
         break;
       }
       await Future<void>.delayed(const Duration(milliseconds: 50));
@@ -1467,11 +1470,11 @@ final class JobEngine {
     r.job['committed'] = true;
     r.job['phase'] = 'commit';
     _persist(r.job);
-    r.log.note('phase: commit (${why ?? '$changed changed'}; not cancellable from here)');
+    r.log.note(trf('phase: commit ({0}; not cancellable from here)', [why ?? trf('{0} changed', [changed])]));
     Future<void> body() async {
       final c = r.component;
       if (c != null && c.stopsOwnProcesses) {
-        r.log.note('the installer stops ${r.app.name}\'s processes itself');
+        r.log.note(trf('the installer stops {0}\'s processes itself', [r.app.name]));
         return;
       }
       final pause = !paused && !scriptEnded && r.process != null && await _pause(r);
@@ -1493,9 +1496,9 @@ final class JobEngine {
       if (ctx.runner.which('systemctl') == null) break;
       final active = await ctx.runner.run(['systemctl', '--user', 'is-active', '--quiet', u.name], timeout: const Duration(seconds: 10));
       if (!active.ok) continue;
-      r.log.note('systemctl --user stop ${u.name}');
+      r.log.note(trf('systemctl --user stop {0}', [u.name]));
       final s = await ctx.runner.run(['systemctl', '--user', 'stop', u.name], timeout: const Duration(seconds: 60));
-      if (!s.ok) r.log.note('stopping ${u.name} failed: ${s.stderr.trim()}');
+      if (!s.ok) r.log.note(trf('stopping {0} failed: {1}', [u.name, s.stderr.trim()]));
       (r.job['units'] ??= <String>[]).add(u.name);
     }
     final procs = [
@@ -1503,7 +1506,7 @@ final class JobEngine {
         if (pr.pid != pid && (r.pgid == null || procStat(pr.pid, procRoot: paths.proc)?.pgrp != r.pgid)) pr,
     ];
     if (procs.isEmpty) return;
-    r.log.note('stopping ${procs.length} process(es) of ${app.name}: ${procs.map((pr) => pr.pid).join(', ')}');
+    r.log.note(trf('stopping {0} process(es) of {1}: {2}', [procs.length, app.name, procs.map((pr) => pr.pid).join(', ')]));
     final res = await stopProcesses(procs, signaller: signaller, procRoot: paths.proc, uid: ctx.uid, grace: stopGrace);
     (r.job['stopped'] ??= <Map<String, dynamic>>[]).addAll(res);
     _persist(r.job);
@@ -1517,11 +1520,11 @@ final class JobEngine {
         _ => null,
       };
       if (argv == null) {
-        r.log.note('post step "$step": not run by this version');
+        r.log.note(trf('post step "{0}": not run by this version', [step]));
         continue;
       }
       if (ctx.runner.which(argv.first) == null) {
-        r.log.note('${argv.first} not found: skipped');
+        r.log.note(trf('{0} not found: skipped', [argv.first]));
         continue;
       }
       if (argv.first == 'gtk-update-icon-cache' && !Directory(argv.last).existsSync()) continue;
@@ -1536,14 +1539,14 @@ final class JobEngine {
   Future<Map<String, dynamic>> _barFinish(_Run r) async {
     final app = r.app;
     final out = <String, dynamic>{};
-    if (ctx.desktop == DesktopId.other || app.bar.none) return {'note': 'no bar icon here'};
+    if (ctx.desktop == DesktopId.other || app.bar.none) return {'note': tr('no bar icon here')};
     try {
       final applied = await (Bar(ctx)..follow = follow).applyWanted();
       out['applied'] = applied['changed'];
-      r.log.note('bar state from bar.json applied (${(applied['changed'] as List).isEmpty ? 'nothing to change' : (applied['changed'] as List).join(', ')})');
+      r.log.note(trf('bar state from bar.json applied ({0})', [(applied['changed'] as List).isEmpty ? tr('nothing to change') : (applied['changed'] as List).join(', ')]));
     } on RouteError catch (e) {
       out['error'] = '${e.code}: ${e.message}';
-      r.log.note('bar state not applied: ${e.code} ${e.message ?? ''}');
+      r.log.note(trf('bar state not applied: {0} {1}', [e.code, e.message ?? '']));
     }
     final procs = ctx.processes();
     bool isOld(ProcInfo pr) => r.aliveAtEnd.contains('${pr.pid}:${pr.startTicks}');
@@ -1565,7 +1568,7 @@ final class JobEngine {
       if (old.isNotEmpty) {
         await stopProcesses(old, signaller: signaller, procRoot: paths.proc, uid: ctx.uid, grace: stopGrace);
         out['restarted'] = [for (final pr in old) pr.pid];
-        r.log.note('ended the old applet (${old.map((pr) => pr.pid).join(', ')})');
+        r.log.note(trf('ended the old applet ({0})', [old.map((pr) => pr.pid).join(', ')]));
       }
       // cosmic-panel 1.11 does not start an applet again that ended (checked live 2026-11-09):
       // when the applet is in a panel but not running, the panel is restarted once and checked.
@@ -1585,11 +1588,11 @@ final class JobEngine {
           await Future<void>.delayed(const Duration(milliseconds: 250));
         }
         if (running()) {
-          r.log.note('the applet runs again');
+          r.log.note(tr('the applet runs again'));
         } else {
           // Never a restart of cosmic-panel: cosmic-session starts a killed panel again with a
           // delay that doubles with every restart (65 s after a dozen, seen 2026-11-09).
-          r.log.note('the applet did not start again: its panel file is written without it and back (the panel rebuilds)');
+          r.log.note(tr('the applet did not start again: its panel file is written without it and back (the panel rebuilds)'));
           Map<String, dynamic> f;
           try {
             f = await _nudgeApplet(app.bar.cosmicApplet!);
@@ -1602,7 +1605,7 @@ final class JobEngine {
             await Future<void>.delayed(const Duration(milliseconds: 250));
           }
           out['applet_running'] = running();
-          r.log.note(running() ? 'the panel started the applet again' : 'the applet is still not running${f['error'] == null ? '' : ' (${f['error']})'}');
+          r.log.note(running() ? tr('the panel started the applet again') : trf('the applet is still not running{0}', [f['error'] == null ? '' : ' (${f['error']})']));
         }
       }
     }
@@ -1617,10 +1620,10 @@ final class JobEngine {
       if (shown && left.isEmpty) {
         final ok = await startDetached(paths.expand(app.bar.kdeTrayExe!), app.bar.kdeTrayArgs);
         out['trayStarted'] = ok;
-        r.log.note(ok ? 'tray started' : 'the tray could not be started');
+        r.log.note(ok ? tr('tray started') : tr('the tray could not be started'));
       } else if (!shown) {
         out['trayStopped'] = stop.length;
-        if (stop.isNotEmpty) r.log.note('tray kept stopped (not in the bar)');
+        if (stop.isNotEmpty) r.log.note(tr('tray kept stopped (not in the bar)'));
       }
     }
     return out;
@@ -1642,7 +1645,7 @@ final class JobEngine {
         if (at == null) continue;
         final file = at.area == Area.center ? c.center : c.wings;
         final original = file.userText;
-        if (original == null) return {'panel': instance, 'error': 'the panel uses its system default: not written'};
+        if (original == null) return {'panel': instance, 'error': tr('the panel uses its system default: not written')};
         final l = c.layout.copy()..remove(id);
         final before = ctx.processes();
         await writeCosmic(paths, c, l);
@@ -1650,17 +1653,17 @@ final class JobEngine {
         final c2 = CosmicPanelConfig.read(paths, instance);
         final file2 = at.area == Area.center ? c2.center : c2.wings;
         if (c2.error != null || c2.layout.find(id) != null || !c2.layout.sameAs(l)) {
-          return {'panel': instance, 'out': out, 'error': 'the panel file changed meanwhile', 'apply': true};
+          return {'panel': instance, 'out': out, 'error': tr('the panel file changed meanwhile'), 'apply': true};
         }
         final before2 = ctx.processes();
         if (file2.userText != (at.area == Area.center ? c.render(l).center : c.render(l).wings)) {
-          return {'panel': instance, 'out': out, 'error': 'the panel file changed meanwhile', 'apply': true};
+          return {'panel': instance, 'out': out, 'error': tr('the panel file changed meanwhile'), 'apply': true};
         }
         atomicWrite(file.userPath, original);
         final back = await follow(before2);
         return {'panel': instance, 'file': file.name, 'out': out, 'back': back};
       }
-      return {'error': 'not in a panel'};
+      return {'error': tr('not in a panel')};
     });
     if (r['apply'] == true) await (Bar(ctx)..follow = follow).applyWanted();
     return r;
@@ -1671,7 +1674,7 @@ final class JobEngine {
   /// Runs [f] holding the jobs' lock (no job of this or another Manager runs meanwhile, none
   /// starts): `busy` when a job runs. Bar icon changes (icons.dart).
   Future<T> exclusive<T>(Future<T> Function() f) async {
-    if (_exclusive || _lock != null || _pumping) throw RouteError('busy', 'a job runs: try again when it has ended');
+    if (_exclusive || _lock != null || _pumping) throw RouteError('busy', tr('a job runs: try again when it has ended'));
     _acquire();
     _exclusive = true;
     try {
@@ -1712,15 +1715,15 @@ final class JobEngine {
     final plan = await removePlan(ctx, app, deleteSettings: options['delete_settings'] == true);
     r.job['plan'] = {'revision': plan.revision, 'goes': plan.goes.length, 'stays': (plan.json['stays'] as List).length};
     if (options['revision'] != null && options['revision'] != plan.revision) {
-      throw JobFailure('changed', 'what would be removed changed since the plan was shown');
+      throw JobFailure('changed', tr('what would be removed changed since the plan was shown'));
     }
     final dependents = plan.json['dependents'] as List;
     if (dependents.isNotEmpty && options['dependents_ok'] != true) {
-      throw JobFailure('needed_by', 'needed by ${dependents.map((d) => d['name']).join(', ')}');
+      throw JobFailure('needed_by', trf('needed by {0}', [dependents.map((d) => d['name']).join(', ')]));
     }
     if (plan.blocked != null) throw JobFailure('blocked', plan.blocked!);
     for (final s in (plan.json['stays'] as List).cast<Map<String, dynamic>>()) {
-      r.log.note('stays: ${s['path']} (${s['why']})');
+      r.log.note(trf('stays: {0} ({1})', [s['path'], s['why']]));
     }
     _checkCancel(r);
 
@@ -1735,13 +1738,13 @@ final class JobEngine {
       try {
         await _seedWantedBar(r);
       } on Object catch (e) {
-        r.log.note('bar state not recorded: $e');
+        r.log.note(trf('bar state not recorded: {0}', [e]));
       }
       try {
         await (Bar(ctx)..follow = follow).remove({'app': app.id}, remember: false, autostart: false);
-        r.log.note('bar icon taken out');
+        r.log.note(tr('bar icon taken out'));
       } on RouteError catch (e) {
-        throw JobFailure('bar_failed', 'the bar icon could not be taken out (${e.code}: ${e.message}); nothing was removed');
+        throw JobFailure('bar_failed', trf('the bar icon could not be taken out ({0}: {1}); nothing was removed', [e.code, e.message]));
       }
     }
     r.committed = true;
@@ -1751,7 +1754,7 @@ final class JobEngine {
     try {
       await runRecipe(ctx, steps, StepWhen.before, r.log.note);
     } on RecipeFailure catch (f) {
-      throw JobFailure('step_failed', '${f.step}: ${f.message}; no file was deleted');
+      throw JobFailure('step_failed', trf('{0}: {1}; no file was deleted', [f.step, f.message]));
     }
 
     final deleted = <String>[], kept = <Map<String, dynamic>>[];
@@ -1773,7 +1776,7 @@ final class JobEngine {
         } else if (g.link != null && now['type'] == 'link' && now['link'] == g.link) {
           Link(g.path).deleteSync();
         } else {
-          kept.add({'path': g.path, 'why': 'changed while removing'});
+          kept.add({'path': g.path, 'why': tr('changed while removing')});
           continue;
         }
         treeFiles++;
@@ -1782,7 +1785,7 @@ final class JobEngine {
         if (unsafeReach(d, reach) == null) _removeIfEmpty(d);
       }
       final gone = FileSystemEntity.typeSync(t.root, followLinks: false) == FileSystemEntityType.notFound;
-      r.log.note('${gone ? 'removed' : 'emptied'} ${t.root} (${t.goes.length} files and links${gone ? '' : '; what stays is listed'})');
+      r.log.note(trf('{0} {1} ({2} files and links{3})', [gone ? tr('removed') : tr('emptied'), t.root, t.goes.length, gone ? '' : tr('; what stays is listed')]));
       if (gone) deleted.add(t.root);
     }
     for (final g in plan.goes.where((g) => g['kind'] != 'dir')) {
@@ -1799,11 +1802,11 @@ final class JobEngine {
       } else if (g['kind'] == 'link' && now['type'] == 'link' && now['link'] == g['link']) {
         Link(path).deleteSync();
       } else {
-        kept.add({'path': path, 'why': 'changed while removing'});
+        kept.add({'path': path, 'why': tr('changed while removing')});
         continue;
       }
       deleted.add(path);
-      r.log.note('removed $path');
+      r.log.note(trf('removed {0}', [path]));
     }
     final dirs = plan.goes.where((g) => g['kind'] == 'dir').map((g) => g['path'] as String).toList()
       ..sort((a, b) => p.split(b).length.compareTo(p.split(a).length));
@@ -1821,7 +1824,7 @@ final class JobEngine {
       if (e == null || e['restore'] != true || unsafeReach(e['path'] as String, reach) != null) continue;
       if (displaced.restoreEntry(e)) {
         restored.add(e['path'] as String);
-        r.log.note('restored ${e['path']} (it was there before the Manager installed ${app.name})');
+        r.log.note(trf('restored {0} (it was there before the Manager installed {1})', [e['path'], app.name]));
         displaced.drop(e);
       }
     }
@@ -1838,12 +1841,12 @@ final class JobEngine {
         File(path).deleteSync();
       }
       settings.add(path);
-      r.log.note('deleted settings $path');
+      r.log.note(trf('deleted settings {0}', [path]));
     }
 
     _phase(r, 'verify');
     final still = [for (final path in deleted) if (!restored.contains(path) && FileSystemEntity.typeSync(path, followLinks: false) != FileSystemEntityType.notFound) path];
-    if (still.isNotEmpty) throw JobFailure('verify_failed', 'still there: ${still.join(', ')}');
+    if (still.isNotEmpty) throw JobFailure('verify_failed', trf('still there: {0}', [still.join(', ')]));
 
     _phase(r, 'finish');
     await _postSteps(r, const ['gtk-update-icon-cache', 'update-desktop-database']);
@@ -1865,7 +1868,7 @@ final class JobEngine {
     }
     final receipt = File(p.join(paths.receipts, '${app.id}.json'));
     if (receipt.existsSync()) receipt.deleteSync();
-    r.log.note('receipt dropped${keptNow.isEmpty ? '' : '; ${keptNow.length} kept path(s) recorded'}');
+    r.log.note(trf('receipt dropped{0}', [keptNow.isEmpty ? '' : trf('; {0} kept path(s) recorded', [keptNow.length])]));
     return {
       'deleted': deleted,
       if (treeFiles > 0) 'treeFiles': treeFiles,
@@ -1959,7 +1962,7 @@ Map<String, dynamic>? loadJob(Paths paths, String id) {
     ..['result'] = {
       'ok': false,
       'code': 'interrupted',
-      'message': 'the Manager that ran it ended in the ${job['phase']} phase${orphan ? '; ${job['pkexec'] != null ? 'pkexec/pacman' : 'its script'} still runs (pid ${((job['pkexec'] ?? script) as Map)['pid']})' : ''}',
+      'message': trf('the Manager that ran it ended in the {0} phase{1}', [job['phase'], orphan ? trf('; {0} still runs (pid {1})', [job['pkexec'] != null ? 'pkexec/pacman' : tr('its script'), ((job['pkexec'] ?? script) as Map)['pid']]) : '']),
       'repair': job['phase'] != 'queued',
       'committed': committed,
       if (orphan) 'orphan': true,

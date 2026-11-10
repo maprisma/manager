@@ -10,6 +10,8 @@
 /// `MAPRISMA_MANAGER_GH` names it.
 library;
 
+import 'translations.dart';
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -93,7 +95,7 @@ final class GhCliApi implements GitHubApi {
       try {
         return ApiAnswer(200, jsonDecode(r.stdout));
       } on FormatException {
-        throw GitHubError('gh api $path: not JSON');
+        throw GitHubError(trf('gh api {0}: not JSON', [path]));
       }
     }
     final status = int.tryParse(RegExp(r'HTTP (\d{3})').firstMatch(r.stderr)?.group(1) ?? '');
@@ -102,9 +104,9 @@ final class GhCliApi implements GitHubApi {
     if (status == null && (r.code == 124 || _transport.hasMatch(r.stderr))) {
       throw SocketException('gh: ${_firstLine(r.stderr)}');
     }
-    final limited = status == 429 || (status == 403 && r.stderr.toLowerCase().contains('rate limit'));
+    final limited = status == 429 || (status == 403 && r.stderr.toLowerCase().contains(tr('rate limit')));
     throw GitHubError(
-      limited ? 'rate limited' : 'gh api $path: ${_firstLine(r.stderr)}',
+      limited ? tr('rate limited') : trf('gh api {0}: {1}', [path, _firstLine(r.stderr)]),
       status: status,
       rateLimited: limited,
     );
@@ -127,16 +129,16 @@ final class RestApi implements GitHubApi {
       try {
         return ApiAnswer(200, jsonDecode(a.body));
       } on FormatException {
-        throw GitHubError('$path: not JSON', status: 200);
+        throw GitHubError(trf('{0}: not JSON', [path]), status: 200);
       }
     }
     if (a.status == 404) return ApiAnswer(404, null);
     final remaining = a.headers['x-ratelimit-remaining'];
-    final limited = a.status == 429 || (a.status == 403 && (remaining == '0' || a.body.toLowerCase().contains('rate limit')));
+    final limited = a.status == 429 || (a.status == 403 && (remaining == '0' || a.body.toLowerCase().contains(tr('rate limit'))));
     final resetSec = int.tryParse(a.headers['x-ratelimit-reset'] ?? '');
     final reset = resetSec == null ? null : DateTime.fromMillisecondsSinceEpoch(resetSec * 1000, isUtc: true);
     throw GitHubError(
-      limited ? 'rate limited${reset == null ? '' : ' until ${reset.toIso8601String()}'}' : '$path: HTTP ${a.status}',
+      limited ? trf('rate limited{0}', [reset == null ? '' : trf(' until {0}', [reset.toIso8601String()])]) : trf('{0}: HTTP {1}', [path, a.status]),
       status: a.status,
       rateLimited: limited,
       reset: reset,
@@ -308,9 +310,9 @@ final class GitHub {
       // every page (100 each); the list is replaced only when all of them came
       final all = <Object?>[];
       for (var page = 1;; page++) {
-        if (page > 20) throw GitHubError('the org $githubOrg has more than 2000 repos: not listed');
+        if (page > 20) throw GitHubError(trf('the org {0} has more than 2000 repos: not listed', [githubOrg]));
         final a = await api.get('orgs/$githubOrg/repos?per_page=100&type=all&page=$page');
-        if (a.status == 404 || a.json is! List) throw GitHubError('the org $githubOrg was not found', status: a.status);
+        if (a.status == 404 || a.json is! List) throw GitHubError(trf('the org {0} was not found', [githubOrg]), status: a.status);
         final got = a.json as List;
         all.addAll(got);
         if (got.length < 100) break;
@@ -430,7 +432,7 @@ final class GitHub {
   Future<Map<String, dynamic>> _read(GitHubApi api, String slug) async {
     final repo = await api.get('repos/$slug');
     if (repo.status == 404 || repo.json is! Map) {
-      throw GitHubError('not found on GitHub (or private without access)', status: 404);
+      throw GitHubError(tr('not found on GitHub (or private without access)'), status: 404);
     }
     final r = repo.json as Map;
     final latest = await api.get('repos/$slug/releases/latest');
@@ -543,14 +545,14 @@ final class GitHub {
     final d = download;
     if (d != null) return d(url, dest, cancelled: cancelled);
     if (offline) throw const SocketException('offline (MAPRISMA_MANAGER_OFFLINE)');
-    if (url.scheme != 'https') throw GitHubError('not an https URL: $url');
+    if (url.scheme != 'https') throw GitHubError(trf('not an https URL: {0}', [url]));
     final client = HttpClient()..connectionTimeout = const Duration(seconds: 15);
     final out = File(dest).openWrite();
     try {
       final req = await client.getUrl(url);
       req.headers.set('User-Agent', 'maprisma-manager');
       final res = await req.close().timeout(const Duration(seconds: 60));
-      if (res.statusCode != 200) throw GitHubError('download: HTTP ${res.statusCode}', status: res.statusCode);
+      if (res.statusCode != 200) throw GitHubError(trf('download: HTTP {0}', [res.statusCode]), status: res.statusCode);
       await for (final chunk in res.timeout(const Duration(seconds: 60))) {
         if (cancelled()) throw const _Stopped();
         out.add(chunk);

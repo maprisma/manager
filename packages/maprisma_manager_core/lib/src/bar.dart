@@ -1,3 +1,4 @@
+import 'translations.dart';
 import 'dart:convert';
 import 'dart:io';
 
@@ -82,8 +83,8 @@ final class Bar {
   AppEntry app(Object? id) {
     if (id is! String || id.isEmpty) throw RouteError('bad_params', 'app');
     final a = findApp(id);
-    if (a == null) throw RouteError('not_found', 'no app $id');
-    if (barId(a) == null) throw RouteError('no_bar_icon', '${a.name} has no bar icon on ${ctx.desktop.name}');
+    if (a == null) throw RouteError('not_found', trf('no app {0}', [id]));
+    if (barId(a) == null) throw RouteError('no_bar_icon', trf('{0} has no bar icon on {1}', [a.name, ctx.desktop.name]));
     return a;
   }
 
@@ -92,7 +93,7 @@ final class Bar {
   String cosmicInstance(Object? param) {
     final instances = cosmicInstances(paths);
     if (param == null) return instances.contains('Panel') ? 'Panel' : instances.first;
-    if (param is! String || !instances.contains(param)) throw RouteError('bad_params', 'panel (one of ${instances.join(', ')})');
+    if (param is! String || !instances.contains(param)) throw RouteError('bad_params', trf('panel (one of {0})', [instances.join(', ')]));
     return param;
   }
 
@@ -109,7 +110,7 @@ final class Bar {
     final all = await readKdeWidgets(ctx.runner);
     if (param != null) {
       final w = all.where((w) => w.widget == param).firstOrNull;
-      if (w == null) throw RouteError('bad_params', 'widget (one of ${all.map((w) => w.widget).join(', ')})');
+      if (w == null) throw RouteError('bad_params', trf('widget (one of {0})', [all.map((w) => w.widget).join(', ')]));
       return (widget: w, all: all);
     }
     return (widget: all.firstOrNull, all: all);
@@ -175,7 +176,7 @@ final class Bar {
         }
         final w = found.widget;
         if (w == null) {
-          return {'desktop': 'kde', 'kind': 'systemTray', 'note': 'Maprisma Icons is not in a panel: icons go to the system tray', 'trays': _trays(procs)};
+          return {'desktop': 'kde', 'kind': 'systemTray', 'note': tr('Maprisma Icons is not in a panel: icons go to the system tray'), 'trays': _trays(procs)};
         }
         final l = kdeShown(w, procs);
         return {
@@ -190,7 +191,7 @@ final class Bar {
           'trays': _trays(procs),
         };
       case DesktopId.other:
-        return {'desktop': 'other', 'kind': 'none', 'note': 'no bar icons on this desktop'};
+        return {'desktop': 'other', 'kind': 'none', 'note': tr('no bar icons on this desktop')};
     }
   }
 
@@ -210,7 +211,7 @@ final class Bar {
     final index = _index(params['index'], optional: false);
     if (params['app'] != null) return _change(params, app(params['app']), area: area, index: index, placed: true);
     final entry = params['entry'];
-    if (entry is! String || entry.isEmpty) throw RouteError('bad_params', 'app or entry');
+    if (entry is! String || entry.isEmpty) throw RouteError('bad_params', tr('app or entry'));
     final ours = appByBarId(entry);
     if (ours != null) return _change(params, ours, area: area, index: index, placed: true);
     return _change(params, null, entry: entry, area: area, index: index, placed: true);
@@ -259,7 +260,7 @@ final class Bar {
         for (final instance in instances) {
           final c = readCosmic(instance);
           if (revision != null && instance == shown && c.revision != revision) {
-            throw RouteError('changed', 'the panel config changed since it was read');
+            throw RouteError('changed', tr('the panel config changed since it was read'));
           }
           final l = c.layout;
           if (placed) {
@@ -292,7 +293,7 @@ final class Bar {
         // A broken autostart file stops the change before anything is written.
         if (autostart != null && File(autostart).existsSync()) checkDesktopFile(autostart);
         if (w != null) {
-          if (revision != null && w.revision != revision) throw RouteError('changed', 'Maprisma Icons\' zones changed since they were read');
+          if (revision != null && w.revision != revision) throw RouteError('changed', tr('Maprisma Icons\' zones changed since they were read'));
           final l = kdeShown(w, procs);
           final hidden = [...w.hidden];
           if (placed) {
@@ -310,9 +311,9 @@ final class Bar {
           final at = back.savedLayout.find(id);
           result.addAll({'widget': back.widget, 'area': ?at?.area.name, 'index': ?at?.index, 'hidden': back.hidden});
         } else if (a == null) {
-          throw RouteError('unavailable', 'without Maprisma Icons only Maprisma icons can be put in or out (the system tray orders itself)');
+          throw RouteError('unavailable', tr('without Maprisma Icons only Maprisma icons can be put in or out (the system tray orders itself)'));
         } else {
-          result['note'] = 'Maprisma Icons is not in a panel: the icon goes to the system tray';
+          result['note'] = tr('Maprisma Icons is not in a panel: the icon goes to the system tray');
         }
         if (autostart != null) {
           result['autostart'] = File(autostart).existsSync() ? (setDesktopHidden(paths, autostart, !placed) ? 'changed' : 'unchanged') : 'missing';
@@ -326,7 +327,7 @@ final class Bar {
         }
         return result;
       case DesktopId.other:
-        throw RouteError('unavailable', 'no bar icons on this desktop');
+        throw RouteError('unavailable', tr('no bar icons on this desktop'));
     }
   }
 

@@ -9,6 +9,9 @@
 /// files.
 library;
 
+import 'translations.dart';
+
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -166,7 +169,7 @@ TreeCheck checkTree(String root, List<Map<String, dynamic>> entries, {required S
   final want = {for (final e in entries) e['p'] as String: e};
   final all = walk(root);
   if (all.length > maxTreeEntries) {
-    c.stays.add({'path': root, 'why': 'more than $maxTreeEntries entries now: not checked, it stays'});
+    c.stays.add({'path': root, 'why': trf('more than {0} entries now: not checked, it stays', [maxTreeEntries])});
     return c;
   }
   final dirs = <String>[];
@@ -198,20 +201,20 @@ TreeCheck checkTree(String root, List<Map<String, dynamic>> entries, {required S
         c.goes.add((path: e.path, sha256: h, link: null));
         c.derived++;
       } else {
-        stay(e.path, w == null ? foreignWhy(rel) : (w['sha256'] != null ? 'changed since the Manager installed it' : 'not what the Manager installed'));
+        stay(e.path, w == null ? foreignWhy(rel) : (w['sha256'] != null ? tr('changed since the Manager installed it') : tr('not what the Manager installed')));
       }
     } else if (type == FileSystemEntityType.link) {
       final t = Link(e.path).targetSync();
       if (w != null && w['link'] == t) {
         c.goes.add((path: e.path, sha256: null, link: t));
       } else {
-        stay(e.path, w == null ? foreignWhy(rel) : 'the link points elsewhere now');
+        stay(e.path, w == null ? foreignWhy(rel) : tr('the link points elsewhere now'));
       }
     } else {
-      stay(e.path, 'not a file the Manager installed');
+      stay(e.path, tr('not a file the Manager installed'));
     }
   }
-  if (extra > 0) c.stays.add({'path': root, 'why': '$extra more path(s) in it stay (changed or not the Manager\'s)'});
+  if (extra > 0) c.stays.add({'path': root, 'why': trf('{0} more path(s) in it stay (changed or not the Manager\'s)', [extra])});
   dirs.sort((a, b) => p.split(b).length.compareTo(p.split(a).length));
   c.dirs
     ..addAll(dirs)

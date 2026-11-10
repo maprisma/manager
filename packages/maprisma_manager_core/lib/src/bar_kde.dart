@@ -1,3 +1,4 @@
+import 'translations.dart';
 import 'dart:convert';
 import 'dart:io';
 
@@ -130,21 +131,21 @@ print('MM:' + JSON.stringify(result));
 /// Runs a script in plasmashell (`qdbus6 org.kde.plasmashell /PlasmaShell …evaluateScript`) and
 /// returns what it printed after `MM:`.
 Future<Object?> evaluatePlasma(Runner runner, String script) async {
-  if (runner.which('qdbus6') == null) throw RouteError('unavailable', 'qdbus6 not found (Plasma 6 session needed)');
+  if (runner.which('qdbus6') == null) throw RouteError('unavailable', tr('qdbus6 not found (Plasma 6 session needed)'));
   final r = await runner.run(['qdbus6', 'org.kde.plasmashell', '/PlasmaShell', 'org.kde.PlasmaShell.evaluateScript', script], timeout: const Duration(seconds: 10));
   if (!r.ok) throw RouteError('unavailable', 'plasmashell: ${r.stderr.trim().split('\n').first}');
   final line = r.stdout.split('\n').map((l) => l.trim()).lastWhere((l) => l.startsWith('MM:'), orElse: () => '');
-  if (line.isEmpty) throw RouteError('internal', 'plasmashell gave no answer');
+  if (line.isEmpty) throw RouteError('internal', tr('plasmashell gave no answer'));
   try {
     return jsonDecode(line.substring(3));
   } on FormatException {
-    throw RouteError('internal', 'plasmashell gave an unreadable answer');
+    throw RouteError('internal', tr('plasmashell gave an unreadable answer'));
   }
 }
 
 Future<List<KdeWidget>> readKdeWidgets(Runner runner) async {
   final v = await evaluatePlasma(runner, kdeReadScript());
-  if (v is! List) throw RouteError('internal', 'plasmashell gave an unreadable answer');
+  if (v is! List) throw RouteError('internal', tr('plasmashell gave an unreadable answer'));
   return [for (final w in v) KdeWidget.fromJson((w as Map).cast<String, dynamic>())];
 }
 
@@ -161,13 +162,13 @@ Future<KdeWidget> writeKdeWidget(Runner runner, KdeWidget w, Layout l, List<Stri
     'hidden': hide,
   };
   final v = await evaluatePlasma(runner, kdeWriteScript(w.widget, values, w.config));
-  if (v == null) throw RouteError('not_found', 'Maprisma Icons widget ${w.widget} is gone');
-  if (v is! Map) throw RouteError('internal', 'plasmashell gave an unreadable answer');
+  if (v == null) throw RouteError('not_found', trf('Maprisma Icons widget {0} is gone', [w.widget]));
+  if (v is! Map) throw RouteError('internal', tr('plasmashell gave an unreadable answer'));
   final back = KdeWidget.fromJson(v.cast<String, dynamic>());
-  if (v['changed'] == true) throw RouteError('changed', 'Maprisma Icons\' zones changed since they were read');
+  if (v['changed'] == true) throw RouteError('changed', tr('Maprisma Icons\' zones changed since they were read'));
   for (final k in kdeKeys) {
     final got = back.config[k] ?? const <String>[];
-    if (jsonEncode(got) != jsonEncode(values[k])) throw RouteError('internal', 'read back $k differs: ${jsonEncode(got)}');
+    if (jsonEncode(got) != jsonEncode(values[k])) throw RouteError('internal', trf('read back {0} differs: {1}', [k, jsonEncode(got)]));
   }
   return back;
 }
@@ -193,7 +194,7 @@ bool desktopHidden(String path) {
 void checkDesktopFile(String path) {
   try {
     if (!File(path).readAsLinesSync().any((l) => l.trim() == '[Desktop Entry]')) {
-      throw RouteError('bad_file', '$path has no [Desktop Entry] group');
+      throw RouteError('bad_file', trf('{0} has no [Desktop Entry] group', [path]));
     }
   } on FileSystemException catch (e) {
     throw RouteError('bad_file', '$path: ${e.message}');
@@ -207,7 +208,7 @@ bool setDesktopHidden(Paths paths, String path, bool hidden) {
   try {
     text = File(path).readAsStringSync();
   } on FileSystemException {
-    throw RouteError('not_found', 'no autostart file $path');
+    throw RouteError('not_found', trf('no autostart file {0}', [path]));
   }
   final lines = text.split('\n');
   final out = <String>[];
@@ -229,7 +230,7 @@ bool setDesktopHidden(Paths paths, String path, bool hidden) {
     if (inEntry && RegExp(r'^\s*Hidden\s*=').hasMatch(line)) continue;
     out.add(line);
   }
-  if (!sawEntry) throw RouteError('bad_file', '$path has no [Desktop Entry] group');
+  if (!sawEntry) throw RouteError('bad_file', trf('{0} has no [Desktop Entry] group', [path]));
   final next = out.join('\n');
   if (next == text) return false;
   backupFiles(paths, 'autostart', [path]);

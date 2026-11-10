@@ -1,3 +1,4 @@
+import 'translations.dart';
 import 'dart:async';
 import 'dart:io';
 
@@ -201,7 +202,7 @@ Future<({List<String> written, String? backup})> writeCosmic(Paths paths, Cosmic
   if (texts.wings == null && texts.center == null) return (written: const <String>[], backup: null);
   return () async {
     final now = CosmicPanelConfig.read(paths, seen.instance);
-    if (now.revision != seen.revision) throw RouteError('changed', 'the panel config changed since it was read');
+    if (now.revision != seen.revision) throw RouteError('changed', tr('the panel config changed since it was read'));
     final backup = backupFiles(paths, 'cosmic-${seen.instance}', [seen.wings.userPath, seen.center.userPath]);
     final order = <(PanelFile, String)>[
       if (texts.wings != null) (seen.wings, texts.wings!),
@@ -222,7 +223,7 @@ Future<({List<String> written, String? backup})> writeCosmic(Paths paths, Cosmic
       // Checked again right before each file: a concurrent edit is never overwritten.
       final current = _readOrNull(f.userPath);
       if (current != f.userText) {
-        throw RouteError('changed', '${f.name} changed while writing${written.isEmpty ? '' : ' (${written.join(', ')} already written; backup in $backup)'}');
+        throw RouteError('changed', trf('{0} changed while writing{1}', [f.name, written.isEmpty ? '' : trf(' ({0} already written; backup in {1})', [written.join(', '), backup])]));
       }
       atomicWrite(f.userPath, text);
       written.add(f.name);
@@ -314,7 +315,7 @@ Future<T> _locked<T>(Paths paths, Future<T> Function() body) async {
         raf.lockSync(FileLock.exclusive);
         break;
       } on FileSystemException {
-        if (DateTime.now().isAfter(deadline)) throw RouteError('busy', 'another Maprisma Manager is changing things');
+        if (DateTime.now().isAfter(deadline)) throw RouteError('busy', tr('another Maprisma Manager is changing things'));
         await Future<void>.delayed(const Duration(milliseconds: 100));
       }
     }
@@ -343,7 +344,7 @@ Future<Map<String, dynamic>> followPanel(
   Duration step = const Duration(milliseconds: 250),
 }) async {
   final panels = cosmicPanels(before);
-  if (panels.isEmpty) return {'panel': null, 'note': 'cosmic-panel is not running'};
+  if (panels.isEmpty) return {'panel': null, 'note': tr('cosmic-panel is not running')};
   // One cosmic-panel runs all panel instances; with more than one, which one serves the changed
   // instance can't be told: none is restarted then.
   if (panels.length > 1) kill = (_) => false;
@@ -362,7 +363,7 @@ Future<Map<String, dynamic>> followPanel(
     if (DateTime.now().isAfter(until)) {
       final ok = (kill ?? (pid) => Process.killPid(pid, ProcessSignal.sigterm))(panel.pid);
       if (!ok) {
-        return {'panel': panel.pid, 'reacted': false, 'restarted': false, 'error': panels.length > 1 ? 'no reaction; several cosmic-panel processes, none restarted' : 'could not signal the panel'};
+        return {'panel': panel.pid, 'reacted': false, 'restarted': false, 'error': panels.length > 1 ? tr('no reaction; several cosmic-panel processes, none restarted') : tr('could not signal the panel')};
       }
       killed = true;
       break;
@@ -376,5 +377,5 @@ Future<Map<String, dynamic>> followPanel(
     if (again.isNotEmpty) return {'panel': again.first.pid, 'reacted': !killed, 'restarted': killed, 'back': true};
     await Future<void>.delayed(step);
   }
-  return {'panel': null, 'reacted': false, 'restarted': killed, 'back': false, 'error': 'cosmic-panel did not come back'};
+  return {'panel': null, 'reacted': false, 'restarted': killed, 'back': false, 'error': tr('cosmic-panel did not come back')};
 }

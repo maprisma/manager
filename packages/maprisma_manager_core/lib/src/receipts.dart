@@ -1,3 +1,4 @@
+import 'translations.dart';
 import 'dart:convert';
 import 'dart:io';
 
@@ -83,8 +84,8 @@ final class Receipt {
   };
 
   static Receipt parse(String id, Object? data) {
-    if (data is! Map) throw const FormatException('not an object');
-    if (data['id'] != id) throw const FormatException('id does not match the file');
+    if (data is! Map) throw FormatException(tr('not an object'));
+    if (data['id'] != id) throw FormatException(tr('id does not match the file'));
     final at = data['at'] is String ? DateTime.tryParse(data['at']) : null;
     if (at == null) throw const FormatException('at');
     final rawInputs = data['inputs'];
@@ -94,10 +95,10 @@ final class Receipt {
     final inputs = <ReceiptInput>[];
     for (final i in rawInputs) {
       if (i is! Map || !_nonEmpty(i['repo']) || !_isCommit(i['commit']) || i['dirty'] is! bool) {
-        throw const FormatException('inputs entry');
+        throw FormatException(tr('inputs entry'));
       }
       if (i['fingerprint'] != null && !_nonEmpty(i['fingerprint'])) throw const FormatException('fingerprint');
-      if (inputs.any((x) => x.repo == i['repo'])) throw const FormatException('duplicate input');
+      if (inputs.any((x) => x.repo == i['repo'])) throw FormatException(tr('duplicate input'));
       inputs.add(ReceiptInput(i['repo'], i['commit'], i['dirty'], i['fingerprint']));
     }
     List<Map<String, dynamic>> maps(String key, bool Function(Map e) valid) {
@@ -137,7 +138,7 @@ final class Receipt {
     for (final t in rawTrees) {
       if (t is! Map) throw const FormatException('trees');
       validateTree(t);
-      if (trees.any((x) => x['root'] == t['root'])) throw const FormatException('duplicate tree');
+      if (trees.any((x) => x['root'] == t['root'])) throw FormatException(tr('duplicate tree'));
       trees.add(Map<String, dynamic>.from(t));
     }
     final rawSaved = data['saved'] ?? const {};
@@ -164,12 +165,12 @@ final class Receipt {
   if (!f.existsSync()) return (receipt: null, error: null);
   try {
     // bounded: a few trees of at most maxTreeEntries entries each fit easily
-    if (f.lengthSync() > maxReceiptBytes) return (receipt: null, error: 'invalid receipt: larger than ${maxReceiptBytes ~/ (1024 * 1024)} MiB');
+    if (f.lengthSync() > maxReceiptBytes) return (receipt: null, error: trf('invalid receipt: larger than {0} MiB', [maxReceiptBytes ~/ (1024 * 1024)]));
     return (receipt: Receipt.parse(id, jsonDecode(f.readAsStringSync())), error: null);
   } on FormatException catch (e) {
-    return (receipt: null, error: 'invalid receipt: ${e.message}');
+    return (receipt: null, error: trf('invalid receipt: {0}', [e.message]));
   } on FileSystemException catch (e) {
-    return (receipt: null, error: 'unreadable receipt: ${e.osError?.message ?? e.message}');
+    return (receipt: null, error: trf('unreadable receipt: {0}', [e.osError?.message ?? e.message]));
   }
 }
 

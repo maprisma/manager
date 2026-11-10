@@ -1,3 +1,4 @@
+import 'package:maprisma_manager_core/maprisma_manager_core.dart' show tr, trf, uiLabel;
 import 'dart:async';
 import 'dart:io';
 
@@ -64,7 +65,7 @@ class _IconPickerState extends State<IconPicker> {
       changed = true;
       if (mounted) Navigator.pop(context, true);
     } on ServiceError catch (e) {
-      if (mounted) setState(() => error = '${e.code == 'bad_icon' ? 'Not an icon the Manager writes' : e.code}: ${e.reason ?? ''}');
+      if (mounted) setState(() => error = '${e.code == 'bad_icon' ? tr('Not an icon the Manager writes') : e.code}: ${e.reason ?? ''}');
     } finally {
       if (mounted) setState(() => working = false);
     }
@@ -88,7 +89,7 @@ class _IconPickerState extends State<IconPicker> {
     if (widget.pickFile != null) {
       path = await widget.pickFile!();
     } else {
-      final f = await openFile(acceptedTypeGroups: const [XTypeGroup(label: 'SVG icons', extensions: ['svg'], mimeTypes: ['image/svg+xml'])]);
+      final f = await openFile(acceptedTypeGroups: [XTypeGroup(label: tr('SVG icons'), extensions: ['svg'], mimeTypes: ['image/svg+xml'])]);
       path = f?.path;
     }
     if (path == null || !mounted) return;
@@ -119,7 +120,7 @@ class _IconPickerState extends State<IconPicker> {
         (selected == null ? null : choices.where((c) => c['name'] == selected).firstOrNull?['file'] as String?);
     final width = MediaQuery.sizeOf(context).width;
     return AlertDialog(
-      title: Text('Bar icon of ${widget.app['name']}'),
+      title: Text(trf('Bar icon of {0}', [widget.app['name']])),
       content: SizedBox(
         width: width < 640 ? width - 80 : 560,
         // the grid keeps room on small windows too
@@ -134,20 +135,20 @@ class _IconPickerState extends State<IconPicker> {
                       Column(children: [
                         _svg(i['file'] as String?, 40),
                         const SizedBox(height: 4),
-                        Text(i['current'] == 'original' ? 'now (original)' : 'now (changed)', style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
+                        Text(i['current'] == 'original' ? tr('now (original)') : tr('now (changed)'), style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
                       ]),
-                      const SizedBox(width: 12),
+                      SizedBox(width: 12),
                       Icon(Icons.arrow_forward, color: scheme.onSurfaceVariant),
-                      const SizedBox(width: 12),
+                      SizedBox(width: 12),
                       Column(children: [
                         pickedFile == null ? SizedBox(width: 40, height: 40, child: Icon(Icons.help_outline, color: scheme.outlineVariant)) : _svg(pickedFile, 40),
                         const SizedBox(height: 4),
-                        Text('new', style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
+                        Text(tr('new'), style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
                       ]),
-                      const SizedBox(width: 16),
+                      SizedBox(width: 16),
                       Expanded(
                         child: Text(
-                          selectedFile != null ? selectedFile! : (selected ?? 'Pick an icon below, or a file'),
+                          selectedFile != null ? selectedFile! : (selected ?? tr('Pick an icon below, or a file')),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(color: scheme.onSurfaceVariant),
@@ -158,11 +159,11 @@ class _IconPickerState extends State<IconPicker> {
                   if (!changeable)
                     Padding(
                       padding: const EdgeInsets.only(top: 10),
-                      child: Text('It can\'t be changed: ${i['why'] ?? 'no icon of its own'}', style: TextStyle(color: scheme.error)),
+                      child: Text(trf('It can\'t be changed: {0}', [i['why'] ?? tr('no icon of its own')]), style: TextStyle(color: scheme.error)),
                     ),
                   if (i['note'] != null)
                     Padding(
-                      padding: const EdgeInsets.only(top: 10),
+                      padding: EdgeInsets.only(top: 10),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -171,8 +172,8 @@ class _IconPickerState extends State<IconPicker> {
                           // a long note stays short on narrow windows; the whole text in its tooltip
                           Expanded(
                             child: Tooltip(
-                              message: '${i['note']}',
-                              child: Text('Note: ${i['note']}',
+                              message: uiLabel(i['note']),
+                              child: Text(trf('Note: {0}', [uiLabel(i['note'])]),
                                   maxLines: width < 640 ? 3 : 5,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(fontSize: 12.5, color: scheme.onSurfaceVariant)),
@@ -184,12 +185,12 @@ class _IconPickerState extends State<IconPicker> {
                   if (error != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(error!, style: TextStyle(color: scheme.error))),
                   const SizedBox(height: 10),
                   TextField(
-                    key: const ValueKey('icon-search'),
+                    key: ValueKey('icon-search'),
                     autofocus: true,
                     enabled: changeable,
                     decoration: InputDecoration(
-                      hintText: 'Search ${(i['theme'] as Map?)?['name'] ?? 'the icon theme'}\'s icons',
-                      prefixIcon: const Icon(Icons.search, size: 20),
+                      hintText: trf('Search {0}\'s icons', [(i['theme'] as Map?)?['name'] ?? tr('the icon theme')]),
+                      prefixIcon: Icon(Icons.search, size: 20),
                     ),
                     onChanged: (v) {
                       query = v;
@@ -199,20 +200,20 @@ class _IconPickerState extends State<IconPicker> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    '${i['total']} icons${i['truncated'] == true ? ', the first ${choices.length} shown' : ''}',
+                    trf('{0} icons{1}', [i['total'], i['truncated'] == true ? trf(', the first {0} shown', [choices.length]) : '']),
                     style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
                   ),
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4),
                   Expanded(
                     child: GridView.builder(
-                      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(maxCrossAxisExtent: 52, mainAxisSpacing: 4, crossAxisSpacing: 4),
+                      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(maxCrossAxisExtent: 52, mainAxisSpacing: 4, crossAxisSpacing: 4),
                       itemCount: changeable ? choices.length : 0,
                       itemBuilder: (context, n) {
                         final c = choices[n];
                         final on = c['name'] == selected;
                         return Tooltip(
                           message: '${c['name']} (${c['theme']})',
-                          waitDuration: const Duration(milliseconds: 400),
+                          waitDuration: Duration(milliseconds: 400),
                           child: InkWell(
                             borderRadius: BorderRadius.circular(8),
                             onTap: () => setState(() {
@@ -237,12 +238,12 @@ class _IconPickerState extends State<IconPicker> {
               ),
       ),
       actions: [
-        TextButton(onPressed: !changeable || working ? null : _pickFile, child: const Text('Choose an SVG file…')),
-        TextButton(onPressed: i?['current'] == 'original' || i?['current'] == null || working ? null : _reset, child: const Text('Reset')),
-        TextButton(onPressed: () => Navigator.pop(context, changed), child: const Text('Cancel')),
+        TextButton(onPressed: !changeable || working ? null : _pickFile, child: Text(tr('Choose an SVG file…'))),
+        TextButton(onPressed: i?['current'] == 'original' || i?['current'] == null || working ? null : _reset, child: Text(tr('Reset'))),
+        TextButton(onPressed: () => Navigator.pop(context, changed), child: Text(tr('Cancel'))),
         FilledButton(
           onPressed: !changeable || working || (selected == null && selectedFile == null) ? null : () => _apply(selectedFile ?? selected!),
-          child: working ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Use this icon'),
+          child: working ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : Text(tr('Use this icon')),
         ),
       ],
     );

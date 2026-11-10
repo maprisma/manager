@@ -1,3 +1,4 @@
+import 'translations.dart';
 import 'dart:convert';
 import 'dart:io';
 
@@ -105,10 +106,10 @@ final class Git {
 
   Future<GitInfo> inspect(String repo, String folder) async {
     if (!Directory(folder).existsSync()) return GitInfo(repo: repo, folder: folder, present: false);
-    if (runner.which('git') == null) return GitInfo(repo: repo, folder: folder, present: true, error: 'git not found');
+    if (runner.which('git') == null) return GitInfo(repo: repo, folder: folder, present: true, error: tr('git not found'));
     final top = await _git(folder, ['rev-parse', '--show-toplevel']);
     if (!top.ok || !_same(top.stdout.trim(), folder)) {
-      return GitInfo(repo: repo, folder: folder, present: true, error: 'not a git repository');
+      return GitInfo(repo: repo, folder: folder, present: true, error: tr('not a git repository'));
     }
     final results = await Future.wait([
       _git(folder, ['symbolic-ref', '-q', '--short', 'HEAD']),
@@ -126,7 +127,7 @@ final class Git {
       untracked = lines.where((l) => l.startsWith('??')).length;
       tracked = lines.length - untracked;
     } else {
-      errors.add('git status failed');
+      errors.add(tr('git status failed'));
     }
     final upstream = results[3].ok ? results[3].stdout.trim() : null;
     DateTime? lastFetch;
@@ -162,8 +163,8 @@ final class Git {
         (false, false) => Relation.diverged,
         _ => Relation.unknown,
       };
-      if (relation == Relation.unknown) errors.add('could not compare with $upstream');
-      if (ahead == null || behind == null) errors.add('could not count commits against $upstream');
+      if (relation == Relation.unknown) errors.add(trf('could not compare with {0}', [upstream]));
+      if (ahead == null || behind == null) errors.add(trf('could not count commits against {0}', [upstream]));
     }
     return GitInfo(
       repo: repo,

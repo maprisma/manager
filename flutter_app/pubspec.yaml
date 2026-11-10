@@ -9,6 +9,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
   maprisma_manager_core:
     path: ../packages/maprisma_manager_core
   file_selector: ^1.1.0

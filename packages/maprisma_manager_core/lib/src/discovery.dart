@@ -4,6 +4,9 @@
 /// folder; installing needs a catalog entry (what it installs, so it can be removed again).
 library;
 
+import 'translations.dart';
+
+
 import 'dart:io';
 
 import 'package:path/path.dart' as p;
@@ -79,7 +82,7 @@ Future<Map<String, dynamic>> discover(Ctx ctx) async {
       'folder': null,
       'github': {...facts, 'linkedBy': 'org'},
       'cloneTo': taken ? null : to,
-      if (taken) 'cloneBlocked': '${p.basename(to)} is the folder of ${knownRepos.contains(toName) ? 'a catalog app' : 'another app'}',
+      if (taken) 'cloneBlocked': trf('{0} is the folder of {1}', [p.basename(to), knownRepos.contains(toName) ? tr('a catalog app') : tr('another app')]),
     };
   }
 
@@ -92,13 +95,13 @@ Future<Map<String, dynamic>> discover(Ctx ctx) async {
 Future<Map<String, dynamic>> cloneDiscovered(Ctx ctx, String slug) async {
   final d = await discover(ctx);
   final app = (d['apps'] as List).cast<Map<String, dynamic>>().where((a) => (a['github'] as Map?)?['repo'] == slug.toLowerCase()).firstOrNull;
-  if (app == null) throw RouteError('not_found', '$slug is no new app of $githubOrg');
-  if (app['folder'] != null) throw RouteError('exists', '$slug is at ${app['folder']}');
+  if (app == null) throw RouteError('not_found', trf('{0} is no new app of {1}', [slug, githubOrg]));
+  if (app['folder'] != null) throw RouteError('exists', trf('{0} is at {1}', [slug, app['folder']]));
   final to = app['cloneTo'] as String?;
   if (to == null) throw RouteError('exists', '${app['cloneBlocked']}');
-  if (FileSystemEntity.typeSync(to, followLinks: false) != FileSystemEntityType.notFound) throw RouteError('exists', '$to is there already');
+  if (FileSystemEntity.typeSync(to, followLinks: false) != FileSystemEntityType.notFound) throw RouteError('exists', trf('{0} is there already', [to]));
   final git = ctx.runner.which('git');
-  if (git == null) throw RouteError('unavailable', 'git is missing');
+  if (git == null) throw RouteError('unavailable', tr('git is missing'));
   final url = ctx.cloneUrlFor(slug.toLowerCase());
   final tmp = p.join(p.dirname(to), '.${p.basename(to)}.clone-${ctx.clock().microsecondsSinceEpoch}');
   void drop() {
@@ -111,13 +114,13 @@ Future<Map<String, dynamic>> cloneDiscovered(Ctx ctx, String slug) async {
     final out = <int>[];
     final r = await cloneInGroup(ctx, git, url, tmp,
         killAfter: const Duration(seconds: 5), deadlineAfter: const Duration(minutes: 10), onOutput: (b) => out.length < 65536 ? out.addAll(b) : null);
-    if (r.startFailed != null) throw RouteError('clone_failed', 'git clone could not start: ${r.startFailed}');
+    if (r.startFailed != null) throw RouteError('clone_failed', trf('git clone could not start: {0}', [r.startFailed]));
     if (r.code != 0 || r.stopped) {
       final text = String.fromCharCodes(out).trim();
       final line = text.split('\n').lastWhere((l) => l.trim().isNotEmpty, orElse: () => '');
-      throw RouteError('clone_failed', r.stopped ? 'git clone took too long' : (line.isEmpty ? 'git clone failed (exit code ${r.code})' : line));
+      throw RouteError('clone_failed', r.stopped ? tr('git clone took too long') : (line.isEmpty ? trf('git clone failed (exit code {0})', [r.code]) : line));
     }
-    if (FileSystemEntity.typeSync(to, followLinks: false) != FileSystemEntityType.notFound) throw RouteError('exists', '$to is there already');
+    if (FileSystemEntity.typeSync(to, followLinks: false) != FileSystemEntityType.notFound) throw RouteError('exists', trf('{0} is there already', [to]));
     Directory(tmp).renameSync(to);
   } finally {
     drop();

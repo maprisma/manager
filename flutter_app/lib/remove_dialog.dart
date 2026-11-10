@@ -1,3 +1,4 @@
+import 'package:maprisma_manager_core/maprisma_manager_core.dart' show tr, trf, uiLabel;
 import 'package:flutter/material.dart';
 
 import 'app_facts.dart';
@@ -54,11 +55,11 @@ class _RemoveDialogState extends State<RemoveDialog> {
       children: [
         Padding(
           padding: const EdgeInsets.only(top: 12, bottom: 4),
-          child: Text('$title (${items.length})', style: const TextStyle(fontWeight: FontWeight.w700)),
+          child: Text('$title (${items.length})', style: TextStyle(fontWeight: FontWeight.w700)),
         ),
         for (final e in items.take(60))
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 1),
+            padding: EdgeInsets.symmetric(vertical: 1),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -68,17 +69,17 @@ class _RemoveDialogState extends State<RemoveDialog> {
                   child: Text.rich(
                     TextSpan(children: [
                       TextSpan(text: _short('${(e as Map)['path']}')),
-                      if (e['kind'] == 'tree') TextSpan(text: '  (folder, ${e['files']} files)', style: TextStyle(color: scheme.onSurfaceVariant)),
-                      if (e['kind'] == 'package') TextSpan(text: '  (pacman package ${e['version'] ?? ''})', style: TextStyle(color: scheme.onSurfaceVariant)),
-                      if (e['why'] != null) TextSpan(text: ': ${e['why']}', style: TextStyle(color: scheme.onSurfaceVariant)),
+                      if (e['kind'] == 'tree') TextSpan(text: trf('  (folder, {0} files)', [e['files']]), style: TextStyle(color: scheme.onSurfaceVariant)),
+                      if (e['kind'] == 'package') TextSpan(text: trf('  (pacman package {0})', [e['version'] ?? '']), style: TextStyle(color: scheme.onSurfaceVariant)),
+                      if (e['why'] != null) TextSpan(text: ': ${uiLabel(e['why'])}', style: TextStyle(color: scheme.onSurfaceVariant)),
                     ]),
-                    style: const TextStyle(fontSize: 12.5),
+                    style: TextStyle(fontSize: 12.5),
                   ),
                 ),
               ],
             ),
           ),
-        if (items.length > 60) Text('… and ${items.length - 60} more', style: TextStyle(color: scheme.onSurfaceVariant)),
+        if (items.length > 60) Text(trf('… and {0} more', [items.length - 60]), style: TextStyle(color: scheme.onSurfaceVariant)),
       ],
     );
   }
@@ -97,7 +98,7 @@ class _RemoveDialogState extends State<RemoveDialog> {
     final data = ((p?['data'] as List?) ?? const []).cast<Map>();
     final steps = ((p?['steps'] as List?) ?? const []).cast<Map>();
     return AlertDialog(
-      title: Text('Do you want to uninstall ${widget.app['name']}?'),
+      title: Text(trf('Do you want to uninstall {0}?', [widget.app['name']])),
       content: SizedBox(
         width: 560,
         child: error != null
@@ -109,40 +110,40 @@ class _RemoveDialogState extends State<RemoveDialog> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     if (blocked != null)
-                      Text('It can\'t be removed now: $blocked', style: TextStyle(color: scheme.error, fontWeight: FontWeight.w600)),
+                      Text(trf('It can\'t be removed now: {0}', [blocked]), style: TextStyle(color: scheme.error, fontWeight: FontWeight.w600)),
                     if (dependents.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 6),
                         child: Text(
-                          '${dependents.map((d) => d['name']).join(', ')} ${dependents.length == 1 ? 'needs' : 'need'} it: ${dependents.length == 1 ? 'it stops working' : 'they stop working'} without it.',
+                          trf('{0} {1} it: {2} without it.', [dependents.map((d) => d['name']).join(', '), dependents.length == 1 ? tr('needs') : tr('need'), dependents.length == 1 ? tr('it stops working') : tr('they stop working')]),
                           style: TextStyle(color: scheme.error),
                         ),
                       ),
                     if (p['receipt'] != 'valid')
                       Text(
-                        'Installed before the Manager (no record of its files): only the files its installer writes go.',
+                        tr('Installed before the Manager (no record of its files): only the files its installer writes go.'),
                         style: TextStyle(color: scheme.onSurfaceVariant),
                       ),
                     if (steps.isNotEmpty) ...[
-                      const Padding(padding: EdgeInsets.only(top: 12, bottom: 4), child: Text('Steps first', style: TextStyle(fontWeight: FontWeight.w700))),
+                      Padding(padding: EdgeInsets.only(top: 12, bottom: 4), child: Text(tr('Steps first'), style: TextStyle(fontWeight: FontWeight.w700))),
                       for (final s in steps) Text('• ${s['title']}', style: const TextStyle(fontSize: 12.5)),
                     ],
-                    _paths('Goes', (p['goes'] as List?) ?? const [], goes: true),
-                    _paths('Stays', [
-                      ...((p['stays'] as List?) ?? const []),
-                      ...((p['runtime'] as List?) ?? const []),
+                    _paths(tr('Goes'), (p['goes'] as List?) ?? [], goes: true),
+                    _paths(tr('Stays'), [
+                      ...((p['stays'] as List?) ?? []),
+                      ...((p['runtime'] as List?) ?? []),
                       for (final d in data)
                         if (d['goes'] != true) d,
                     ], goes: false),
-                    _paths('Settings that go', [for (final d in data) if (d['goes'] == true) d], goes: true),
+                    _paths(tr('Settings that go'), [for (final d in data) if (d['goes'] == true) d], goes: true),
                     if (settingsOffered)
                       CheckboxListTile(
                         contentPadding: EdgeInsets.zero,
                         controlAffinity: ListTileControlAffinity.leading,
                         value: deleteSettings,
                         onChanged: (v) => setState(() => deleteSettings = v ?? false),
-                        title: const Text('Also delete its settings'),
-                        subtitle: const Text('Data shared with Omarchy\'s apps is never deleted'),
+                        title: Text(tr('Also delete its settings')),
+                        subtitle: Text(tr('Data shared with Omarchy\'s apps is never deleted')),
                       ),
                   ],
                 ),
@@ -150,7 +151,7 @@ class _RemoveDialogState extends State<RemoveDialog> {
       ),
       actions: [
         // Removing: Enter must not do it by accident.
-        TextButton(autofocus: true, onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        TextButton(autofocus: true, onPressed: () => Navigator.pop(context), child: Text(tr('Cancel'))),
         FilledButton(
           style: FilledButton.styleFrom(backgroundColor: scheme.error),
           onPressed: p == null || blocked != null
@@ -160,7 +161,7 @@ class _RemoveDialogState extends State<RemoveDialog> {
                   if (dependents.isNotEmpty) 'dependents_ok': true,
                   'revision': ?p['revision'],
                 }),
-          child: const Text('Uninstall'),
+          child: Text(tr('Uninstall')),
         ),
       ],
     );

@@ -2,6 +2,8 @@
 /// in its own session, `setsid`), and the safe stop of an app's processes (plan: "Processes").
 library;
 
+import 'translations.dart';
+
 import 'dart:async';
 import 'dart:ffi';
 import 'dart:io';
@@ -148,7 +150,7 @@ Future<List<Map<String, dynamic>>> stopProcesses(
       termed.add(pr);
       out[pr.pid] = {'pid': pr.pid, 'exe': pr.exe, 'result': 'terminated'};
     } else {
-      out[pr.pid] = {'pid': pr.pid, 'exe': pr.exe, 'result': 'could not signal'};
+      out[pr.pid] = {'pid': pr.pid, 'exe': pr.exe, 'result': tr('could not signal')};
     }
   }
   final until = DateTime.now().add(grace);
@@ -167,7 +169,7 @@ Future<List<Map<String, dynamic>>> stopProcesses(
       await Future<void>.delayed(step);
     }
     for (final pr in left.where(still)) {
-      out[pr.pid]!['result'] = 'still running';
+      out[pr.pid]!['result'] = tr('still running');
     }
   }
   return out.values.toList();
