@@ -24,6 +24,25 @@ import 'context.dart';
 /// How long checked facts count as fresh.
 const githubInterval = Duration(minutes: 30);
 
+/// The GitHub org whose repos are Maprisma apps (linked to catalog apps, or listed as new ones).
+const githubOrg = 'maprisma';
+
+/// The org repo names an input repo may have there: `maprisma-theme` → `maprisma-theme`, `theme`.
+List<String> orgNamesFor(String repo) {
+  final r = repo.toLowerCase();
+  return [r, if (r.startsWith('maprisma-') && r.length > 9) r.substring(9)];
+}
+
+/// The first GitHub slug among a folder's remotes: `origin` first, then by name.
+String? githubSlugOfRemotes(Map<String, String> remotes) {
+  final names = remotes.keys.toList()..sort((a, b) => a == 'origin' ? -1 : (b == 'origin' ? 1 : a.compareTo(b)));
+  for (final n in names) {
+    final s = githubSlugOf(remotes[n]!);
+    if (s != null) return s;
+  }
+  return null;
+}
+
 /// One HTTP answer (the REST API, or a download's first response).
 typedef HttpAnswer = ({int status, String body, Map<String, String> headers});
 
@@ -202,12 +221,131 @@ final class GitHub {
   String get cacheFile => p.join(ctx.paths.managerState, 'github.json');
   String get downloads => p.join(ctx.paths.cache, 'maprisma-manager', 'downloads');
 
-  /// Every GitHub repo of the catalog (or of one app), in catalog order.
-  static List<String> slugs([AppEntry? app]) => [
+  /// GitHub repos of catalog inputs that have none in the catalog, found by [resolveLinks]:
+  /// input repo → slug and how (`remote`: a remote of its folder; `org`: the org repo of its name).
+  Map<String, ({String slug, String via})> links = {};
+
+  /// An input's GitHub repo: the catalog's, else the one found ([resolveLinks] first).
+  String? slugOf(Input i) => i.github ?? links[i.repo]?.slug;
+
+  /// How [slugOf] knows it: `catalog`, `remote`, `org`, or null (local only).
+  String? linkVia(Input i) => i.github != null ? 'catalog' : links[i.repo]?.via;
+
+  /// The URL to clone an input from; null = local only.
+  String? cloneUrlOf(Input i) {
+    final s = slugOf(i);
+    return s == null ? null : ctx.cloneUrlFor(s);
+  }
+
+  /// Finds the GitHub repo of each catalog input without one: its folder's GitHub remote, else
+  /// the org repo of its name (as last listed). No network.
+  Future<void> resolveLinks() async {
+    final org = [for (final r in orgRepos()) '${r['name']}'.toLowerCase()];
+    final found = <String, ({String slug, String via})>{};
+    for (final a in catalog) {
+      for (final i in a.inputs) {
+        if (i.github != null || found.containsKey(i.repo)) continue;
+        final folder = ctx.repoFolder(i.repo);
+        if (FileSystemEntity.typeSync(p.join(folder, '.git')) != FileSystemEntityType.notFound) {
+          final s = githubSlugOfRemotes(await ctx.git.remotes(folder));
+          if (s != null) {
+            found[i.repo] = (slug: s, via: 'remote');
+            continue;
+          }
+        }
+        final name = orgNamesFor(i.repo).where(org.contains).firstOrNull;
+        if (name != null) found[i.repo] = (slug: '$githubOrg/$name', via: 'org');
+      }
+    }
+    links = found;
+  }
+
+  /// Every GitHub repo of the catalog (or of one app), in catalog order ([resolveLinks] first).
+  List<String> slugs([AppEntry? app]) => [
     for (final a in app == null ? catalog : [app])
-      for (final i in a.inputs)
-        if (i.github != null) i.github!,
+      for (final i in a.inputs) ?slugOf(i),
   ].fold<List<String>>([], (l, s) => l.contains(s) ? l : (l..add(s)));
+
+  /// The org's repos as last listed (`{name, url, public, description, archived, fork}`).
+  List<Map<String, dynamic>> orgRepos({Map<String, dynamic>? cache}) {
+    final o = (cache ?? _load())['org'];
+    final list = o is Map ? o['repos'] : null;
+    return [for (final r in list is List ? list : const []) if (r is Map && r['name'] is String) Map<String, dynamic>.from(r)];
+  }
+
+  /// When the org was listed and how that went: `{org, known, checked, age, stale, error?}`.
+  Map<String, dynamic> orgFacts({Map<String, dynamic>? cache}) {
+    final o = (cache ?? _load())['org'];
+    final checked = o is Map && o['checked'] is String ? DateTime.tryParse(o['checked']) : null;
+    final now = ctx.clock();
+    return {
+      'org': githubOrg,
+      'url': githubWebUrl(githubOrg),
+      'known': o is Map && o['repos'] is List,
+      'checked': checked?.toUtc().toIso8601String(),
+      'age': checked == null ? null : now.difference(checked).inSeconds,
+      'stale': checked == null || now.difference(checked) >= githubInterval,
+      if (o is Map && o['error'] is String) 'error': o['error'],
+    };
+  }
+
+  /// Lists the org's repos (gh: also the private ones the login sees; REST: the public ones),
+  /// at most every [githubInterval] unless [force]. A failure keeps the last list.
+  Future<Map<String, dynamic>> refreshOrg({bool force = false, GitHubApi? using}) async {
+    final now = ctx.clock();
+    final before = _load()['org'];
+    final last = [
+      if (before is Map && before['checked'] is String) DateTime.tryParse(before['checked']),
+      if (before is Map && before['lastTry'] is String) DateTime.tryParse(before['lastTry']),
+      _tried[':org'],
+    ].whereType<DateTime>().fold<DateTime?>(null, (a, b) => a == null || b.isAfter(a) ? b : a);
+    if (!force && last != null && now.difference(last) < githubInterval) return {'checked': false, 'skipped': 'recent'};
+    _tried[':org'] = now;
+    final api = using ?? await chooseApi();
+    Map<String, dynamic> update;
+    Map<String, dynamic> result;
+    try {
+      // every page (100 each); the list is replaced only when all of them came
+      final all = <Object?>[];
+      for (var page = 1;; page++) {
+        if (page > 20) throw GitHubError('the org $githubOrg has more than 2000 repos: not listed');
+        final a = await api.get('orgs/$githubOrg/repos?per_page=100&type=all&page=$page');
+        if (a.status == 404 || a.json is! List) throw GitHubError('the org $githubOrg was not found', status: a.status);
+        final got = a.json as List;
+        all.addAll(got);
+        if (got.length < 100) break;
+      }
+      final repos = [
+        for (final r in all)
+          if (r is Map && r['name'] is String)
+            {
+              'name': r['name'],
+              'url': r['html_url'] is String ? r['html_url'] : githubWebUrl('$githubOrg/${r['name']}'),
+              'public': r['private'] is bool ? !(r['private'] as bool) : null,
+              'description': r['description'] is String ? r['description'] : null,
+              'archived': r['archived'] == true,
+              'fork': r['fork'] == true,
+            },
+      ];
+      update = {'checked': now.toUtc().toIso8601String(), 'via': api.via, 'repos': repos};
+      result = {'checked': true, 'via': api.via, 'repos': repos.length};
+    } on GitHubError catch (err) {
+      update = {'lastTry': now.toUtc().toIso8601String(), 'error': err.message, 'via': api.via};
+      result = {'checked': false, 'error': err.message, if (err.rateLimited) 'rateLimited': true};
+    } on Object catch (err) {
+      final why = 'offline: ${err is SocketException ? err.message : err}';
+      update = {'lastTry': now.toUtc().toIso8601String(), 'error': why, 'via': api.via};
+      result = {'checked': false, 'error': why};
+    }
+    await withStateLock(ctx.paths, () async {
+      final data = _load();
+      final old = data['org'] is Map ? Map<String, dynamic>.from(data['org'] as Map) : <String, dynamic>{};
+      data['org'] = update.containsKey('repos') ? update : {...old, ...update};
+      data['schema'] = 1;
+      _save(data);
+    });
+    return result;
+  }
 
   Map<String, dynamic> _load() {
     try {
@@ -307,11 +445,19 @@ final class GitHub {
   /// `github.refresh`: reads the facts of every repo (of [only]) not checked or tried within
   /// [githubInterval] (all of them with [force]). A failure keeps the last known facts.
   Future<Map<String, dynamic>> refresh({List<String>? only, bool force = false}) async {
+    // Everything: the org's list first (it links catalog apps and shows new ones).
+    Map<String, dynamic>? org;
+    if (only == null) {
+      org = await refreshOrg(force: force);
+      await resolveLinks();
+    }
     final list = only ?? slugs();
     final now = ctx.clock();
     final results = <Map<String, dynamic>>[];
     GitHubApi? api;
-    String? stop;
+    // GitHub refused the org's list for the rate: no more requests now. (Offline: the first repo
+    // tries once more and records the error with its facts.)
+    String? stop = org?['rateLimited'] == true ? '${org!['error']}' : null;
     final updates = <String, Map<String, dynamic>>{};
     final before = _load();
     for (final slug in list) {
@@ -366,6 +512,7 @@ final class GitHub {
     return {
       'force': force,
       'via': api?.via,
+      'org': ?org,
       'repos': results,
       'facts': {for (final s in list) s: facts(s)},
     };

@@ -10,6 +10,8 @@ const usage = '''usage: maprisma-manager-core status [--json] [--desktop cosmic|
        maprisma-manager-core sources [--json]
        maprisma-manager-core fetch [--force] [<id>]
        maprisma-manager-core github [--force] [<id>]
+       maprisma-manager-core new [--json]                 (Maprisma apps the catalog doesn't know)
+       maprisma-manager-core clone-new <org/repo>         (clone a new GitHub-only one into the projects folder)
        maprisma-manager-core bar [--json] [--panel <name>]
        maprisma-manager-core bar <id> left|center|right|out [--index <n>] [--panel <name>]
        maprisma-manager-core bar apply
@@ -90,6 +92,30 @@ Future<int> runCli(List<String> args, {CoreService? service, IOSink? out}) async
       case ['sources']:
         final r = await core.call('apps.list');
         sink.writeln(json ? const JsonEncoder.withIndent('  ').convert(r) : sourcesTable(r));
+      case ['new']:
+        final r = await core.call('discovered.list');
+        if (json) {
+          sink.writeln(const JsonEncoder.withIndent('  ').convert(r));
+        } else {
+          final apps = (r['apps'] as List).cast<Map<String, dynamic>>();
+          final org = r['org'] as Map<String, dynamic>;
+          if (apps.isEmpty) sink.writeln('No new Maprisma apps.');
+          for (final a in apps) {
+            final gh = a['github'] as Map<String, dynamic>?;
+            final where = [
+              if (a['folder'] != null) a['folder'],
+              if (gh != null) '${gh['url']}${gh['public'] == false ? ' (private)' : ''}',
+              if (a['folder'] == null) a['cloneTo'] != null ? 'clone-new ${gh!['repo']} → ${a['cloneTo']}' : 'not cloneable: ${a['cloneBlocked']}',
+            ].join('  ');
+            sink.writeln('${'${a['name']}'.padRight(28)} $where');
+          }
+          sink.writeln(org['known'] == true
+              ? 'GitHub org ${org['org']}: ${_age(org['age'])}${org['error'] != null ? ' (last try failed: ${org['error']})' : ''}; refresh: github --force'
+              : 'GitHub org ${org['org']} not listed yet: github --force');
+        }
+      case ['clone-new', final repo]:
+        final r = await core.call('discovered.clone', {'repo': repo});
+        sink.writeln(json ? const JsonEncoder.withIndent('  ').convert(r) : 'Cloned ${r['repo']} into ${r['folder']}');
       case ['github']:
       case ['github', _]:
         final r = await core.call('github.refresh', {'force': force, if (rest.length == 2) 'id': rest[1]});

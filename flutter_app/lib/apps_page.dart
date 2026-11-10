@@ -34,6 +34,9 @@ class AppsPage extends StatefulWidget {
 
 class AppsPageState extends State<AppsPage> {
   List<App> apps = [];
+
+  /// New Maprisma apps the catalog doesn't know (apps.list's `discovered`): shown, cloneable.
+  List<Map<String, dynamic>> discovered = [];
   String desktop = 'cosmic';
   bool loading = true;
   bool checking = false;
@@ -74,6 +77,10 @@ class AppsPageState extends State<AppsPage> {
       if (!mounted) return;
       setState(() {
         apps = [for (final x in r['apps'] as List) Map<String, dynamic>.from(x as Map)];
+        discovered = [
+          for (final x in ((r['discovered'] as Map?)?['apps'] as List?) ?? const [])
+            if (x is Map) Map<String, dynamic>.from(x),
+        ];
         desktop = '${r['desktop'] ?? 'other'}';
         loading = false;
         error = null;
@@ -332,6 +339,107 @@ class AppsPageState extends State<AppsPage> {
     }
   }
 
+  /// A new app's ⋮ menu: clone (GitHub only), its GitHub page, its folder.
+  Future<void> _newMenu(Map<String, dynamic> n, Offset at) async {
+    final gh = n['github'] as Map?;
+    final folder = n['folder'] as String?;
+    PopupMenuItem<String> item(String value, String text, {bool enabled = true}) =>
+        PopupMenuItem(value: value, enabled: enabled, child: Text(text));
+    final choice = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(at.dx, at.dy, at.dx, at.dy),
+      items: [
+        if (folder == null && gh != null)
+          n['cloneTo'] != null ? item('clone', 'Clone into ${n['cloneTo']}') : item('clone', 'Not cloneable: ${n['cloneBlocked']}', enabled: false),
+        if (folder != null) item('folder', 'Open folder'),
+        item('github', 'Open on GitHub', enabled: gh != null),
+        const PopupMenuDivider(),
+        item('copyurl', 'Copy GitHub URL', enabled: gh != null),
+        item('copyfolder', 'Copy folder path', enabled: folder != null),
+      ],
+    );
+    switch (choice) {
+      case 'clone':
+        await _clone(n);
+      case 'folder':
+        await _do('discovered.open_folder', {'name': n['name']});
+      case 'github':
+        await _do('links.open', {'url': gh!['url']});
+      case 'copyurl':
+        await Clipboard.setData(ClipboardData(text: '${gh!['url']}'));
+        tell('Copied');
+      case 'copyfolder':
+        await Clipboard.setData(ClipboardData(text: folder!));
+        tell('Copied');
+    }
+  }
+
+  bool cloning = false;
+
+  Future<void> _clone(Map<String, dynamic> n) async {
+    if (cloning) return;
+    setState(() => cloning = true);
+    final gh = n['github'] as Map;
+    tell('Cloning ${gh['repo']}…');
+    try {
+      final r = await widget.core('discovered.clone', {'repo': gh['repo']});
+      tell('${n['name']} is in ${r['folder']}');
+    } on ServiceError catch (e) {
+      tell('${n['name']} could not be cloned (${e.code})${e.reason == null || e.reason!.isEmpty ? '' : ': ${e.reason}'}');
+    } finally {
+      if (mounted) setState(() => cloning = false);
+    }
+    await _load();
+  }
+
+  Widget _newRow(Map<String, dynamic> n) {
+    final scheme = Theme.of(context).colorScheme;
+    final gh = n['github'] as Map?;
+    final folder = n['folder'] as String?;
+    final about = [
+      if (gh?['description'] is String && (gh!['description'] as String).isNotEmpty) gh['description'],
+      folder ?? 'on GitHub only: ${gh?['url']}',
+    ].join(' · ');
+    return GestureDetector(
+      onSecondaryTapDown: (d) => _newMenu(n, d.globalPosition),
+      child: ListTile(
+        key: ValueKey('new-${n['name']}'),
+        leading: Icon(Icons.fiber_new_outlined, color: scheme.onSurfaceVariant),
+        title: Row(
+          children: [
+            Flexible(child: Text('${n['name']}', overflow: TextOverflow.ellipsis)),
+            if (gh?['public'] == false) _sourceChip('private'),
+          ],
+        ),
+        subtitle: Row(
+          children: [
+            Flexible(child: Text(about, maxLines: 1, overflow: TextOverflow.ellipsis)),
+            if (folder != null) _sourceChip('Folder'),
+            if (gh != null) _sourceChip('GitHub'),
+          ],
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (folder == null && gh != null && n['cloneTo'] != null)
+              TextButton(onPressed: cloning ? null : () => _clone(n), child: const Text('Clone')),
+            Builder(
+              builder: (context) => IconButton(
+                tooltip: 'Actions',
+                icon: const Icon(Icons.more_vert, size: 18),
+                onPressed: () {
+                  final box = context.findRenderObject()! as RenderBox;
+                  _newMenu(n, box.localToGlobal(box.size.bottomLeft(Offset.zero)));
+                },
+              ),
+            ),
+          ],
+        ),
+        onTap: () => folder != null ? _do('discovered.open_folder', {'name': n['name']}) : (gh != null ? _do('links.open', {'url': gh['url']}) : null),
+      ),
+    );
+  }
+
   Widget _mark(String tooltip, IconData icon, Color color) => Padding(
     padding: const EdgeInsets.only(left: 6),
     child: Tooltip(message: tooltip, child: Icon(icon, size: 16, color: color)),
@@ -476,6 +584,8 @@ class AppsPageState extends State<AppsPage> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final shown = [for (final a in apps) if (matches(a, query)) a];
+    final q = query.trim().toLowerCase();
+    final shownNew = [for (final n in discovered) if (q.isEmpty || '${n['name']}'.toLowerCase().contains(q)) n];
     final secs = sections(shown, desktop);
     final running = widget.jobs.busy;
     final narrow = MediaQuery.sizeOf(context).width < 560;
@@ -562,7 +672,21 @@ class AppsPageState extends State<AppsPage> {
                             ),
                             for (final x in items) _row(x),
                           ],
-                        if (shown.isEmpty)
+                        if (shownNew.isNotEmpty) ...[
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+                            child: Text('New, not in the catalog', style: const TextStyle(fontWeight: FontWeight.w700)),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(12, 2, 12, 4),
+                            child: Text(
+                              'Found in the projects folder or the maprisma GitHub org. The Manager can install them once they have a catalog entry.',
+                              style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+                            ),
+                          ),
+                          for (final n in shownNew) _newRow(n),
+                        ],
+                        if (shown.isEmpty && shownNew.isEmpty)
                           Padding(
                             padding: const EdgeInsets.all(24),
                             child: Center(child: Text('No app matches "$query"', style: TextStyle(color: scheme.onSurfaceVariant))),

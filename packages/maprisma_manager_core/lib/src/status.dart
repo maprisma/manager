@@ -395,8 +395,8 @@ final class StatusReader {
         for (final input in app.inputs)
           {
             ...gitInfos[input.repo]!.toJson(),
-            'cloneUrl': input.remote,
-            'available': gitInfos[input.repo]!.present ? 'here' : (input.remote != null ? 'cloneable' : 'not available here'),
+            'cloneUrl': ctx.github.cloneUrlOf(input),
+            'available': gitInfos[input.repo]!.present ? 'here' : (ctx.github.slugOf(input) != null ? 'cloneable' : 'not available here'),
           },
       ],
       'bar': bar.stateOf(app),

@@ -11,6 +11,7 @@ export 'src/cli.dart';
 export 'src/context.dart';
 export 'src/core.dart';
 export 'src/desktop_look.dart';
+export 'src/discovery.dart';
 export 'src/git.dart';
 export 'src/github.dart';
 export 'src/icons.dart';

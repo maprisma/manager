@@ -274,6 +274,55 @@ void main() {
     });
   }
 
+  testWidgets('new apps: a section with the folder-only and the GitHub-only one; Clone puts it into the projects folder', (tester) async {
+    // a local app the catalog doesn't know, and a repo of the org (as last listed)
+    final sky = w.repo('maprisma-sky');
+    w.git(sky, ['remote', 'add', 'origin', 'https://github.com/maprisma/sky.git']);
+    final src = p.join(w.dir, 'src-clock');
+    Directory(src).createSync(recursive: true);
+    w.git(src, ['init', '-q', '-b', 'main']);
+    File(p.join(src, 'README.md')).writeAsStringSync('clock\n');
+    w.git(src, ['add', '.']);
+    w.git(src, ['commit', '-q', '-m', 'one']);
+    final bare = p.join(w.dir, 'github', 'clock.git');
+    w.git(w.dir, ['clone', '-q', '--bare', src, bare]);
+    core.ctx.cloneUrlFor = (slug) => slug == 'maprisma/clock' ? bare : '/nowhere/$slug.git';
+    final cache = p.join(w.paths.managerState, 'github.json');
+    final data = jsonDecode(File(cache).readAsStringSync()) as Map<String, dynamic>;
+    data['org'] = {
+      'checked': DateTime.now().toUtc().toIso8601String(),
+      'via': 'gh',
+      'repos': [
+        {'name': 'clock', 'url': 'https://github.com/maprisma/clock', 'public': false, 'description': 'A clock', 'archived': false, 'fork': false},
+        {'name': 'sky', 'url': 'https://github.com/maprisma/sky', 'public': true, 'description': 'Sky', 'archived': false, 'fork': false},
+      ],
+    };
+    w.writeFile(cache, jsonEncode(data));
+
+    await open(tester, 900, height: 1600);
+    expect(find.text('New, not in the catalog'), findsOneWidget);
+    expect(find.byKey(const ValueKey('new-maprisma-sky')), findsOneWidget);
+    expect(find.byKey(const ValueKey('new-clock')), findsOneWidget);
+    expect(find.descendant(of: find.byKey(const ValueKey('new-clock')), matching: find.text('private')), findsOneWidget);
+    expect(find.descendant(of: find.byKey(const ValueKey('new-maprisma-sky')), matching: find.text('Clone')), findsNothing);
+    expect(tester.takeException(), isNull);
+    await shot(tester, 'new-apps');
+
+    await tester.ensureVisible(find.byKey(const ValueKey('new-clock')));
+    await tester.tap(find.descendant(of: find.byKey(const ValueKey('new-clock')), matching: find.text('Clone')));
+    await settle(tester, 12);
+    expect(File(p.join(w.projects, 'maprisma-clock', 'README.md')).existsSync(), isTrue);
+    // now it is a folder: listed with it, no Clone any more
+    expect(find.byKey(const ValueKey('new-maprisma-clock')), findsOneWidget);
+    expect(find.descendant(of: find.byKey(const ValueKey('new-maprisma-clock')), matching: find.text('Clone')), findsNothing);
+
+    // the filter covers them too
+    await tester.enterText(find.byKey(const ValueKey('filter')), 'sky');
+    await settle(tester, 2);
+    expect(find.byKey(const ValueKey('new-maprisma-sky')), findsOneWidget);
+    expect(find.byKey(const ValueKey('new-maprisma-clock')), findsNothing);
+  });
+
   testWidgets('Take out of the bar and put back through the menu writes the panel files', (tester) async {
     await open(tester, 900);
     final center = File(p.join(w.paths.config, 'cosmic/com.system76.CosmicPanel.Panel/v1/plugins_center'));

@@ -119,12 +119,14 @@ void main() {
       final core = w.core();
       final calls = <String>[];
       core.ctx.github.http = restFixture({
-        for (final s in GitHub.slugs()) 'repos/$s': (403, {'message': 'API rate limit exceeded'}),
+        for (final s in core.ctx.github.slugs()) 'repos/$s': (403, {'message': 'API rate limit exceeded'}),
       }, calls, headers: {'x-ratelimit-remaining': '0', 'x-ratelimit-reset': '1794225600'});
       final r = await core.call('github.refresh', {'force': true});
+      // the org's list first (the fixture doesn't have it: 404), then the first repo is refused
       expect((r['repos'] as List).first['error'], startsWith('rate limited until 2026-'));
       expect((r['repos'] as List).skip(1).every((e) => (e['skipped'] as String).startsWith('rate limited')), isTrue);
-      expect(calls, hasLength(1));
+      expect(calls, hasLength(2));
+      expect(calls.first, startsWith('orgs/maprisma/repos'));
     });
 
     test('gh present and logged in: gh api is used; not logged in: REST', () async {

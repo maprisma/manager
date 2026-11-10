@@ -75,8 +75,10 @@ is missing. `links.open` opens a `https://github.com/…` page with `xdg-open` (
 Everything the list page needs, for every catalog app. `desktop` shows it as another desktop would.
 
 ```
-{desktop, projectsDir, projectsSource, flutter, flutterSource, apps: [App]}
+{desktop, projectsDir, projectsSource, flutter, flutterSource, apps: [App], discovered: Discovered}
 ```
+
+`discovered` is `discovered.list`'s answer (new apps, below).
 
 App:
 
@@ -149,8 +151,47 @@ is `skipped: offline` / `rate limited …`. Cached in `~/.local/state/maprisma-m
 (`{schema: 1, repos: {"org/name": {checked, via, facts: {url, public, defaultBranch, release}} | {…, lastTry, error}}}`,
 written under the state lock). `apps.list` only reads this cache (no network).
 
-`{force, via: gh/rest/null, repos: [{repo, checked, via?, release?, skipped?: recent/offline/rate limited…, error?}], facts: {"org/name": github facts}}`;
+`{force, via: gh/rest/null, org?, repos: [{repo, checked, via?, release?, skipped?: recent/offline/rate limited…, error?}], facts: {"org/name": github facts}}`;
 `{…, note: "not on GitHub"}` for an app without GitHub repos.
+
+Without `id` it first lists the org's repos (`orgs/maprisma/repos?per_page=100&type=all`: through gh
+also the private ones the login sees, through REST the public ones), at most every 30 minutes unless
+`force`, a failure keeping the last list; cached as `org: {checked, via, repos: [{name, url, public,
+description, archived, fork}]} | {…, lastTry, error}` in the same file. `org` in the answer is
+`{checked, via?, repos?, error?, rateLimited?}` or `{checked: false, skipped: recent}`; rate limited there
+stops the refresh.
+
+**Found GitHub repos.** Before every call the core links each catalog input that has no GitHub repo
+in the catalog: the first GitHub URL among its folder's remotes (`origin` first), else the org repo of
+its name as last listed (`maprisma-theme` → `maprisma/maprisma-theme` or `maprisma/theme`). A catalog
+repo is never replaced. A found repo counts like a catalog one everywhere (facts, fetch, compare,
+clone when the folder is missing, update); its sources' `github` says how it was found:
+`linkedBy: catalog | remote | org`.
+
+### `discovered.list` `{}`
+
+New Maprisma apps the catalog doesn't know, by name: git folders `maprisma*` in the projects folder
+that are no catalog input (nor a clone of one: a remote that is a catalog app's GitHub repo), and the
+org's repos that no catalog input is (archived ones, `omarchy-*`, `aur-*`, `.github`, `maprisma`
+left out). A folder and a repo are one app when the folder's remote is the repo, or, without a GitHub
+remote, when the names match (`clock` ↔ `maprisma-clock`). No network.
+
+```
+{org: {org, url, known, checked, age, stale, error?}, projectsDir,
+ apps: [{name, folder: path | null, github: {repo, url, public?, description?, linkedBy: remote | name | org} | null, cloneTo?}]}
+```
+
+They are only shown: installing needs a catalog entry (what it installs, so that remove can take it
+away again).
+
+### `discovered.clone` `{repo}` / `discovered.open_folder` `{name}`
+
+`discovered.clone` clones a GitHub-only new app (`org/name`, one of `discovered.list`'s without a
+folder) into its `cloneTo` (`<projects>/maprisma-<name>`, or its own name when that starts with
+maprisma): `git clone` into a hidden temporary folder next to it, renamed when complete, nothing left
+on failure. `not_found` (no such new app), `exists` (has a folder, or `cloneTo` is taken),
+`clone_failed`. Answer `{repo, folder, cloned: url}`. `discovered.open_folder` opens a new app's folder
+with `xdg-open`.
 
 ### `bar.get` `{panel?, widget?}`
 
@@ -567,6 +608,8 @@ maprisma-manager-core status [--json] [--desktop cosmic|kde|other] [<id>]
 maprisma-manager-core sources [--json]
 maprisma-manager-core fetch [--force] [<id>]
 maprisma-manager-core github [--force] [<id>]
+maprisma-manager-core new [--json]
+maprisma-manager-core clone-new <org/repo>
 maprisma-manager-core bar [--json] [--panel <name>]
 maprisma-manager-core bar <id> left|center|right|out [--index <n>] [--panel <name>]
 maprisma-manager-core bar apply
@@ -593,7 +636,8 @@ remote isn't the upstream); `status <id>` adds per input the folder (path, branc
 GitHub URL (public/private, which remote, the facts' age), the latest release with its URL and the
 comparison with the GitHub branch; `--json` prints `apps.list` (or `apps.get` with an id). `sources`
 lists every app and input with its folder (or `missing`), GitHub URL (or `local only`) and latest
-release. `github` runs `github.refresh`. `release` runs a release job like `install`. `icon <id>`
+release. `github` runs `github.refresh`. `new` lists `discovered.list` (folder, GitHub URL, the
+`clone-new` command for a GitHub-only one, the org list's age); `clone-new` runs `discovered.clone`. `release` runs a release job like `install`. `icon <id>`
 prints `icons.get` (40 choices, `--search` filters), `icon <id> <name|file>` runs `icons.set`, `--reset`
 `icons.reset`.
 

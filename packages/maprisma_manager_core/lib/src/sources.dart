@@ -56,7 +56,7 @@ Future<Map<String, dynamic>> inputSource(
   Map<String, Map<String, dynamic>> facts,
   Receipt? receipt,
 ) async {
-  final slug = input.github;
+  final slug = ctx.github.slugOf(input);
   final f = slug == null ? null : facts[slug] ?? ctx.github.facts(slug);
   final out = <String, dynamic>{
     'repo': input.repo,
@@ -68,7 +68,7 @@ Future<Map<String, dynamic>> inputSource(
       'head': g.head,
       'dirty': g.dirty,
     },
-    'github': f,
+    'github': f == null ? null : {...f, 'linkedBy': ctx.github.linkVia(input)},
     'remote': null,
     'compare': null,
   };
@@ -94,5 +94,5 @@ String whereOf(Map<String, dynamic> mainSource) {
   return folder && gh ? 'both' : (folder ? 'folder' : (gh ? 'GitHub' : 'none'));
 }
 
-/// The GitHub repos of an app's inputs.
-List<String> appSlugs(AppEntry app) => [for (final i in app.inputs) ?i.github];
+/// The GitHub repos of an app's inputs (the catalog's or found: [GitHub.resolveLinks] first).
+List<String> appSlugs(Ctx ctx, AppEntry app) => [for (final i in app.inputs) ?ctx.github.slugOf(i)];

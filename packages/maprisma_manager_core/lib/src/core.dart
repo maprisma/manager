@@ -4,6 +4,7 @@ import 'bar.dart';
 import 'catalog.dart';
 import 'context.dart';
 import 'desktop_look.dart';
+import 'discovery.dart';
 import 'icons.dart';
 import 'jobs.dart';
 import 'paths.dart';
@@ -18,6 +19,13 @@ const coreVersion = '0.1.0';
 
 /// How long a fetch counts as fresh (plan: "fetch at most every 30 min unless forced").
 const fetchInterval = Duration(minutes: 30);
+
+/// Routes that read the found GitHub repos ([GitHub.resolveLinks]); a job keeps the ones of its
+/// start (`jobs.start`).
+const _usesLinks = {
+  'apps.list', 'apps.get', 'git.fetch', 'github.refresh', 'jobs.start', 'apps.remove_plan',
+  'discovered.list', 'discovered.clone', 'discovered.open_folder',
+};
 
 /// The core behind the protocol (docs/protocol.md): one JSON frame in, one out.
 final class CoreService {
@@ -49,7 +57,28 @@ final class CoreService {
       'desktop.look': (_) async => desktopLook(ctx),
       'apps.list': (params) async {
         final status = StatusReader(_withDesktop(params));
-        return {..._header(status.ctx), 'apps': await status.apps()};
+        return {..._header(status.ctx), 'apps': await status.apps(), 'discovered': await discover(ctx)};
+      },
+      // New Maprisma apps the catalog doesn't know: shown only; a GitHub-only one can be cloned.
+      'discovered.list': (_) => discover(ctx),
+      'discovered.clone': (params) {
+        final repo = params['repo'];
+        if (repo is! String || !RegExp(r'^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$').hasMatch(repo) || repo.contains('..')) {
+          throw RouteError('bad_params', 'repo (org/name)');
+        }
+        return cloneDiscovered(ctx, repo);
+      },
+      // The folder of a new app (one of discovered.list's), opened with xdg-open.
+      'discovered.open_folder': (params) async {
+        final name = params['name'];
+        if (name is! String) throw RouteError('bad_params', 'name');
+        final d = await discover(ctx);
+        final app = (d['apps'] as List).cast<Map<String, dynamic>>().where((a) => a['name'] == name && a['folder'] != null).firstOrNull;
+        if (app == null) throw RouteError('not_found', 'no new app $name with a folder');
+        final open = ctx.runner.which('xdg-open');
+        if (open == null) throw RouteError('unavailable', 'xdg-open is missing');
+        if (!await jobs.startDetached(open, [app['folder'] as String])) throw RouteError('internal', 'could not start xdg-open');
+        return {'name': name, 'folder': app['folder'], 'opened': true};
       },
       'apps.get': (params) async {
         final id = _app(params);
@@ -60,7 +89,7 @@ final class CoreService {
       'github.refresh': (params) async {
         final force = params['force'] ?? false;
         if (force is! bool) throw RouteError('bad_params', 'force');
-        final only = params.containsKey('id') ? appSlugs(findApp(_app(params))!) : null;
+        final only = params.containsKey('id') ? appSlugs(ctx, findApp(_app(params))!) : null;
         if (only != null && only.isEmpty) return {'force': force, 'repos': const [], 'facts': const {}, 'note': 'not on GitHub'};
         return ctx.github.refresh(only: only, force: force);
       },
@@ -137,8 +166,10 @@ final class CoreService {
     final d = raw is String ? parseDesktop(raw) : null;
     if (d == null) throw RouteError('bad_params', 'desktop');
     if (d == ctx.desktop) return ctx;
-    return Ctx(paths: ctx.paths, environment: ctx.environment, desktop: d, runner: ctx.runner, clock: ctx.clock, uid: ctx.uid)
+    final other = Ctx(paths: ctx.paths, environment: ctx.environment, desktop: d, runner: ctx.runner, clock: ctx.clock, uid: ctx.uid)
       ..cloneUrlFor = ctx.cloneUrlFor;
+    other.github.links = ctx.github.links;
+    return other;
   }
 
   Map<String, dynamic> _header(Ctx c) {
@@ -181,7 +212,8 @@ final class CoreService {
           final before = await ctx.git.inspect(repo, folder);
           if (!before.isRepo) return {'repo': repo, 'fetched': false, 'skipped': before.present ? 'not a repo' : 'missing'};
           final upstream = before.upstream != null && before.upstreamRemote != null && before.upstreamRemote != '.' ? before.upstreamRemote : null;
-          final gh = input.github == null ? null : await githubRemote(ctx, folder, input.github!, upstreamRemote: before.upstreamRemote);
+          final slug = ctx.github.slugOf(input);
+          final gh = slug == null ? null : await githubRemote(ctx, folder, slug, upstreamRemote: before.upstreamRemote);
           final remotes = [?upstream, if (gh != null && gh.name != upstream) gh.name];
           if (remotes.isEmpty) return {'repo': repo, 'fetched': false, 'skipped': 'no upstream'};
           final last = [before.lastFetch, ctx.fetchAttempts[repo]].whereType<DateTime>().fold<DateTime?>(
@@ -201,7 +233,7 @@ final class CoreService {
           final ok = fetched.every((f) => f['fetched'] == true);
           Map<String, dynamic>? github;
           if (gh != null && after.head != null) {
-            final branch = githubBranch(ctx.github.facts(input.github!), after);
+            final branch = githubBranch(ctx.github.facts(slug!), after);
             final c = await ctx.git.compare(folder, '${gh.name}/$branch');
             github = {'remote': gh.name, 'ref': '${gh.name}/$branch', 'fetched': c.exists, 'behind': c.behind, 'relation': c.relation.name};
           }
@@ -221,6 +253,9 @@ final class CoreService {
   Future<Map<String, dynamic>> call(String method, [Map<String, dynamic> params = const {}]) async {
     final handler = routes[method];
     if (handler == null) throw RouteError('unknown_route', method);
+    // The GitHub repos of catalog apps without one (folder remotes, the org's list), as the
+    // folders are now: only for the routes that use them (not for job polls, the bar, icons).
+    if (_usesLinks.contains(method)) await ctx.github.resolveLinks();
     return await handler(params);
   }
 

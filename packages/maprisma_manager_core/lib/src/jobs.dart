@@ -751,14 +751,15 @@ final class JobEngine {
       final input = app.inputs.firstWhere((i) => i.repo == repo, orElse: () => Input(repo));
       if (FileSystemEntity.typeSync(folder, followLinks: false) == FileSystemEntityType.notFound) {
         await _clone(r, input, folder);
-        notes.add({'repo': repo, 'cloned': ctx.cloneUrlFor(input.github!)});
+        notes.add({'repo': repo, 'cloned': ctx.github.cloneUrlOf(input)});
       }
       final g = await ctx.git.inspect(repo, folder);
       if (!g.present) throw JobFailure('no_source', '$folder is missing');
       if (!g.isRepo || g.head == null) throw JobFailure('no_source', '$folder: ${g.error ?? 'not a git repository with a commit'}');
       if (r.kind != JobKind.update) continue;
       // The GitHub remote fetched first (the comparisons below then see what GitHub has now).
-      final gh = input.github == null ? null : await githubRemote(ctx, folder, input.github!, upstreamRemote: g.upstreamRemote);
+      final ghSlug = ctx.github.slugOf(input);
+      final gh = ghSlug == null ? null : await githubRemote(ctx, folder, ghSlug, upstreamRemote: g.upstreamRemote);
       if (gh != null) {
         r.log.note('$repo: git fetch ${gh.name} (GitHub, ${gh.url})');
         final f = await ctx.git.fetch(folder, gh.name);
@@ -1018,7 +1019,7 @@ final class JobEngine {
   /// Clones the input's GitHub repo into [folder] (missing): into a hidden sibling first, renamed
   /// when complete, so a cancelled or failed clone leaves nothing behind. Cancellable.
   Future<void> _clone(_Run r, Input input, String folder) async {
-    final slug = input.github;
+    final slug = ctx.github.slugOf(input);
     if (slug == null) throw JobFailure('no_source', '$folder is missing and ${input.repo} is not on GitHub');
     final git = ctx.runner.which('git');
     if (git == null) throw JobFailure('missing_prerequisite', 'git is needed to clone ${input.repo}');
@@ -1032,52 +1033,9 @@ final class JobEngine {
 
     drop();
     r.log.note('${input.repo}: the folder is missing: git clone $url $folder');
-    final Process proc;
-    try {
-      // its own session and group (setsid): a cancel ends git and every helper it started
-      proc = await Process.start(ctx.runner.which('setsid') ?? '/usr/bin/setsid', [git, '-c', 'core.fsmonitor=false', 'clone', '--no-progress', url, tmp],
-          environment: {...ctx.environment, ...Git.cloneEnv}, includeParentEnvironment: false, workingDirectory: parent);
-    } on ProcessException catch (e) {
-      throw JobFailure('clone_failed', 'git clone could not start: ${e.message}');
-    }
-    final start = procStat(proc.pid)?.start;
-    await proc.stdin.close();
-    final outDone = proc.stdout.listen(r.log.add).asFuture<void>();
-    final errDone = proc.stderr.listen(r.log.add).asFuture<void>();
-    // Our own child's group (pgid = its pid once setsid ran): signalled only while it is that one.
-    final real = Signaller();
-    bool group(int sig) => (sameProcess(proc.pid, start) || groupMembers(proc.pid).isNotEmpty) && real.group(proc.pid, sig);
-    var stopped = false;
-    DateTime? killAt;
-    final deadline = DateTime.now().add(const Duration(minutes: 30));
-    final timer = Timer.periodic(const Duration(milliseconds: 50), (_) {
-      if (!stopped && (r.cancelRequested || DateTime.now().isAfter(deadline))) {
-        stopped = true;
-        killAt = DateTime.now().add(killAfter);
-        if (!group(sigTerm)) proc.kill(ProcessSignal.sigterm);
-      } else if (killAt != null && DateTime.now().isAfter(killAt!)) {
-        killAt = null;
-        if (!group(sigKill)) proc.kill(ProcessSignal.sigkill);
-      }
-    });
-    final code = await proc.exitCode;
-    // what is left of the group (a helper that outlived git) ends before the folder is cleaned up
-    if (stopped || code != 0) {
-      final until = DateTime.now().add(killAfter + const Duration(seconds: 3));
-      var killed = false;
-      while (groupMembers(proc.pid).isNotEmpty && DateTime.now().isBefore(until)) {
-        if (!killed && (killAt == null || DateTime.now().isAfter(killAt!))) {
-          killed = group(sigKill);
-        }
-        await Future<void>.delayed(const Duration(milliseconds: 50));
-      }
-    }
-    timer.cancel();
-    try {
-      await Future.wait([outDone, errDone]).timeout(const Duration(seconds: 2));
-    } on TimeoutException {
-      // a helper still holds the output
-    }
+    final (:code, :stopped, :startFailed) = await cloneInGroup(ctx, git, url, tmp,
+        killAfter: killAfter, cancelled: () => r.cancelRequested, onOutput: r.log.add);
+    if (startFailed != null) throw JobFailure('clone_failed', 'git clone could not start: $startFailed');
     if (r.cancelRequested) {
       drop();
       r.log.note('clone cancelled; nothing kept');
@@ -1101,17 +1059,18 @@ final class JobEngine {
   /// again right before the merge. Otherwise the reason is logged and returned. A configured
   /// upstream on the GitHub remote was followed by the pull (its branch is the user's choice).
   Future<Map<String, dynamic>?> _githubUpdate(_Run r, Input input, String folder, {required bool fetched}) async {
-    if (r.kind != JobKind.update || input.github == null) return null;
+    final slug = ctx.github.slugOf(input);
+    if (r.kind != JobKind.update || slug == null) return null;
     final repo = input.repo;
     final g = await ctx.git.inspect(repo, folder);
-    final gh = await githubRemote(ctx, folder, input.github!, upstreamRemote: g.upstreamRemote);
+    final gh = await githubRemote(ctx, folder, slug, upstreamRemote: g.upstreamRemote);
     if (gh == null) {
-      final why = 'no remote of the folder is ${input.webUrl}: GitHub not checked';
+      final why = 'no remote of the folder is ${githubWebUrl(slug)}: GitHub not checked';
       r.log.note('$repo: $why');
-      return {'repo': repo, 'github': input.webUrl, 'fastForward': false, 'why': why};
+      return {'repo': repo, 'github': githubWebUrl(slug), 'fastForward': false, 'why': why};
     }
     if (g.upstream != null && gh.name == g.upstreamRemote) return null;
-    final ref = '${gh.name}/${githubBranch(ctx.github.facts(input.github!), g)}';
+    final ref = '${gh.name}/${githubBranch(ctx.github.facts(slug), g)}';
     String? why;
     if (!fetched) {
       why = 'fetching ${gh.name} failed';
@@ -2058,4 +2017,65 @@ bool repairOffered(Map<String, dynamic>? job) {
   if (job == null) return false;
   final result = job['result'];
   return result is Map && result['repair'] == true && (job['state'] == 'interrupted' || job['state'] == 'failed');
+}
+
+/// `git clone <url> <tmp>` in its own session and process group (setsid), so that a cancel or the
+/// deadline ends git and every helper it started (HTTPS/SSH), and what is left of the group ends
+/// before the caller cleans [tmp] up. [cancelled] is asked every 50 ms; output goes to [onOutput].
+Future<({int code, bool stopped, String? startFailed})> cloneInGroup(
+  Ctx ctx,
+  String git,
+  String url,
+  String tmp, {
+  required Duration killAfter,
+  bool Function()? cancelled,
+  void Function(List<int>)? onOutput,
+  Duration deadlineAfter = const Duration(minutes: 30),
+}) async {
+  final Process proc;
+  try {
+    proc = await Process.start(ctx.runner.which('setsid') ?? '/usr/bin/setsid', [git, '-c', 'core.fsmonitor=false', 'clone', '--no-progress', '--', url, tmp],
+        environment: {...ctx.environment, ...Git.cloneEnv}, includeParentEnvironment: false, workingDirectory: p.dirname(tmp));
+  } on ProcessException catch (e) {
+    return (code: -1, stopped: false, startFailed: e.message);
+  }
+  final start = procStat(proc.pid)?.start;
+  await proc.stdin.close();
+  final outDone = proc.stdout.listen(onOutput ?? (_) {}).asFuture<void>();
+  final errDone = proc.stderr.listen(onOutput ?? (_) {}).asFuture<void>();
+  // Our own child's group (pgid = its pid once setsid ran): signalled only while it is that one.
+  final real = Signaller();
+  bool group(int sig) => (sameProcess(proc.pid, start) || groupMembers(proc.pid).isNotEmpty) && real.group(proc.pid, sig);
+  var stopped = false;
+  DateTime? killAt;
+  final deadline = DateTime.now().add(deadlineAfter);
+  final timer = Timer.periodic(const Duration(milliseconds: 50), (_) {
+    if (!stopped && ((cancelled?.call() ?? false) || DateTime.now().isAfter(deadline))) {
+      stopped = true;
+      killAt = DateTime.now().add(killAfter);
+      if (!group(sigTerm)) proc.kill(ProcessSignal.sigterm);
+    } else if (killAt != null && DateTime.now().isAfter(killAt!)) {
+      killAt = null;
+      if (!group(sigKill)) proc.kill(ProcessSignal.sigkill);
+    }
+  });
+  final code = await proc.exitCode;
+  // what is left of the group (a helper that outlived git) ends before the folder is cleaned up
+  if (stopped || code != 0) {
+    final until = DateTime.now().add(killAfter + const Duration(seconds: 3));
+    var killed = false;
+    while (groupMembers(proc.pid).isNotEmpty && DateTime.now().isBefore(until)) {
+      if (!killed && (killAt == null || DateTime.now().isAfter(killAt!))) {
+        killed = group(sigKill);
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
+  }
+  timer.cancel();
+  try {
+    await Future.wait([outDone, errDone]).timeout(const Duration(seconds: 2));
+  } on TimeoutException {
+    // a helper still holds the output
+  }
+  return (code: code, stopped: stopped, startFailed: null);
 }
