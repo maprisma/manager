@@ -9,6 +9,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'app_facts.dart';
 import 'backend.dart' show ServiceError;
 import 'core_call.dart';
+import 'theme.dart';
 
 /// Picks another bar icon for an app (`icons.get`, `icons.set`, `icons.reset`): the icon theme's
 /// symbolic icons to search, a preview, an SVG file of your own, and Reset. Pops true when it
@@ -215,7 +216,7 @@ class _IconPickerState extends State<IconPicker> {
                           message: '${c['name']} (${c['theme']})',
                           waitDuration: Duration(milliseconds: 400),
                           child: InkWell(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(cornerSizes(context).control),
                             onTap: () => setState(() {
                               selected = '${c['name']}';
                               selectedFile = null;
@@ -224,7 +225,7 @@ class _IconPickerState extends State<IconPicker> {
                             child: Container(
                               decoration: BoxDecoration(
                                 color: on ? scheme.primary.withValues(alpha: .18) : null,
-                                borderRadius: BorderRadius.circular(8),
+                                borderRadius: BorderRadius.circular(cornerSizes(context).control),
                                 border: Border.all(color: on ? scheme.primary : Colors.transparent),
                               ),
                               child: Center(child: _svg(c['file'] as String?, 24)),

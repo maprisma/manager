@@ -115,7 +115,20 @@ final class Settings {
     final v = values[key];
     return v is String && v.isNotEmpty ? v : null;
   }
+
+  /// Corners: "windows" (the desktop's window corners, also for a missing or unknown value),
+  /// "slight" 6 px, "rounded" 12 px, "square".
+  String get corners {
+    final v = values['corners'];
+    return cornerSettings.contains(v) ? v as String : 'windows';
+  }
+
+  /// F12 saves a screenshot: on unless switched off.
+  bool get screenshotKey => values['screenshot_key'] != false;
 }
+
+/// The values of the Corners setting.
+const cornerSettings = ['windows', 'slight', 'rounded', 'square'];
 
 /// Default candidates for the projects folder after MAPRISMA_PROJECTS and the settings file.
 const defaultProjectCandidates = ['{home}/Projects', '/mnt/Data/Projects'];

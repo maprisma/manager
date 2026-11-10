@@ -692,5 +692,21 @@
   "built {0} (sha256 {1})": "zbudowano {0} (sha256 {1})",
   "step: {0}": "krok: {0}",
   "step {0}: {1} (continued)": "krok {0}: {1} (kontynuowano)",
-  "Install, update and remove the Maprisma apps, and place their bar icons": "Instaluj, aktualizuj i usuwaj aplikacje Maprisma oraz rozmieszczaj ich ikony na pasku"
+  "Install, update and remove the Maprisma apps, and place their bar icons": "Instaluj, aktualizuj i usuwaj aplikacje Maprisma oraz rozmieszczaj ich ikony na pasku",
+  "Settings": "Ustawienia",
+  "Corners": "Narożniki",
+  "Like windows": "Jak okna",
+  "Slightly rounded ({0} px)": "Lekko zaokrąglone ({0} px)",
+  "Rounded ({0} px)": "Zaokrąglone ({0} px)",
+  "Square": "Proste",
+  "F12 saves a screenshot": "F12 zapisuje zrzut ekranu",
+  "A picture of this window goes to ~/Pictures/Maprisma Manager; then you can add a note about what is wrong, saved next to it.": "Obraz tego okna trafia do ~/Pictures/Maprisma Manager; potem możesz dodać notatkę o tym, co jest nie tak, zapisaną obok.",
+  "The screenshot could not be saved: {0}": "Nie udało się zapisać zrzutu ekranu: {0}",
+  "The note could not be saved: {0}": "Nie udało się zapisać notatki: {0}",
+  "Screenshot saved": "Zrzut ekranu zapisany",
+  "Saved as {0}": "Zapisano jako {0}",
+  "What is wrong? (optional)": "Co jest nie tak? (opcjonalnie)",
+  "Done": "Gotowe",
+  "The window drew nothing.": "Okno niczego nie narysowało.",
+  "Could not save the setting.": "Nie można zapisać ustawienia."
 }

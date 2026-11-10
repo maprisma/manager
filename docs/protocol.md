@@ -64,6 +64,29 @@ the desktop's palette and window corners, read as Maprisma Launcher reads them (
 `com.system76.CosmicTheme.{Dark,Light}` accent/background/success/warning/destructive and
 `corner_radii.radius_s`; KDE: kdeglobals' colour scheme; other: no colours, the platform's light or dark).
 
+### `settings.get` / `settings.language` `{language}` / `settings.set` `{key, value}`
+
+`settings.get`: `{language, systemLanguage, corners, screenshot_key}` from `settings.json`.
+`settings.language` saves `auto` or a supported code (docs/localization.md). `settings.set` saves one
+of the toolbar's Settings menu (tune icon): `corners` = `windows` (the desktop's window corners,
+`desktop.look` `rounding`; also what a missing or unknown stored value means), `slight` (6 px),
+`rounded` (12 px) or `square`; `screenshot_key` = `true`/`false` (F12, on by default). Anything else:
+`bad_params`. Every write keeps the other settings. Corners come in three sizes in the window
+(`flutter_app/lib/theme.dart` `Corners`, as Maprisma Playground): cards, dialogs, pop-ups, menus and
+messages the radius; buttons, drop-downs, fields, tooltips and chips at most 8 px; check boxes,
+slider tracks and progress bars at most 4 px; Square squares everything, the slider knob stays a
+14 px square.
+
+**F12** (no Ctrl, Shift, Alt or Super; also in a dialog) saves a picture the window draws of itself
+(no screenshot program, nothing uploaded) to `<XDG_PICTURES_DIR or ~/Pictures>/Maprisma Manager/`
+`maprisma-manager-<date>-<time>.png`, then asks for an optional note (at most 4000 characters), saved
+next to it as `.txt` when the dialog closes (Done, Enter, Esc). Private: the folder is made 0700 and
+used only when it is a real folder of yours that others cannot write to (checked on its opened
+handle; a link in its place is refused); every file is new (O_EXCL|O_NOFOLLOW, 0600, never over an
+older one: `-2`, `-3` …), written completely and synced, or removed again. `user-dirs.dirs` is read
+bounded and never through a link (`packages/maprisma_manager_core/lib/src/screenshot.dart`,
+`private_files.dart`, ported from Maprisma Playground).
+
 ### `apps.open` `{id}` / `links.open` `{url}`
 
 `apps.open` starts the app's window (the catalog's `open` command, detached in its own session):

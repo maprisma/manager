@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 
 Color? hexColor(Map colors, String key) {
@@ -8,10 +10,18 @@ Color? hexColor(Map colors, String key) {
   return Color(0xff000000 | int.parse(value.substring(1), radix: 16));
 }
 
-/// The corner radius in effect (Settings › Corners; the desktop's windows).
+/// The corner radius in effect (Settings › Corners; the desktop's windows), in Maprisma
+/// Playground's three sizes: cards, dialogs, pop-ups and menus take [radius]; buttons, drop-downs,
+/// fields, tooltips and chips [control] (at most 8); check boxes, slider tracks and progress bars
+/// [small] (at most 4). Square squares everything; the slider knob stays small (see [KnobShape]).
 class Corners extends ThemeExtension<Corners> {
   const Corners(this.radius);
   final double radius;
+  double get control => min(radius, 8);
+  double get small => min(radius, 4);
+
+  /// Framed areas inside a page (the bar editor's areas): as the cards, up to 12.
+  double get board => min(radius, 12);
   @override
   Corners copyWith({double? radius}) => Corners(radius ?? this.radius);
   @override
@@ -36,8 +46,14 @@ MarkColors markColors(BuildContext context) =>
 
 double corners(BuildContext context) => Theme.of(context).extension<Corners>()?.radius ?? 12;
 
-/// "windows" follows the desktop's window corners, "rounded" 12, "square" 0.
+/// Settings › Corners in its three sizes (see [Corners]).
+Corners cornerSizes(BuildContext context) => Theme.of(context).extension<Corners>() ?? const Corners(12);
+
+/// "windows" follows the desktop's window corners, "slight" 6 (round controls beside square or
+/// tiled windows), "rounded" 12, "square" 0. An unknown value counts as "windows".
+const slightRadius = 6, roundedRadius = 12;
 double cornerRadius(String setting, int? windowRounding) => switch (setting) {
+  'slight' => 6,
   'rounded' => 12,
   'square' => 0,
   _ => (windowRounding ?? 12).toDouble(),
@@ -74,13 +90,22 @@ ThemeData appTheme(Brightness platform, Map colors, double radius) {
       error: hexColor(colors, 'red') ?? scheme.error,
     );
   }
+  final sizes = Corners(radius);
+  final control = sizes.control, small = sizes.small;
   final shape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(radius));
+  final controlShape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(control));
+  OutlineInputBorder field([BorderSide side = BorderSide.none]) =>
+      OutlineInputBorder(borderRadius: BorderRadius.circular(control), borderSide: side);
+  final menu = MenuStyle(
+    backgroundColor: WidgetStatePropertyAll(scheme.surfaceContainerHigh),
+    shape: WidgetStatePropertyAll(shape),
+  );
   return ThemeData(
     colorScheme: scheme,
     useMaterial3: true,
     scaffoldBackgroundColor: scheme.surface,
     extensions: [
-      Corners(radius),
+      sizes,
       MarkColors(
         running: hexColor(colors, 'green') ?? const Color(0xff3a944a),
         update: hexColor(colors, 'orange') ?? const Color(0xffed5b00),
@@ -97,20 +122,74 @@ ThemeData appTheme(Brightness platform, Map colors, double radius) {
       ),
     ),
     dialogTheme: DialogThemeData(shape: shape),
-    popupMenuTheme: PopupMenuThemeData(
-      color: scheme.surfaceContainerHigh,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radius.clamp(0, 8))),
+    popupMenuTheme: PopupMenuThemeData(color: scheme.surfaceContainerHigh, shape: shape),
+    menuTheme: MenuThemeData(style: menu),
+    dropdownMenuTheme: DropdownMenuThemeData(
+      menuStyle: menu,
+      inputDecorationTheme: InputDecorationTheme(filled: true, fillColor: scheme.surfaceContainer, isDense: true, border: field()),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: scheme.surfaceContainer,
       isDense: true,
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(radius.clamp(0, 10)), borderSide: BorderSide.none),
+      border: field(),
+      enabledBorder: field(),
+      focusedBorder: field(BorderSide(color: scheme.primary, width: 1.5)),
+      errorBorder: field(BorderSide(color: scheme.error)),
+      focusedErrorBorder: field(BorderSide(color: scheme.error, width: 1.5)),
     ),
     snackBarTheme: SnackBarThemeData(
       backgroundColor: scheme.surfaceContainerHigh,
       contentTextStyle: TextStyle(color: scheme.onSurface),
       behavior: SnackBarBehavior.floating,
+      shape: shape,
+    ),
+    tooltipTheme: TooltipThemeData(
+      decoration: BoxDecoration(color: scheme.inverseSurface, borderRadius: BorderRadius.circular(control)),
+    ),
+    filledButtonTheme: FilledButtonThemeData(style: FilledButton.styleFrom(shape: controlShape)),
+    outlinedButtonTheme: OutlinedButtonThemeData(style: OutlinedButton.styleFrom(shape: controlShape)),
+    textButtonTheme: TextButtonThemeData(style: TextButton.styleFrom(shape: controlShape)),
+    elevatedButtonTheme: ElevatedButtonThemeData(style: ElevatedButton.styleFrom(shape: controlShape)),
+    iconButtonTheme: IconButtonThemeData(style: IconButton.styleFrom(shape: controlShape)),
+    segmentedButtonTheme: SegmentedButtonThemeData(style: SegmentedButton.styleFrom(shape: controlShape)),
+    chipTheme: ChipThemeData(shape: controlShape),
+    checkboxTheme: CheckboxThemeData(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(small))),
+    progressIndicatorTheme: ProgressIndicatorThemeData(borderRadius: BorderRadius.circular(small)),
+    // Square squares the slider too, but keeps its knob small (no block).
+    sliderTheme: SliderThemeData(
+      trackShape: radius <= 0 ? const RectangularSliderTrackShape() : const RoundedRectSliderTrackShape(),
+      thumbShape: KnobShape(square: radius <= 0),
     ),
   );
+}
+
+/// The slider's knob: 14 px, round, or square with Square corners (not a big block).
+class KnobShape extends SliderComponentShape {
+  const KnobShape({this.square = false});
+  final bool square;
+  static const _side = 14.0;
+
+  @override
+  Size getPreferredSize(bool isEnabled, bool isDiscrete) => const Size.square(_side);
+
+  @override
+  void paint(
+    PaintingContext context,
+    Offset center, {
+    required Animation<double> activationAnimation,
+    required Animation<double> enableAnimation,
+    required bool isDiscrete,
+    required TextPainter labelPainter,
+    required RenderBox parentBox,
+    required SliderThemeData sliderTheme,
+    required TextDirection textDirection,
+    required double value,
+    required double textScaleFactor,
+    required Size sizeWithOverflow,
+  }) {
+    final paint = Paint()..color = sliderTheme.thumbColor ?? Colors.grey;
+    final box = Rect.fromCenter(center: center, width: _side, height: _side);
+    square ? context.canvas.drawRect(box, paint) : context.canvas.drawOval(box, paint);
+  }
 }

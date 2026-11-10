@@ -18,7 +18,7 @@ import 'sources.dart';
 import 'run.dart';
 import 'status.dart';
 
-const coreVersion = '0.1.0';
+const coreVersion = '0.2.0';
 
 /// How long a fetch counts as fresh (plan: "fetch at most every 30 min unless forced").
 const fetchInterval = Duration(minutes: 30);
@@ -58,24 +58,35 @@ final class CoreService {
         'projectsDir': ctx.projectsDir,
         'projectsSource': ctx.projectsSource,
       },
-      'settings.get': (_) async => {
-        'language': Settings.load(ctx.paths).str('language') ?? 'auto',
-        'systemLanguage': systemLanguage(ctx.environment),
+      'settings.get': (_) async {
+        final settings = Settings.load(ctx.paths);
+        return {
+          'language': settings.str('language') ?? 'auto',
+          'systemLanguage': systemLanguage(ctx.environment),
+          'corners': settings.corners,
+          'screenshot_key': settings.screenshotKey,
+        };
       },
       'settings.language': (params) async {
         final value = params['language'];
         if (value != 'auto' && !languageNames.containsKey(value)) {
           throw RouteError('bad_params', 'language');
         }
-        final settings = Map<String, dynamic>.of(Settings.load(ctx.paths).values);
-        settings['language'] = value;
-        final file = File(ctx.paths.settingsFile);
-        file.parent.createSync(recursive: true);
-        final temporary = File('${file.path}.tmp');
-        temporary.writeAsStringSync(jsonEncode(settings), flush: true);
-        temporary.renameSync(file.path);
+        _saveSetting('language', value);
         configureLanguage(value as String, ctx.environment);
         return {'language': value};
+      },
+      // The settings menu: Corners (windows, slight, rounded, square) and F12 saves a screenshot.
+      'settings.set': (params) async {
+        final key = params['key'], value = params['value'];
+        final ok = switch (key) {
+          'corners' => cornerSettings.contains(value),
+          'screenshot_key' => value is bool,
+          _ => false,
+        };
+        if (!ok) throw RouteError('bad_params', 'key, value');
+        _saveSetting(key as String, value);
+        return {'key': key, 'value': value};
       },
       'desktop.look': (_) async => desktopLook(ctx),
       'apps.list': (params) async {
@@ -183,6 +194,17 @@ final class CoreService {
   Future<Map<String, dynamic>> _bar(Future<Map<String, dynamic>> Function(Bar b) f) => f(Bar(ctx)..follow = followPanel);
 
   /// A `desktop` param shows the status as another desktop would see it.
+  /// One setting into settings.json; the others stay (written whole, then renamed into place).
+  void _saveSetting(String key, Object? value) {
+    final settings = Map<String, dynamic>.of(Settings.load(ctx.paths).values);
+    settings[key] = value;
+    final file = File(ctx.paths.settingsFile);
+    file.parent.createSync(recursive: true);
+    final temporary = File('${file.path}.tmp');
+    temporary.writeAsStringSync(jsonEncode(settings), flush: true);
+    temporary.renameSync(file.path);
+  }
+
   Ctx _withDesktop(Map<String, dynamic> params) {
     final raw = params['desktop'];
     if (raw == null) return ctx;

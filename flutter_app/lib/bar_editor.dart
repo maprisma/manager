@@ -138,7 +138,7 @@ class BarEditorPageState extends State<BarEditorPage> {
       padding: EdgeInsets.fromLTRB(6, 4, 10, 4),
       decoration: BoxDecoration(
         color: ours ? scheme.secondaryContainer.withValues(alpha: .7) : scheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(corners(context).clamp(4, 12)),
+        borderRadius: BorderRadius.circular(cornerSizes(context).control),
         border: Border.all(color: on ? scheme.primary : (ours ? scheme.outlineVariant : scheme.outlineVariant.withValues(alpha: .5)), width: on ? 2 : 1),
       ),
       child: Row(
@@ -272,7 +272,7 @@ class BarEditorPageState extends State<BarEditorPage> {
         padding: EdgeInsets.fromLTRB(12, 8, 12, 8),
         decoration: BoxDecoration(
           color: scheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(corners(context).clamp(4, 14)),
+          borderRadius: BorderRadius.circular(cornerSizes(context).board),
           border: Border.all(color: candidates.isNotEmpty ? scheme.primary : scheme.outlineVariant),
         ),
         child: Column(
@@ -315,7 +315,7 @@ class BarEditorPageState extends State<BarEditorPage> {
         margin: EdgeInsets.symmetric(vertical: 5),
         padding: EdgeInsets.fromLTRB(12, 8, 12, 8),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(corners(context).clamp(4, 14)),
+          borderRadius: BorderRadius.circular(cornerSizes(context).board),
           border: Border.all(color: candidates.isNotEmpty ? scheme.primary : scheme.outlineVariant, style: BorderStyle.solid),
         ),
         child: Column(

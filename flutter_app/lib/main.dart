@@ -29,6 +29,7 @@ Future<void> main(List<String> args) async {
   runApp(ManagerApp(
     core: backend.call,
     look: look,
+    settings: settings,
     // The Manager's own update is staged: quit, the helper swaps it in and starts the new one.
     onRestart: () => exit(0),
   ));

@@ -21,9 +21,14 @@ import 'theme.dart';
 /// plugins: sections by bar state, a ⋮ menu per app (also on right-click), update marks with the
 /// number of new commits, and the log sheet of the jobs at the bottom.
 class AppsPage extends StatefulWidget {
-  const AppsPage({super.key, required this.core, required this.jobs, this.onRestart, this.checkOnStart = true, this.onLanguageChanged, this.languageSetting = 'auto'});
+  const AppsPage({super.key, required this.core, required this.jobs, this.onRestart, this.checkOnStart = true, this.onLanguageChanged, this.languageSetting = 'auto', this.cornersSetting = 'windows', this.screenshotKey = true, this.onSettingsChanged});
   final Future<void> Function()? onLanguageChanged;
   final String languageSetting;
+
+  /// The settings menu: Corners and F12 saves a screenshot; [onSettingsChanged] reloads them.
+  final String cornersSetting;
+  final bool screenshotKey;
+  final Future<void> Function()? onSettingsChanged;
   final CoreCall core;
   final JobsModel jobs;
 
@@ -455,7 +460,7 @@ class AppsPageState extends State<AppsPage> {
       margin: const EdgeInsets.only(left: 6),
       padding: EdgeInsets.symmetric(horizontal: 6, vertical: 1),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(cornerSizes(context).control),
         border: Border.all(color: scheme.outlineVariant),
       ),
       child: Text(text, style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
@@ -603,11 +608,15 @@ class AppsPageState extends State<AppsPage> {
               padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
               child: Row(
                 children: [
-                  Text(
-                    tr('MAPRISMA APPS'),
-                    style: TextStyle(letterSpacing: 1.2, fontWeight: FontWeight.w700, color: scheme.onSurfaceVariant),
+                  // In a narrow window the title gives way to the toolbar's buttons.
+                  Expanded(
+                    child: Text(
+                      tr('MAPRISMA APPS'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(letterSpacing: 1.2, fontWeight: FontWeight.w700, color: scheme.onSurfaceVariant),
+                    ),
                   ),
-                  const Spacer(),
                   PopupMenuButton<String>(
                     tooltip: tr('Language'),
                     icon: Icon(Icons.language),
@@ -623,6 +632,45 @@ class AppsPageState extends State<AppsPage> {
                         await _load();
                       } on Object {
                         if (mounted) tell(tr('Could not save the language setting.'));
+                      }
+                    },
+                  ),
+                  PopupMenuButton<String>(
+                    key: const ValueKey('settings-menu'),
+                    tooltip: tr('Settings'),
+                    icon: Icon(Icons.tune),
+                    itemBuilder: (_) => [
+                      PopupMenuItem<String>(
+                        enabled: false,
+                        height: 32,
+                        child: Text(tr('Corners'), style: TextStyle(fontWeight: FontWeight.w700, color: scheme.onSurfaceVariant)),
+                      ),
+                      for (final (value, label) in [
+                        ('windows', tr('Like windows')),
+                        ('slight', trf('Slightly rounded ({0} px)', [slightRadius])),
+                        ('rounded', trf('Rounded ({0} px)', [roundedRadius])),
+                        ('square', tr('Square')),
+                      ])
+                        CheckedPopupMenuItem(value: 'corners:$value', checked: widget.cornersSetting == value, child: Text(label)),
+                      const PopupMenuDivider(),
+                      CheckedPopupMenuItem(
+                        value: 'screenshot_key',
+                        checked: widget.screenshotKey,
+                        child: Tooltip(
+                          message: tr('A picture of this window goes to ~/Pictures/Maprisma Manager; then you can add a note about what is wrong, saved next to it.'),
+                          child: Text(tr('F12 saves a screenshot')),
+                        ),
+                      ),
+                    ],
+                    onSelected: (choice) async {
+                      final (key, value) = choice == 'screenshot_key'
+                          ? ('screenshot_key', !widget.screenshotKey)
+                          : ('corners', choice.substring('corners:'.length));
+                      try {
+                        await widget.core('settings.set', {'key': key, 'value': value});
+                        await widget.onSettingsChanged?.call();
+                      } on Object {
+                        if (mounted) tell(tr('Could not save the setting.'));
                       }
                     },
                   ),

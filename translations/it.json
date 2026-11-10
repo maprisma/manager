@@ -692,5 +692,21 @@
   "built {0} (sha256 {1})": "{0} compilato (sha256 {1})",
   "step: {0}": "passaggio: {0}",
   "step {0}: {1} (continued)": "passaggio {0}: {1} (continuato)",
-  "Install, update and remove the Maprisma apps, and place their bar icons": "Installa, aggiorna e rimuovi le app Maprisma e posiziona le loro icone nella barra"
+  "Install, update and remove the Maprisma apps, and place their bar icons": "Installa, aggiorna e rimuovi le app Maprisma e posiziona le loro icone nella barra",
+  "Settings": "Impostazioni",
+  "Corners": "Angoli",
+  "Like windows": "Come le finestre",
+  "Slightly rounded ({0} px)": "Leggermente arrotondati ({0} px)",
+  "Rounded ({0} px)": "Arrotondati ({0} px)",
+  "Square": "Squadrati",
+  "F12 saves a screenshot": "F12 salva uno screenshot",
+  "A picture of this window goes to ~/Pictures/Maprisma Manager; then you can add a note about what is wrong, saved next to it.": "Un'immagine di questa finestra va in ~/Pictures/Maprisma Manager; poi puoi aggiungere una nota su cosa non va, salvata accanto.",
+  "The screenshot could not be saved: {0}": "Impossibile salvare lo screenshot: {0}",
+  "The note could not be saved: {0}": "Impossibile salvare la nota: {0}",
+  "Screenshot saved": "Screenshot salvato",
+  "Saved as {0}": "Salvato come {0}",
+  "What is wrong? (optional)": "Cosa non va? (facoltativo)",
+  "Done": "Fatto",
+  "The window drew nothing.": "La finestra non ha disegnato nulla.",
+  "Could not save the setting.": "Impossibile salvare l'impostazione."
 }

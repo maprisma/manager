@@ -166,7 +166,7 @@ class _JobSheetState extends State<JobSheet> {
                     padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                     decoration: BoxDecoration(
                       color: scheme.surfaceContainerLowest,
-                      borderRadius: BorderRadius.circular(corners(context).clamp(0, 8)),
+                      borderRadius: BorderRadius.circular(cornerSizes(context).control),
                       border: Border.all(color: scheme.outlineVariant),
                     ),
                     child: Scrollbar(
@@ -199,7 +199,7 @@ class _Chip extends StatelessWidget {
     padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
     decoration: BoxDecoration(
       color: color.withValues(alpha: .12),
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(cornerSizes(context).control),
     ),
     child: Text(text, style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w600)),
   );
