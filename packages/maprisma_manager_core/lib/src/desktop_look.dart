@@ -13,7 +13,7 @@ Map<String, dynamic> desktopLook(Ctx ctx) {
   final colors = switch (ctx.desktop) {
     DesktopId.cosmic => _cosmicColors(ctx),
     DesktopId.kde => _kdeColors(ctx),
-    DesktopId.other => <String, String>{},
+    DesktopId.other => _hyprland(ctx) ? _caelestiaColors(ctx) : <String, String>{},
   };
   final bg = colors['background'];
   return {
@@ -26,6 +26,44 @@ Map<String, dynamic> desktopLook(Ctx ctx) {
     },
     'is_dark': bg == null ? null : _dark(bg),
   };
+}
+
+/// A Hyprland session (it has no bar backend of its own yet, so it is still `other`).
+bool _hyprland(Ctx ctx) =>
+    (ctx.environment['XDG_CURRENT_DESKTOP'] ?? '').toUpperCase().split(':').contains('HYPRLAND');
+
+/// Caelestia's colour scheme (XDG_STATE_HOME/caelestia/scheme.json, Material names, hex
+/// without '#'), as Maprisma Playground reads it; empty without Caelestia.
+Map<String, String> _caelestiaColors(Ctx ctx) {
+  final stateHome = ctx.environment['XDG_STATE_HOME'];
+  final state = stateHome != null && p.isAbsolute(stateHome) ? stateHome : p.join(ctx.paths.home, '.local', 'state');
+  final text = _read(p.join(state, 'caelestia', 'scheme.json'), 256 * 1024);
+  if (text == null) return {};
+  Object? data;
+  try {
+    data = jsonDecode(text);
+  } on FormatException {
+    return {};
+  }
+  final colours = data is Map ? data['colours'] : null;
+  if (colours is! Map) return {};
+  String? c(String key) {
+    final v = colours[key];
+    return v is String && RegExp(r'^[0-9a-fA-F]{6}$').hasMatch(v) ? '#${v.toLowerCase()}' : null;
+  }
+
+  final out = {
+    'accent': c('primary'),
+    'background': c('surface') ?? c('background'),
+    'foreground': c('onSurface'),
+    'muted': c('outline'),
+    'selection': c('surfaceContainerHighest'),
+    'red': c('error') ?? c('red'),
+    'yellow': c('yellow'),
+    'orange': c('peach'),
+    'green': c('green'),
+  };
+  return {for (final e in out.entries) if (e.value != null) e.key: e.value!};
 }
 
 const _light = {
