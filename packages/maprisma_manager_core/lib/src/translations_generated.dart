@@ -771,7 +771,13 @@ const catalogs = <String, Map<String, String>>{
     "Flutter was not found": "Flutter was not found",
     "no Dart or Flutter packages": "no Dart or Flutter packages",
     "No tools: it only reads what Maprisma Manager sends.": "No tools: it only reads what Maprisma Manager sends.",
-    "skipped (a pub workspace member)": "skipped (a pub workspace member)"
+    "skipped (a pub workspace member)": "skipped (a pub workspace member)",
+    "Maprisma Bar: drag the icons where you want them. The greyed ones are the bar's own.": "Maprisma Bar: drag the icons where you want them. The greyed ones are the bar's own.",
+    "bar.json is too big": "bar.json is too big",
+    "bar.json is not readable: {0}": "bar.json is not readable: {0}",
+    "Maprisma Bar's layout changed since it was read": "Maprisma Bar's layout changed since it was read",
+    "the bar's own entries can be moved, not taken out": "the bar's own entries can be moved, not taken out",
+    "Other tray icons": "Other tray icons"
   },
   "de": {
     "Waiting": "Wartet",
@@ -1544,7 +1550,13 @@ const catalogs = <String, Map<String, String>>{
     "Flutter was not found": "Flutter wurde nicht gefunden",
     "no Dart or Flutter packages": "keine Dart- oder Flutter-Pakete",
     "No tools: it only reads what Maprisma Manager sends.": "Keine Werkzeuge: Er liest nur, was Maprisma Manager schickt.",
-    "skipped (a pub workspace member)": "übersprungen (Mitglied eines pub-Workspaces)"
+    "skipped (a pub workspace member)": "übersprungen (Mitglied eines pub-Workspaces)",
+    "Maprisma Bar: drag the icons where you want them. The greyed ones are the bar's own.": "Maprisma Bar: Symbole dorthin ziehen, wo sie hin sollen. Die ausgegrauten gehören zur Leiste selbst.",
+    "bar.json is too big": "bar.json ist zu groß",
+    "bar.json is not readable: {0}": "bar.json ist nicht lesbar: {0}",
+    "Maprisma Bar's layout changed since it was read": "Die Anordnung der Maprisma Bar hat sich seit dem Lesen geändert",
+    "the bar's own entries can be moved, not taken out": "die eigenen Einträge der Leiste lassen sich verschieben, nicht herausnehmen",
+    "Other tray icons": "Andere Tray-Symbole"
   },
   "fr": {
     "Waiting": "En attente",
@@ -2317,7 +2329,13 @@ const catalogs = <String, Map<String, String>>{
     "Flutter was not found": "Flutter est introuvable",
     "no Dart or Flutter packages": "aucun paquet Dart ou Flutter",
     "No tools: it only reads what Maprisma Manager sends.": "Aucun outil : il ne lit que ce que Maprisma Manager lui envoie.",
-    "skipped (a pub workspace member)": "ignoré (membre d'un espace de travail pub)"
+    "skipped (a pub workspace member)": "ignoré (membre d'un espace de travail pub)",
+    "Maprisma Bar: drag the icons where you want them. The greyed ones are the bar's own.": "Maprisma Bar : glissez les icônes où vous le souhaitez. Les grisées appartiennent à la barre.",
+    "bar.json is too big": "bar.json est trop gros",
+    "bar.json is not readable: {0}": "bar.json est illisible : {0}",
+    "Maprisma Bar's layout changed since it was read": "La disposition de Maprisma Bar a changé depuis sa lecture",
+    "the bar's own entries can be moved, not taken out": "les éléments propres à la barre peuvent être déplacés, pas retirés",
+    "Other tray icons": "Autres icônes de la zone de notification"
   },
   "es": {
     "Waiting": "En espera",
@@ -3090,7 +3108,13 @@ const catalogs = <String, Map<String, String>>{
     "Flutter was not found": "No se encontró Flutter",
     "no Dart or Flutter packages": "no hay paquetes de Dart ni Flutter",
     "No tools: it only reads what Maprisma Manager sends.": "Sin herramientas: solo lee lo que envía Maprisma Manager.",
-    "skipped (a pub workspace member)": "omitido (miembro de un espacio de trabajo de pub)"
+    "skipped (a pub workspace member)": "omitido (miembro de un espacio de trabajo de pub)",
+    "Maprisma Bar: drag the icons where you want them. The greyed ones are the bar's own.": "Maprisma Bar: arrastra los iconos donde quieras. Los atenuados son de la propia barra.",
+    "bar.json is too big": "bar.json es demasiado grande",
+    "bar.json is not readable: {0}": "bar.json no se puede leer: {0}",
+    "Maprisma Bar's layout changed since it was read": "La disposición de Maprisma Bar cambió desde que se leyó",
+    "the bar's own entries can be moved, not taken out": "los elementos propios de la barra se pueden mover, no quitar",
+    "Other tray icons": "Otros iconos de la bandeja"
   },
   "it": {
     "Waiting": "In attesa",
@@ -3863,7 +3887,13 @@ const catalogs = <String, Map<String, String>>{
     "Flutter was not found": "Flutter non trovato",
     "no Dart or Flutter packages": "nessun pacchetto Dart o Flutter",
     "No tools: it only reads what Maprisma Manager sends.": "Nessuno strumento: legge solo ciò che invia Maprisma Manager.",
-    "skipped (a pub workspace member)": "saltato (membro di un workspace pub)"
+    "skipped (a pub workspace member)": "saltato (membro di un workspace pub)",
+    "Maprisma Bar: drag the icons where you want them. The greyed ones are the bar's own.": "Maprisma Bar: trascina le icone dove vuoi. Quelle in grigio sono della barra stessa.",
+    "bar.json is too big": "bar.json è troppo grande",
+    "bar.json is not readable: {0}": "bar.json non è leggibile: {0}",
+    "Maprisma Bar's layout changed since it was read": "La disposizione di Maprisma Bar è cambiata da quando è stata letta",
+    "the bar's own entries can be moved, not taken out": "gli elementi propri della barra si possono spostare, non togliere",
+    "Other tray icons": "Altre icone dell'area di notifica"
   },
   "pt": {
     "Waiting": "Em espera",
@@ -4636,7 +4666,13 @@ const catalogs = <String, Map<String, String>>{
     "Flutter was not found": "O Flutter não foi encontrado",
     "no Dart or Flutter packages": "nenhum pacote Dart ou Flutter",
     "No tools: it only reads what Maprisma Manager sends.": "Sem ferramentas: só lê o que o Maprisma Manager envia.",
-    "skipped (a pub workspace member)": "ignorado (membro de um espaço de trabalho pub)"
+    "skipped (a pub workspace member)": "ignorado (membro de um espaço de trabalho pub)",
+    "Maprisma Bar: drag the icons where you want them. The greyed ones are the bar's own.": "Maprisma Bar: arraste os ícones para onde quiser. Os acinzentados são da própria barra.",
+    "bar.json is too big": "bar.json é demasiado grande",
+    "bar.json is not readable: {0}": "bar.json não pode ser lido: {0}",
+    "Maprisma Bar's layout changed since it was read": "A disposição da Maprisma Bar mudou desde que foi lida",
+    "the bar's own entries can be moved, not taken out": "os elementos próprios da barra podem ser movidos, não retirados",
+    "Other tray icons": "Outros ícones da bandeja"
   },
   "nl": {
     "Waiting": "Wachten",
@@ -5409,7 +5445,13 @@ const catalogs = <String, Map<String, String>>{
     "Flutter was not found": "Flutter is niet gevonden",
     "no Dart or Flutter packages": "geen Dart- of Flutter-pakketten",
     "No tools: it only reads what Maprisma Manager sends.": "Geen tools: hij leest alleen wat Maprisma Manager stuurt.",
-    "skipped (a pub workspace member)": "overgeslagen (lid van een pub-workspace)"
+    "skipped (a pub workspace member)": "overgeslagen (lid van een pub-workspace)",
+    "Maprisma Bar: drag the icons where you want them. The greyed ones are the bar's own.": "Maprisma Bar: sleep de pictogrammen waar je ze wilt hebben. De grijze zijn van de balk zelf.",
+    "bar.json is too big": "bar.json is te groot",
+    "bar.json is not readable: {0}": "bar.json is niet leesbaar: {0}",
+    "Maprisma Bar's layout changed since it was read": "De indeling van Maprisma Bar is gewijzigd sinds het lezen",
+    "the bar's own entries can be moved, not taken out": "de eigen onderdelen van de balk kunnen worden verplaatst, niet verwijderd",
+    "Other tray icons": "Andere systeemvakpictogrammen"
   },
   "pl": {
     "Waiting": "Oczekiwanie",
@@ -6182,6 +6224,12 @@ const catalogs = <String, Map<String, String>>{
     "Flutter was not found": "Nie znaleziono Fluttera",
     "no Dart or Flutter packages": "brak pakietów Dart lub Flutter",
     "No tools: it only reads what Maprisma Manager sends.": "Bez narzędzi: czyta tylko to, co wysyła Maprisma Manager.",
-    "skipped (a pub workspace member)": "pominięto (członek obszaru roboczego pub)"
+    "skipped (a pub workspace member)": "pominięto (członek obszaru roboczego pub)",
+    "Maprisma Bar: drag the icons where you want them. The greyed ones are the bar's own.": "Maprisma Bar: przeciągnij ikony tam, gdzie chcesz. Wyszarzone należą do samego paska.",
+    "bar.json is too big": "bar.json jest za duży",
+    "bar.json is not readable: {0}": "Nie można odczytać bar.json: {0}",
+    "Maprisma Bar's layout changed since it was read": "Układ Maprisma Bar zmienił się od odczytu",
+    "the bar's own entries can be moved, not taken out": "własne elementy paska można przesuwać, ale nie usuwać",
+    "Other tray icons": "Inne ikony zasobnika"
   }
 };

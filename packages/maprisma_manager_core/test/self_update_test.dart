@@ -297,7 +297,7 @@ void main() {
     w.writeFile(p.join(w.paths.home, '.local/state/caelestia/scheme.json'),
         '{"colours": {"primary": "89B4FA", "surface": "1e1e2e", "onSurface": "cdd6f4", "green": "bad"}}');
     final look = await w.core(desktop: 'Hyprland').call('desktop.look');
-    expect(look['desktop'], 'other');
+    expect(look['desktop'], 'hyprland');
     expect(look['colors'], {'accent': '#89b4fa', 'background': '#1e1e2e', 'foreground': '#cdd6f4'});
     expect(look['is_dark'], isTrue);
     expect((await w.core(desktop: 'X').call('desktop.look'))['colors'], isEmpty);

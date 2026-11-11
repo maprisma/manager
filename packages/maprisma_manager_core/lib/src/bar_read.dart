@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 
 import 'bar.dart';
 import 'bar_cosmic.dart';
+import 'bar_hypr.dart';
 import 'bar_kde.dart';
 import 'catalog_model.dart';
 import 'context.dart';
@@ -14,7 +15,7 @@ export 'ron.dart' show ronStringLists;
 
 /// What the status needs of the bar, read once per apps.list.
 final class BarSnapshot {
-  BarSnapshot._(this.ctx, this.bar, this.procs, this.panels, this.widget, this.widgetError, this.wanted);
+  BarSnapshot._(this.ctx, this.bar, this.procs, this.panels, this.widget, this.widgetError, this.wanted, [this.hypr]);
 
   static Future<BarSnapshot> read(Ctx ctx, List<ProcInfo> procs) async {
     final bar = Bar(ctx);
@@ -33,6 +34,9 @@ final class BarSnapshot {
         } on RouteError catch (e) {
           widgetError = e.message ?? e.code;
         }
+      case DesktopId.hyprland:
+        final f = MaprismaBarFile.read(ctx.paths);
+        return BarSnapshot._(ctx, bar, procs, panels, null, f.error, WantedBar.load(ctx.paths), f);
       case DesktopId.other:
         break;
     }
@@ -46,6 +50,9 @@ final class BarSnapshot {
   final KdeWidget? widget;
   final String? widgetError;
   final WantedBar wanted;
+
+  /// Hyprland: Maprisma Bar's bar.json.
+  final MaprismaBarFile? hypr;
 
   /// The bar state of one app: in/out/unknown, where, and separately whether it starts at login,
   /// runs and is visible (null where that can't be told).
@@ -121,6 +128,36 @@ final class BarSnapshot {
           // the overflow: unknown.
           'visible': w == null ? (running ? null : false) : running && zone != null,
           if (w == null) 'where': 'systemTray',
+          'iconName': b.kdeIconName ?? b.iconName,
+          'wanted': ?wanted,
+        };
+      case DesktopId.hyprland:
+        final id = bar.barId(app);
+        if (id == null) return {'has': false, 'state': 'none'};
+        final f = hypr!;
+        if (f.error != null) return {'has': true, 'id': id, 'state': 'unknown', 'error': f.error, 'iconName': b.kdeIconName ?? b.iconName, 'wanted': ?wanted};
+        final hidden = f.hidden.contains(id);
+        final placedAt = bar.hyprShown(f, procs, group: false).find(id);
+        // a tray without a place of its own is in the bar's tray group (shown where `tray` is)
+        final group = placedAt == null && !hidden && id.startsWith('tray:');
+        final zone = (placedAt ?? (group ? bar.hyprShown(f, procs, group: false).find('tray') : null))?.area.name;
+        if (!id.startsWith('tray:')) {
+          // the Launcher: the bar's own widget, there unless hidden
+          return {'has': true, 'id': id, 'kind': 'widgetEntry', 'state': hidden ? 'out' : 'in', 'zone': ?zone, 'visible': !hidden, 'iconName': b.kdeIconName ?? b.iconName, 'wanted': ?wanted};
+        }
+        final autostart = b.kdeAutostart == null ? null : paths.expand(b.kdeAutostart!);
+        final atLogin = autostart != null && File(autostart).existsSync() && !desktopHidden(autostart);
+        final running = bar.trayRunning(app, procs);
+        return {
+          'has': true,
+          'id': id,
+          'kind': 'tray',
+          'state': (atLogin || running) && !hidden ? 'in' : 'out',
+          'zone': ?zone,
+          if (group) 'group': true,
+          'startsAtLogin': atLogin,
+          'running': running,
+          'visible': running && !hidden,
           'iconName': b.kdeIconName ?? b.iconName,
           'wanted': ?wanted,
         };

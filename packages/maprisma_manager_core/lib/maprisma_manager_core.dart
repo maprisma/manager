@@ -5,6 +5,7 @@ export 'src/ai_update.dart';
 export 'src/ai/ask_ai.dart' show AskError, helperStates, helpers, jailArgv, codexOff;
 export 'src/bar.dart';
 export 'src/bar_cosmic.dart';
+export 'src/bar_hypr.dart';
 export 'src/bar_kde.dart';
 export 'src/bar_read.dart';
 export 'src/ron.dart';

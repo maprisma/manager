@@ -371,7 +371,9 @@ class BarEditorPageState extends State<BarEditorPage> {
           Text(
             kind == 'cosmicPanel'
                 ? trf('COSMIC panel "{0}": drag the icons where you want them. The greyed ones are COSMIC\'s own.', [b['panel']])
-                : tr('Maprisma Icons in the panel: drag the icons where you want them. The greyed ones are Plasma\'s own.'),
+                : kind == 'maprismaBar'
+                    ? tr('Maprisma Bar: drag the icons where you want them. The greyed ones are the bar\'s own.')
+                    : tr('Maprisma Icons in the panel: drag the icons where you want them. The greyed ones are Plasma\'s own.'),
             style: TextStyle(color: scheme.onSurfaceVariant),
           ),
           SizedBox(height: 6),

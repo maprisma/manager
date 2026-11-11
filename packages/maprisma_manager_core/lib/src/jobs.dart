@@ -24,6 +24,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import 'bar.dart';
+import 'bar_hypr.dart';
 import 'bar_cosmic.dart';
 import 'bar_kde.dart';
 import 'bar_read.dart';
@@ -1286,6 +1287,16 @@ final class JobEngine {
         kdeTarget = {'widget': snap.widget!.widget};
       }
     }
+    if (ctx.desktop == DesktopId.hyprland && st['state'] == 'in') {
+      if (st['group'] == true) {
+        kdeTarget = {'group': true}; // in the bar's tray group: back there, no place of its own
+      } else {
+        final id = hyprBarId(app);
+        final f = MaprismaBarFile.read(paths);
+        final at = id == null ? null : snap.bar.hyprShown(f, snap.procs, group: false).find(id);
+        if (at != null) index = at.index;
+      }
+    }
     if (ctx.desktop == DesktopId.cosmic && st['state'] == 'in' && app.bar.cosmicApplet != null) {
       for (final i in cosmicInstances(paths)) {
         final at = CosmicPanelConfig.read(paths, i).layout.find(app.bar.cosmicApplet!);
@@ -1613,7 +1624,7 @@ final class JobEngine {
         }
       }
     }
-    if (ctx.desktop == DesktopId.kde && app.bar.kdeTrayExe != null && app.bar.kdeAutostart != null) {
+    if (traysDesktop(ctx.desktop) && app.bar.kdeTrayExe != null && app.bar.kdeAutostart != null) {
       final exe = targets(app.bar.kdeTrayExe!);
       final autostart = paths.expand(app.bar.kdeAutostart!);
       final shown = File(autostart).existsSync() && !desktopHidden(autostart);
@@ -1735,6 +1746,7 @@ final class JobEngine {
     final barId = switch (ctx.desktop) {
       DesktopId.cosmic => app.bar.cosmicApplet,
       DesktopId.kde => app.bar.kdeId,
+      DesktopId.hyprland => hyprBarId(app),
       DesktopId.other => null,
     };
     if (barId != null) {

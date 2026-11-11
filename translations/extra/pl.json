@@ -1,1 +1,8 @@
-{}
+{
+  "Maprisma Bar: drag the icons where you want them. The greyed ones are the bar's own.": "Maprisma Bar: przeciągnij ikony tam, gdzie chcesz. Wyszarzone należą do samego paska.",
+  "bar.json is too big": "bar.json jest za duży",
+  "bar.json is not readable: {0}": "Nie można odczytać bar.json: {0}",
+  "Maprisma Bar's layout changed since it was read": "Układ Maprisma Bar zmienił się od odczytu",
+  "the bar's own entries can be moved, not taken out": "własne elementy paska można przesuwać, ale nie usuwać",
+  "Other tray icons": "Inne ikony zasobnika"
+}

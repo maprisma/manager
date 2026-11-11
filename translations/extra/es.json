@@ -1,1 +1,8 @@
-{}
+{
+  "Maprisma Bar: drag the icons where you want them. The greyed ones are the bar's own.": "Maprisma Bar: arrastra los iconos donde quieras. Los atenuados son de la propia barra.",
+  "bar.json is too big": "bar.json es demasiado grande",
+  "bar.json is not readable: {0}": "bar.json no se puede leer: {0}",
+  "Maprisma Bar's layout changed since it was read": "La disposición de Maprisma Bar cambió desde que se leyó",
+  "the bar's own entries can be moved, not taken out": "los elementos propios de la barra se pueden mover, no quitar",
+  "Other tray icons": "Otros iconos de la bandeja"
+}

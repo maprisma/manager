@@ -10,6 +10,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import 'bar_hypr.dart';
 import 'catalog.dart';
 import 'context.dart';
 import 'kde_remove.dart';
@@ -273,6 +274,7 @@ Future<RemovePlan> removePlan(Ctx ctx, AppEntry app, {bool deleteSettings = fals
   final barId = switch (ctx.desktop) {
     DesktopId.cosmic => app.bar.cosmicApplet,
     DesktopId.kde => app.bar.kdeId,
+    DesktopId.hyprland => hyprBarId(app),
     DesktopId.other => null,
   };
   final procs = ctx.processes();

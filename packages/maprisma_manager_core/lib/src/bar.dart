@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import 'bar_cosmic.dart';
+import 'bar_hypr.dart';
 import 'bar_kde.dart';
 import 'catalog.dart';
 import 'context.dart';
@@ -69,7 +70,7 @@ final class Bar {
 
   AppEntry? appByBarId(String id) {
     for (final a in catalog) {
-      if (a.bar.cosmicApplet == id || a.bar.kdeId == id) return a;
+      if (a.bar.cosmicApplet == id || a.bar.kdeId == id || hyprBarId(a) == id) return a;
     }
     return null;
   }
@@ -77,6 +78,7 @@ final class Bar {
   String? barId(AppEntry a) => switch (ctx.desktop) {
     DesktopId.cosmic => a.bar.cosmicApplet,
     DesktopId.kde => a.bar.kdeId,
+    DesktopId.hyprland => a.desktops.contains(DesktopId.hyprland) ? hyprBarId(a) : null,
     DesktopId.other => null,
   };
 
@@ -148,6 +150,50 @@ final class Bar {
     return procs.any((pr) => pr.exe != null && targets.any((t) => p.equals(pr.exe!, t)));
   }
 
+  // ---------- Hyprland (Maprisma Bar) ----------
+
+  /// What Maprisma Bar shows: its saved zones, plus what it adds by itself (a missing widget in
+  /// its default zone, `tray` at the start of the right one; running Maprisma trays without a
+  /// place of their own where `tray` is), hidden entries left out.
+  /// [group] false: without the running trays that sit in the `tray` group (the layout as it is
+  /// stored, in the coordinates bar.json keeps; what is written back).
+  Layout hyprShown(MaprismaBarFile f, List<ProcInfo> procs, {bool group = true}) {
+    final l = f.layout.copy();
+    final defaults = MaprismaBarFile.defaults;
+    for (final area in Area.values) {
+      for (final w in (defaults[area.name] as List).cast<String>()) {
+        if (l.find(w) != null || f.hidden.contains(w)) continue;
+        if (w == 'tray') {
+          l.areas[Area.right]!.insert(0, w);
+        } else {
+          l.areas[area]!.add(w);
+        }
+      }
+    }
+    final tray = l.find('tray');
+    if (tray != null && group) {
+      final implicit = [
+        for (final a in catalog)
+          if (hyprBarId(a) case final id? when id.startsWith('tray:') && a.desktops.contains(DesktopId.hyprland) && l.find(id) == null && !f.hidden.contains(id) && trayRunning(a, procs)) id,
+      ];
+      l.areas[tray.area]!.insertAll(tray.index + 1, implicit);
+    }
+    return l;
+  }
+
+  MaprismaBarFile readHypr() {
+    final f = MaprismaBarFile.read(paths);
+    if (f.error != null) throw RouteError('unreadable', f.error);
+    return f;
+  }
+
+  /// Whether Maprisma Bar draws an entry now: its widgets always, a tray icon while it runs.
+  bool _hyprShownNow(String id, List<ProcInfo> procs) {
+    if (!id.startsWith('tray:')) return true;
+    final a = appByBarId(id);
+    return a == null || trayRunning(a, procs);
+  }
+
   // ---------- routes ----------
 
   Future<Map<String, dynamic>> get(Map<String, dynamic> params) async {
@@ -190,6 +236,12 @@ final class Bar {
           'out': _out(l),
           'trays': _trays(procs),
         };
+      case DesktopId.hyprland:
+        final f = MaprismaBarFile.read(paths);
+        final base = {'desktop': 'hyprland', 'kind': 'maprismaBar', 'files': {'bar': f.path}};
+        if (f.error != null) return {...base, 'error': f.error};
+        final l = hyprShown(f, procs);
+        return {...base, 'revision': f.revision, 'hidden': f.hidden, 'areas': _areas(l, procs), 'out': _out(l)};
       case DesktopId.other:
         return {'desktop': 'other', 'kind': 'none', 'note': tr('no bar icons on this desktop')};
     }
@@ -326,6 +378,45 @@ final class Bar {
               target: params['widget'] == null || w == null ? null : {'widget': w.widget});
         }
         return result;
+      case DesktopId.hyprland:
+        final f = readHypr();
+        if (revision != null && f.revision != revision) throw RouteError('changed', tr('Maprisma Bar\'s layout changed since it was read'));
+        final autostart = a?.bar.kdeAutostart == null || !touchAutostart ? null : paths.expand(a!.bar.kdeAutostart!);
+        if (autostart != null && File(autostart).existsSync()) checkDesktopFile(autostart);
+        if (!placed && hyprBarWidgets.contains(id) && a == null) {
+          throw RouteError('unavailable', tr('the bar\'s own entries can be moved, not taken out'));
+        }
+        final procs = ctx.processes();
+        // indices come from bar.get (the shown layout, the group's trays included); what is
+        // written keeps the group's trays in the group, except the one placed now
+        final l = hyprShown(f, procs);
+        final stored = hyprShown(f, procs, group: false);
+        final grouped = [for (final a in Area.values) ...l.areas[a]!.where((e) => stored.find(e) == null)];
+        final hidden = [...f.hidden];
+        if (placed) {
+          hidden.remove(id);
+          final at = l.find(id);
+          if (!(at != null && at.area == area && index == null)) {
+            final list = [...l.areas[area!]!]..remove(id);
+            l.put(id, area, index ?? (area == Area.right ? 0 : list.length));
+          }
+        } else {
+          l.remove(id);
+          if (!hidden.contains(id)) hidden.add(id);
+        }
+        for (final g in grouped) {
+          if (g != id) l.remove(g);
+        }
+        final written = f.write(l, hidden);
+        final at = l.find(id);
+        final result = <String, dynamic>{'id': id, 'app': ?a?.id, 'placed': placed, 'written': written, 'area': ?at?.area.name, 'index': ?at?.index, 'hidden': hidden};
+        if (autostart != null) {
+          result['autostart'] = File(autostart).existsSync() ? (setDesktopHidden(paths, autostart, !placed) ? 'changed' : 'unchanged') : 'missing';
+        }
+        if (a != null && remember) {
+          _remember(a, placed: placed, at: placed && at != null ? (area: at.area, index: at.index) : null);
+        }
+        return result;
       case DesktopId.other:
         throw RouteError('unavailable', tr('no bar icons on this desktop'));
     }
@@ -423,6 +514,38 @@ final class Bar {
           if (setDesktopHidden(paths, paths.expand(f), want['placed'] != true) && !changed.contains(a.id)) changed.add(a.id);
         }
         return {'changed': changed};
+      case DesktopId.hyprland:
+        final f = readHypr();
+        final l = hyprShown(f, ctx.processes(), group: false);
+        final hidden = [...f.hidden];
+        for (final (a, want) in apps) {
+          final id = barId(a)!;
+          final at = l.find(id);
+          if (want['placed'] == true && want['group'] == true) {
+            // in the bar's tray group: shown again where the group is, no place of its own
+            if (hidden.remove(id)) changed.add(a.id);
+            continue;
+          }
+          if (want['placed'] == true) {
+            final area = parseArea(want['area']) ?? Area.right;
+            final wasHidden = hidden.remove(id);
+            if (at != null && at.area == area && !wasHidden) continue;
+            final i = want['index'];
+            l.put(id, area, i is int ? i : (area == Area.right ? 0 : l.areas[area]!.length));
+            changed.add(a.id);
+          } else if (at != null || !hidden.contains(id)) {
+            l.remove(id);
+            if (!hidden.contains(id)) hidden.add(id);
+            changed.add(a.id);
+          }
+        }
+        if (changed.isNotEmpty) f.write(l, hidden);
+        for (final (a, want) in apps) {
+          final file = a.bar.kdeAutostart;
+          if (file == null || !File(paths.expand(file)).existsSync()) continue;
+          if (setDesktopHidden(paths, paths.expand(file), want['placed'] != true) && !changed.contains(a.id)) changed.add(a.id);
+        }
+        return {'changed': changed};
       case DesktopId.other:
         return {'changed': changed};
     }
@@ -439,7 +562,15 @@ final class Bar {
   }
 
   Map<String, List<Map<String, dynamic>>> _areas(Layout l, List<ProcInfo> procs) => {
-    for (final a in Area.values) a.name: [for (final id in l.areas[a]!) {...describeEntry(id, procs), if (ctx.desktop == DesktopId.kde) 'shown': _kdeShownNow(id, procs)}],
+    for (final a in Area.values)
+      a.name: [
+        for (final id in l.areas[a]!)
+          {
+            ...describeEntry(id, procs),
+            if (ctx.desktop == DesktopId.kde) 'shown': _kdeShownNow(id, procs),
+            if (ctx.desktop == DesktopId.hyprland) 'shown': _hyprShownNow(id, procs),
+          },
+      ],
   };
 
   /// Our apps with a bar icon here that are not in the bar.
@@ -460,7 +591,7 @@ final class Bar {
         },
   ];
 
-  String? _iconName(AppEntry a) => ctx.desktop == DesktopId.kde ? (a.bar.kdeIconName ?? a.bar.iconName) : a.bar.iconName;
+  String? _iconName(AppEntry a) => traysDesktop(ctx.desktop) ? (a.bar.kdeIconName ?? a.bar.iconName) : a.bar.iconName;
 
   /// An entry for the editor: ours with app id/name/icon, a foreign one with what its desktop
   /// file says (COSMIC applets) or nothing.
@@ -468,6 +599,20 @@ final class Bar {
     final a = appByBarId(id);
     if (a != null) return {'id': id, 'ours': true, 'app': a.id, 'name': a.name, 'iconName': _iconName(a)};
     if (ctx.desktop == DesktopId.kde && id == kdeClock) return {'id': id, 'ours': false, 'name': 'Clock'};
+    if (ctx.desktop == DesktopId.hyprland) {
+      final name = switch (id) {
+        'workspaces' => 'Workspaces',
+        'clock' => 'Clock',
+        'bluetooth' => 'Bluetooth',
+        'network' => 'Network',
+        'audio' => 'Audio',
+        'power' => 'Power',
+        'tray' => tr('Other tray icons'),
+        'launcher' => 'Launcher',
+        _ => id.startsWith('tray:') ? id.substring(5) : id,
+      };
+      return {'id': id, 'ours': false, 'name': name};
+    }
     final d = _desktopFile(id);
     return {'id': id, 'ours': false, 'name': ?d?.name, 'iconName': ?d?.icon};
   }

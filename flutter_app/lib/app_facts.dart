@@ -99,7 +99,7 @@ bool needsRepair(App a) => a['repair'] == true;
 String? otherDesktopNote(App a) {
   if (supportedHere(a)) return null;
   final d = (a['desktops'] as List?)?.cast<Object>() ?? const [];
-  return d.length == 1 ? trf('{0} only', [d.single == 'kde' ? 'KDE' : d.single == 'cosmic' ? 'COSMIC' : d.single]) : tr('not for this desktop');
+  return d.length == 1 ? trf('{0} only', [d.single == 'kde' ? 'KDE' : d.single == 'cosmic' ? 'COSMIC' : d.single == 'hyprland' ? 'Hyprland' : d.single]) : tr('not for this desktop');
 }
 
 /// "left", "centre", "right" for a zone.

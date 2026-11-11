@@ -133,6 +133,7 @@ String? svgProblem(List<int> bytes) {
         // Plasma's default
       }
       return (name: 'breeze', source: tr('Plasma\'s default'));
+    case DesktopId.hyprland:
     case DesktopId.other:
       final f = p.join(paths.config, 'gtk-3.0/settings.ini');
       try {
@@ -506,7 +507,7 @@ final class IconService {
         }
         if (app.bar.cosmicIconBuiltIn) (out['bar'] as Map)['note'] = trf('the applet draws a built-in icon: {0}', [uiLabel(app.bar.iconNote ?? '')]);
       }
-    } else if (ctx.desktop == DesktopId.kde && app.bar.kdeTrayExe != null && app.bar.kdeAutostart != null) {
+    } else if (traysDesktop(ctx.desktop) && app.bar.kdeTrayExe != null && app.bar.kdeAutostart != null) {
       final exe = paths.expand(app.bar.kdeTrayExe!);
       final trays = [for (final pr in procs) if (pr.exe == exe) pr];
       final autostart = paths.expand(app.bar.kdeAutostart!);

@@ -27,12 +27,14 @@ DesktopId detectDesktop(Map<String, String> env) {
   final names = (env['XDG_CURRENT_DESKTOP'] ?? '').toUpperCase().split(':');
   if (names.contains('COSMIC')) return DesktopId.cosmic;
   if (names.contains('KDE')) return DesktopId.kde;
+  if (names.contains('HYPRLAND')) return DesktopId.hyprland;
   return DesktopId.other;
 }
 
 DesktopId? parseDesktop(String? v) => switch (v?.toLowerCase()) {
   'cosmic' => DesktopId.cosmic,
   'kde' => DesktopId.kde,
+  'hyprland' => DesktopId.hyprland,
   'other' => DesktopId.other,
   _ => null,
 };

@@ -1,1 +1,8 @@
-{}
+{
+  "Maprisma Bar: drag the icons where you want them. The greyed ones are the bar's own.": "Maprisma Bar: sleep de pictogrammen waar je ze wilt hebben. De grijze zijn van de balk zelf.",
+  "bar.json is too big": "bar.json is te groot",
+  "bar.json is not readable: {0}": "bar.json is niet leesbaar: {0}",
+  "Maprisma Bar's layout changed since it was read": "De indeling van Maprisma Bar is gewijzigd sinds het lezen",
+  "the bar's own entries can be moved, not taken out": "de eigen onderdelen van de balk kunnen worden verplaatst, niet verwijderd",
+  "Other tray icons": "Andere systeemvakpictogrammen"
+}

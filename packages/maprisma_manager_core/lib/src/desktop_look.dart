@@ -13,7 +13,8 @@ Map<String, dynamic> desktopLook(Ctx ctx) {
   final colors = switch (ctx.desktop) {
     DesktopId.cosmic => _cosmicColors(ctx),
     DesktopId.kde => _kdeColors(ctx),
-    DesktopId.other => _hyprland(ctx) ? _caelestiaColors(ctx) : <String, String>{},
+    DesktopId.hyprland => _caelestiaColors(ctx),
+    DesktopId.other => <String, String>{},
   };
   final bg = colors['background'];
   return {
@@ -22,15 +23,12 @@ Map<String, dynamic> desktopLook(Ctx ctx) {
     'rounding': switch (ctx.desktop) {
       DesktopId.cosmic => _cosmicRounding(ctx),
       DesktopId.kde => 8,
+      DesktopId.hyprland => null,
       DesktopId.other => null,
     },
     'is_dark': bg == null ? null : _dark(bg),
   };
 }
-
-/// A Hyprland session (it has no bar backend of its own yet, so it is still `other`).
-bool _hyprland(Ctx ctx) =>
-    (ctx.environment['XDG_CURRENT_DESKTOP'] ?? '').toUpperCase().split(':').contains('HYPRLAND');
 
 /// Caelestia's colour scheme (XDG_STATE_HOME/caelestia/scheme.json, Material names, hex
 /// without '#'), as Maprisma Playground reads it; empty without Caelestia.

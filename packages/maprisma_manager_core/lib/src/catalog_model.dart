@@ -1,7 +1,11 @@
 /// The catalog's types: what an app is made of, as plain data (docs/inventory.md).
 library;
 
-enum DesktopId { cosmic, kde, other }
+enum DesktopId { cosmic, kde, hyprland, other }
+
+/// Desktops whose Maprisma icons are tray icons (StatusNotifierItems started from autostart
+/// files): KDE Plasma and Hyprland (Maprisma Bar).
+bool traysDesktop(DesktopId d) => d == DesktopId.kde || d == DesktopId.hyprland;
 
 enum PathKind { file, executable, dir, link }
 
@@ -273,7 +277,7 @@ final class Component {
     required this.install,
     required this.paths,
     this.kind = InstallKind.script,
-    this.desktops = const {DesktopId.cosmic, DesktopId.kde, DesktopId.other},
+    this.desktops = const {DesktopId.cosmic, DesktopId.kde, DesktopId.hyprland, DesktopId.other},
     this.prerequisites = const [],
     this.flutter = FlutterEnv.none,
     this.optionalParts = const {},
@@ -396,7 +400,7 @@ final class AppEntry {
     required this.kind,
     required this.inputs,
     required this.components,
-    this.desktops = const {DesktopId.cosmic, DesktopId.kde, DesktopId.other},
+    this.desktops = const {DesktopId.cosmic, DesktopId.kde, DesktopId.hyprland, DesktopId.other},
     this.data = const [],
     this.runtime = const [],
     this.processes = const [],
