@@ -58,9 +58,11 @@ typedef Helper = ({
   List<String> env,
   String login,
   String note,
-  // Codex can read files: it runs in bubblewrap, its own folders as
-  // throw-away overlays, the files in `keep` written through.
-  ({List<String> overlay, List<String> keep})? jail,
+  // Codex can read files: it runs in bubblewrap with an empty home, where
+  // the folders in `fresh` are new and empty (none of the real ones'
+  // sessions, config or MCP setup) and only the files in `keep` (its
+  // sign-in) are bound in from the real home, written through.
+  ({List<String> fresh, List<String> keep})? jail,
   // Web search for wallpapers: these arguments of argv (`off`, its "no tools")
   // are swapped for `on` (only its web search and web fetch tools); null when
   // the helper has no web tools. A helper (local ones too) that gains web
@@ -101,12 +103,14 @@ List<Helper> get helpers => [
       '--sandbox',
       'read-only',
       '--skip-git-repo-check',
-      '--disable',
-      'apps',
-      '--disable',
-      'plugins',
-      '--disable',
-      'hooks',
+      // no session saved, no user config or rules, no web search
+      '--ephemeral',
+      '--ignore-user-config',
+      '--ignore-rules',
+      '-c',
+      'web_search="disabled"',
+      // no tools: it only answers
+      for (final feature in codexOff) ...['--disable', feature],
       '--output-last-message',
       '{answer}',
       '-',
@@ -115,7 +119,7 @@ List<Helper> get helpers => [
     env: ['OPENAI_API_KEY'],
     login: 'codex login',
     note: tr("Read-only sandbox, inside a bubblewrap jail that shows it none of your files."),
-    jail: (overlay: ['.codex'], keep: ['.codex/auth.json']),
+    jail: (fresh: ['.codex'], keep: ['.codex/auth.json']),
     web: null,
   ),
   (
@@ -140,6 +144,18 @@ List<Helper> get helpers => [
     jail: null,
     web: null,
   ),
+];
+
+/// Codex features turned off for an Ask: its tools (shell, exec, code mode,
+/// images, browser, computer use, sleep, goals) and its integrations. Names
+/// Codex 0.167 knows; an unknown name stops it, so only remove names here.
+/// Checked live 2026-11-11: it can't run a command ("code-mode host is
+/// disabled"). Its spawn_agent tool has no switch in 0.167; a spawned agent
+/// has the same limits, and --ephemeral makes the spawn fail anyway.
+const codexOff = [
+  'shell_tool', 'unified_exec', 'shell_snapshot', 'code_mode_host', 'view_image', 'image_generation',
+  'browser_use', 'computer_use', 'multi_agent', 'sleep_tool', 'goals', 'tool_suggest', 'apps', 'plugins',
+  'hooks',
 ];
 
 /// Whether the helper with this id (`pi:<provider>/<model>` too) can search the web.
@@ -602,7 +618,7 @@ Future<String?> realBinary(String command, Map<String, String> environment) asyn
 }
 
 /// argv inside bubblewrap: the system read-only, an empty home with only the
-/// agent's own folders (throw-away overlays, its sign-in written through),
+/// agent's own folders (new and empty, its sign-in bound in and written through),
 /// the private work folder, the network; no session bus.
 Future<List<String>> jailArgv(Helper h, List<String> argv, String work, String home, Map<String, String> environment) async {
   final binary = await realBinary(argv.first, environment);
@@ -658,16 +674,10 @@ Future<List<String>> jailArgv(Helper h, List<String> argv, String work, String h
     if (p.equals(root, home) || p.isWithin(root, home)) root = binary;
     args.addAll(['--ro-bind', root, root]);
   }
-  for (var i = 0; i < jail.overlay.length; i++) {
-    final source = p.join(home, jail.overlay[i]);
-    if (FileSystemEntity.typeSync(source, followLinks: false) == FileSystemEntityType.directory) {
-      final layer = p.join(work, '.layers', '$i');
-      Directory(p.join(layer, 'up')).createSync(recursive: true);
-      Directory(p.join(layer, 'wk')).createSync();
-      chmodPath(p.join(layer, 'up'), 448);
-      chmodPath(p.join(layer, 'wk'), 448);
-      args.addAll(['--overlay-src', source, '--overlay', p.join(layer, 'up'), p.join(layer, 'wk'), source]);
-    }
+  // Its own folders new and empty on the jail's home (a tmpfs): nothing of
+  // the real ones (old sessions, config, MCP servers) is there to read.
+  for (final name in jail.fresh) {
+    args.addAll(['--perms', '0700', '--dir', p.join(home, name)]);
   }
   for (final name in jail.keep) {
     final path = p.join(home, name);

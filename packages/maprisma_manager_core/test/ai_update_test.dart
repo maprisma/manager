@@ -219,4 +219,24 @@ void main() {
     expect(run['state'], 'cancelled');
     expect(asked, isFalse);
   });
+
+  test('Codex: a new empty .codex in the jail with only its sign-in; no tools, nothing saved', () async {
+    final home = w.home;
+    w.fake('codex', 'exit 0');
+    w.fake('bwrap', 'exit 0');
+    w.writeFile(p.join(home, '.codex/auth.json'), '{}');
+    w.writeFile(p.join(home, '.codex/sessions/old.jsonl'), 'secret');
+    final work = Directory(p.join(w.dir, 'work'))..createSync();
+    final codex = helpers.firstWhere((h) => h.id == 'codex');
+    final s = (await jailArgv(codex, ['codex', 'exec', '-'], work.path, home, {'PATH': w.fakeBin})).join(' ');
+    expect(s, contains('--tmpfs $home'));
+    expect(s, isNot(contains('--overlay')));
+    expect(s, contains('--perms 0700 --dir $home/.codex'));
+    expect(s, contains('--bind $home/.codex/auth.json $home/.codex/auth.json'));
+    expect(s, isNot(contains('sessions')));
+    final flags = codex.argv.join(' ');
+    for (final f in ['--ephemeral', '--ignore-user-config', '--ignore-rules', 'web_search="disabled"', '--disable shell_tool', '--disable unified_exec']) {
+      expect(flags, contains(f));
+    }
+  });
 }
