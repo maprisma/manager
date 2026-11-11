@@ -181,6 +181,25 @@ final class Bar {
     return l;
   }
 
+  /// Back to what bar.json keeps, as Maprisma Bar's own collapse: the group's trays right after
+  /// `tray` stay in the group (taken out, the bar adds them again); ones split off from it by
+  /// another entry keep a place of their own. [moved] (just placed) always keeps its place;
+  /// when it is `tray` itself, the whole group goes with it.
+  void _collapseGroup(Layout l, List<String> grouped, {required String moved}) {
+    for (final area in Area.values) {
+      var inRun = false;
+      for (final e in [...l.areas[area]!]) {
+        if (e == 'tray') {
+          inRun = true;
+        } else if (grouped.contains(e) && e != moved) {
+          if (inRun || moved == 'tray') l.remove(e);
+        } else {
+          inRun = false;
+        }
+      }
+    }
+  }
+
   MaprismaBarFile readHypr() {
     final f = MaprismaBarFile.read(paths);
     if (f.error != null) throw RouteError('unreadable', f.error);
@@ -398,15 +417,16 @@ final class Bar {
           final at = l.find(id);
           if (!(at != null && at.area == area && index == null)) {
             final list = [...l.areas[area!]!]..remove(id);
-            l.put(id, area, index ?? (area == Area.right ? 0 : list.length));
+            var i = index ?? (area == Area.right ? 0 : list.length);
+            // as Maprisma Bar: before the group's first icon means before the group itself
+            if (i > 0 && i < list.length && grouped.contains(list[i]) && list[i - 1] == 'tray') i -= 1;
+            l.put(id, area, i);
           }
         } else {
           l.remove(id);
           if (!hidden.contains(id)) hidden.add(id);
         }
-        for (final g in grouped) {
-          if (g != id) l.remove(g);
-        }
+        _collapseGroup(l, grouped, moved: id);
         final written = f.write(l, hidden);
         final at = l.find(id);
         final result = <String, dynamic>{'id': id, 'app': ?a?.id, 'placed': placed, 'written': written, 'area': ?at?.area.name, 'index': ?at?.index, 'hidden': hidden};
@@ -523,7 +543,8 @@ final class Bar {
           final at = l.find(id);
           if (want['placed'] == true && want['group'] == true) {
             // in the bar's tray group: shown again where the group is, no place of its own
-            if (hidden.remove(id)) changed.add(a.id);
+            final wasHidden = hidden.remove(id);
+            if (l.remove(id) || wasHidden) changed.add(a.id);
             continue;
           }
           if (want['placed'] == true) {

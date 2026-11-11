@@ -91,10 +91,43 @@ void main() {
     await core.call('bar.move', {'entry': 'clock', 'area': 'left', 'index': 0});
     expect(stored()['right'], ['tray', 'power', 'bluetooth', 'network', 'audio']);
     // placing one of them gives only that one a place of its own (shown index 2 = after llm)
-    await core.call('bar.move', {'app': 'wlan', 'area': 'right', 'index': 1});
+    await core.call('bar.move', {'app': 'wlan', 'area': 'right', 'index': 2});
     expect(stored()['right'], ['tray', 'tray:maprisma-wlan-monitor', 'power', 'bluetooth', 'network', 'audio']);
     final st = appOf(await core.call('apps.list'), 'llm')['bar'];
     expect(st, allOf(containsPair('state', 'in'), containsPair('group', true), containsPair('zone', 'right')));
+  });
+
+  test('a drop inside the tray group splits off only the trays after it, as the bar does', () async {
+    bar({'version': 1, 'left': ['launcher'], 'center': ['clock'], 'right': ['tray', 'power']});
+    w.install('llm');
+    w.install('wlan');
+    for (final a in ['llm', 'wlan']) {
+      w.writeFile(autostart(a), '[Desktop Entry]\nExec=x\n');
+    }
+    w.process(600, exe: p.join(w.paths.bin, 'maprisma-llm-monitor-tray'));
+    w.process(601, exe: p.join(w.paths.bin, 'maprisma-wlan-monitor-tray'));
+    final core = hypr();
+    // shown: tray, llm, wlan, power, ...: the clock between llm and wlan
+    await core.call('bar.move', {'entry': 'clock', 'area': 'right', 'index': 2});
+    expect(stored()['right'], ['tray', 'clock', 'tray:maprisma-wlan-monitor', 'power', 'bluetooth', 'network', 'audio']);
+    expect(ids(await core.call('bar.get'), 'right').take(4), ['tray', 'tray:maprisma-llm-monitor', 'clock', 'tray:maprisma-wlan-monitor']);
+    // before the group's first icon means before the group itself
+    await core.call('bar.move', {'entry': 'power', 'area': 'right', 'index': 1});
+    expect(stored()['right'].take(2), ['power', 'tray']);
+  });
+
+  test('restoring a grouped tray takes away a place it was given meanwhile', () async {
+    bar({'version': 1, 'left': ['launcher'], 'center': ['tray', 'clock'], 'right': ['tray:maprisma-llm-monitor', 'power']});
+    final env = w.env(desktop: 'Hyprland');
+    final b = Bar(Ctx(paths: Paths.fromEnvironment(env), environment: env));
+    WantedBar({})
+      ..set(DesktopId.hyprland, 'llm', placed: true, area: Area.center, target: {'group': true})
+      ..save(w.paths);
+    w.install('llm');
+    w.writeFile(autostart('llm'), '[Desktop Entry]\nExec=x\n');
+    final r = await b.applyWanted();
+    expect(r['changed'], contains('llm'));
+    expect(stored()['right'], isNot(contains('tray:maprisma-llm-monitor')));
   });
 
   test('a reinstall puts a grouped tray back into the group, a placed one at its stored place', () async {
