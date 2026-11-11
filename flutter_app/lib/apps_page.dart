@@ -5,6 +5,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'ai_dialog.dart';
 import 'app_facts.dart';
 import 'app_icon.dart';
 import 'backend.dart' show ServiceError;
@@ -55,6 +56,11 @@ class AppsPageState extends State<AppsPage> {
   final filter = TextEditingController();
   final filterFocus = FocusNode();
 
+  /// ai.helpers: Settings › Let AI do the updates, its helper and the toolbar's AI button.
+  Map<String, dynamic> ai = const {};
+  List<Map> get aiReady => [for (final h in (ai['helpers'] as List?) ?? const []) if ((h as Map)['signed_in'] == true) h];
+  bool get aiOn => ai['enabled'] == true && aiReady.isNotEmpty;
+
   /// icons.get per app (whether its bar icon was changed): fetched in the background.
   final Map<String, Map<String, dynamic>> icons = {};
 
@@ -95,6 +101,7 @@ class AppsPageState extends State<AppsPage> {
         error = null;
       });
       unawaited(_loadIcons());
+      unawaited(_loadAi());
     } on ServiceError catch (e) {
       if (mounted) {
         setState(() {
@@ -106,6 +113,20 @@ class AppsPageState extends State<AppsPage> {
   }
 
   Future<void> reload() => _load();
+
+  Future<void> _loadAi() async {
+    try {
+      final r = await widget.core('ai.helpers');
+      if (mounted) setState(() => ai = r);
+    } on ServiceError {
+      if (mounted) setState(() => ai = const {});
+    }
+  }
+
+  Future<void> openAi() async {
+    await showDialog<void>(context: context, barrierDismissible: false, builder: (_) => AiDialog(core: widget.core));
+    await _load();
+  }
 
   Future<void> _loadIcons() async {
     for (final a in [...apps]) {
@@ -661,19 +682,63 @@ class AppsPageState extends State<AppsPage> {
                           child: Text(tr('F12 saves a screenshot')),
                         ),
                       ),
+                      const PopupMenuDivider(),
+                      PopupMenuItem<String>(
+                        enabled: false,
+                        height: 32,
+                        child: Text(tr('AI'), style: TextStyle(fontWeight: FontWeight.w700, color: scheme.onSurfaceVariant)),
+                      ),
+                      CheckedPopupMenuItem(
+                        key: const ValueKey('ai-updates'),
+                        value: 'ai_updates',
+                        checked: ai['enabled'] == true,
+                        enabled: aiReady.isNotEmpty || ai['enabled'] == true,
+                        child: Tooltip(
+                          message: tr('An installed, signed-in AI helper (Claude Code, Codex, pi, Hermes or a local model) decides what to update; the Manager checks each step and does it. Off until you turn it on; it runs only when you click the AI button.'),
+                          child: Text(tr('Let AI do the updates')),
+                        ),
+                      ),
+                      if (aiReady.isEmpty)
+                        PopupMenuItem<String>(enabled: false, height: 32, child: Text(tr('No AI helper is installed and signed in'), style: TextStyle(fontSize: 12)))
+                      else ...[
+                        PopupMenuItem<String>(
+                          enabled: false,
+                          height: 32,
+                          child: Text(tr('Helper'), style: TextStyle(fontWeight: FontWeight.w700, color: scheme.onSurfaceVariant)),
+                        ),
+                        for (final h in aiReady)
+                          CheckedPopupMenuItem(value: 'ai_helper:${h['id']}', checked: h['id'] == ai['chosen'], child: Text(AiDialogState.helperName(h))),
+                      ],
                     ],
                     onSelected: (choice) async {
-                      final (key, value) = choice == 'screenshot_key'
+                      final (key, Object value) = choice == 'screenshot_key'
                           ? ('screenshot_key', !widget.screenshotKey)
+                          : choice == 'ai_updates'
+                          ? ('ai_updates', ai['enabled'] != true)
+                          : choice.startsWith('ai_helper:')
+                          ? ('ai_helper', choice.substring('ai_helper:'.length))
                           : ('corners', choice.substring('corners:'.length));
                       try {
                         await widget.core('settings.set', {'key': key, 'value': value});
+                        if (key.startsWith('ai_')) await _loadAi();
                         await widget.onSettingsChanged?.call();
                       } on Object {
                         if (mounted) tell(tr('Could not save the setting.'));
                       }
                     },
                   ),
+                  if (aiOn)
+                    IconButton(
+                      key: const ValueKey('ai-button'),
+                      tooltip: tr('Let AI do the updates'),
+                      onPressed: openAi,
+                      icon: Badge(
+                        isLabelVisible: ai['busy'] == true,
+                        smallSize: 7,
+                        backgroundColor: markColors(context).update,
+                        child: const Icon(Icons.auto_awesome),
+                      ),
+                    ),
                   IconButton(
                     tooltip: tr('Check for updates (F5)'),
                     onPressed: checking ? null : () => checkUpdates(force: true),

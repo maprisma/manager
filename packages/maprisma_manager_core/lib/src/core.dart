@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'translations.dart';
 
+import 'ai_update.dart';
 import 'bar.dart';
 import 'catalog.dart';
 import 'context.dart';
@@ -18,7 +19,7 @@ import 'sources.dart';
 import 'run.dart';
 import 'status.dart';
 
-const coreVersion = '0.2.0';
+const coreVersion = '0.3.0';
 
 /// How long a fetch counts as fresh (plan: "fetch at most every 30 min unless forced").
 const fetchInterval = Duration(minutes: 30);
@@ -65,6 +66,8 @@ final class CoreService {
           'systemLanguage': systemLanguage(ctx.environment),
           'corners': settings.corners,
           'screenshot_key': settings.screenshotKey,
+          'ai_updates': settings.values['ai_updates'] == true,
+          'ai_helper': settings.str('ai_helper'),
         };
       },
       'settings.language': (params) async {
@@ -82,6 +85,9 @@ final class CoreService {
         final ok = switch (key) {
           'corners' => cornerSettings.contains(value),
           'screenshot_key' => value is bool,
+          // Let AI do the updates (off by default) and its helper (null: the first ready one).
+          'ai_updates' => value is bool,
+          'ai_helper' => value == null || (value is String && RegExp(r'^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,160}$').hasMatch(value)),
           _ => false,
         };
         if (!ok) throw RouteError('bad_params', 'key, value');
@@ -89,6 +95,11 @@ final class CoreService {
         return {'key': key, 'value': value};
       },
       'desktop.look': (_) async => desktopLook(ctx),
+      // Let AI do the updates (ai_update.dart): the helpers, one run at a time, polled.
+      'ai.helpers': (_) async => ai.helpers(),
+      'ai.start': (params) async => ai.start(params),
+      'ai.get': (_) async => ai.get(),
+      'ai.cancel': (_) => ai.cancel(),
       'apps.list': (params) async {
         final status = StatusReader(_withDesktop(params));
         return {..._header(status.ctx), 'apps': await status.apps(), 'discovered': await discover(ctx)};
@@ -176,6 +187,9 @@ final class CoreService {
 
   /// The job engine (install, update, reinstall, remove).
   late final JobEngine jobs;
+
+  /// Let AI do the updates (ai.*).
+  late final AiUpdater ai = AiUpdater(ctx, jobs, fetch: () => _fetch(const {}));
 
   /// Bar icon changes (icons.*).
   late final IconService icons = IconService(ctx, jobs);

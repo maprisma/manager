@@ -342,6 +342,10 @@ final class JobEngine {
     return summary(job);
   }
 
+  /// The job of this engine with [id] when it has finished (its whole record); null for a job
+  /// this engine doesn't run.
+  Future<Map<String, dynamic>>? finished(String id) => _runs[id]?.done.future;
+
   Map<String, dynamic> get(Map<String, dynamic> params) {
     final job = _job(params['id']);
     return {...job, 'cancellable': _cancellable(job)};

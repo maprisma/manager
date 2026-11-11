@@ -1,11 +1,12 @@
 name: maprisma_manager_core
 description: Maprisma Manager's core in pure Dart (catalog, status, install jobs, bar icons).
 publish_to: none
-version: 0.2.0
+version: 0.3.0
 environment:
   sdk: '>=3.8.0 <4.0.0'
 dependencies:
   crypto: ^3.0.7
+  ffi: ^2.2.0
   path: ^1.9.1
   xml: '>=7.0.1 <8.0.0'
 dev_dependencies:

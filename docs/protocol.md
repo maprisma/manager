@@ -624,6 +624,37 @@ there is nothing to reset.
 After every install/update/reinstall/release of the app (finish, before the post steps): a choice is
 written again over the installer's new file, which becomes the kept original (logged).
 
+## Let AI do the updates (`ai.*`)
+
+Settings › AI › **Let AI do the updates** (`ai_updates`, off by default; it can only be switched
+on while a helper is ready) and **Helper** (`ai_helper`; null = the first ready one). The helpers
+are Maprisma Theme's Ask AI helpers (`lib/src/ai/ask_ai.dart`, copied): Claude Code, Codex, pi,
+Hermes and pi's local models, each shown when installed and signed in. The toolbar's ✦ button
+opens the AI dialog (Helper: [name ▾], Start/Stop, what the AI said and did).
+
+The helper gets no tools (Codex: its read-only sandbox in a bubblewrap jail). Each round it gets
+the apps' status (no paths) and the results of the steps so far, and answers with one JSON object
+`{"say", "actions": [{"do", "app"}], "done"}`. The Manager checks every step and runs it itself:
+
+| `do` | what the Manager does |
+|---|---|
+| `update` | the app's update job |
+| `reinstall` | the app's reinstall job |
+| `pub_get` | `flutter pub get` / `dart pub get` in the app's packages (pubspec.yaml up to 3 levels, not build output, hidden folders, links or pub workspace members), in its own process group; refused while a job for the app is queued or running |
+
+Refused: any other step, unknown apps, apps not installed or not for this desktop, the Manager
+itself (it has to quit to update) and pacman apps (Maprisma: they need the password). At most 5
+answers, 6 steps per answer, 20 steps per run; the same step at most twice. Stop ends the helper,
+a running `pub get` group and a job that can still be cancelled. Each run is saved as
+`$XDG_STATE_HOME/maprisma-manager/ai/<id>.json`.
+
+- `ai.helpers` → `{helpers: [{id, name, installed, signed_in, local, login, note}], chosen, enabled, busy}`
+- `ai.start` `{helper?}` → `{run}`; refused with `off`, `busy` or `unavailable` (no helper ready)
+- `ai.get` → `{run}` (null before the first): `{id, helper, helperName, state: running|succeeded|failed|cancelled, phase: checking|asking|working|done, round, steps: [{kind: say|note|action, …}], message?}`
+- `ai.cancel` → `{run}`
+
+CLI: `ai-helpers`, `ai-update [<helper>]`.
+
 ## CLI
 
 ```

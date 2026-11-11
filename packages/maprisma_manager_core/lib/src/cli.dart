@@ -20,6 +20,8 @@ const usage = '''usage: maprisma-manager-core status [--json] [--desktop cosmic|
        maprisma-manager-core release <id> [<tag>]
        maprisma-manager-core remove <id> [--delete-settings] [--yes]
        maprisma-manager-core icon <id> [<name>|<file>|--reset] [--search <text>] [--json]
+       maprisma-manager-core ai-helpers                   (the AI helpers for "Let AI do the updates")
+       maprisma-manager-core ai-update [<helper>]         (let the AI update the apps; Settings must allow it)
        maprisma-manager-core jobs [<id>]
        maprisma-manager-core log <job>
        maprisma-manager-core version
@@ -113,6 +115,20 @@ Future<int> runCli(List<String> args, {CoreService? service, IOSink? out}) async
               ? 'GitHub org ${org['org']}: ${_age(org['age'])}${org['error'] != null ? ' (last try failed: ${org['error']})' : ''}; refresh: github --force'
               : 'GitHub org ${org['org']} not listed yet: github --force');
         }
+      case ['ai-helpers']:
+        final r = await core.call('ai.helpers');
+        if (json) {
+          sink.writeln(const JsonEncoder.withIndent('  ').convert(r));
+        } else {
+          sink.writeln('AI updates: ${r['enabled'] == true ? 'on' : 'off'}   chosen: ${r['chosen'] ?? 'none ready'}');
+          for (final h in (r['helpers'] as List).cast<Map<String, dynamic>>()) {
+            final state = h['signed_in'] == true ? 'ready' : h['installed'] == true ? 'not signed in (${h['login']})' : 'not installed';
+            sink.writeln('${'${h['id']}'.padRight(24)} ${'${h['name']}'.padRight(28)} $state');
+          }
+        }
+      case ['ai-update']:
+      case ['ai-update', _]:
+        return await _runAi(core, sink, rest.length == 2 ? rest[1] : null, json);
       case ['clone-new', final repo]:
         final r = await core.call('discovered.clone', {'repo': repo});
         sink.writeln(json ? const JsonEncoder.withIndent('  ').convert(r) : 'Cloned ${r['repo']} into ${r['folder']}');
@@ -611,3 +627,43 @@ String sourcesTable(Map<String, dynamic> r) {
     else 'GitHub facts: never checked; refresh: github',
   ].join('\n');
 }
+
+/// `ai-update`: starts the AI's run and prints what it says and does until it ends.
+Future<int> _runAi(CoreService core, IOSink sink, String? helper, bool json) async {
+  var run = (await core.call('ai.start', {'helper': ?helper}))['run'] as Map<String, dynamic>;
+  if (!json) sink.writeln('AI update with ${run['helperName']}');
+  var shown = 0;
+  String? phase;
+  while (true) {
+    final steps = (run['steps'] as List).cast<Map<String, dynamic>>();
+    if (!json) {
+      if (run['state'] == 'running' && run['phase'] != phase && steps.length == shown) {
+        phase = run['phase'] as String?;
+        sink.writeln('  … $phase${run['round'] == null ? '' : ' (round ${run['round']})'}');
+      }
+      for (; shown < steps.length; shown++) {
+        final s = steps[shown];
+        if (s['state'] == 'running' && run['state'] == 'running') break; // printed when it ends
+        sink.writeln(aiStepLine(s));
+      }
+    }
+    if (run['state'] != 'running') break;
+    await Future<void>.delayed(const Duration(milliseconds: 400));
+    run = (await core.call('ai.get'))['run'] as Map<String, dynamic>;
+  }
+  if (json) {
+    sink.writeln(const JsonEncoder.withIndent('  ').convert(run));
+  } else {
+    sink.writeln('AI update: ${run['state']}${run['message'] == null ? '' : ' (${run['message']})'}');
+  }
+  return run['state'] == 'succeeded' ? 0 : 1;
+}
+
+String aiStepLine(Map<String, dynamic> s) => switch (s['kind']) {
+  'say' => '  AI: ${s['text']}',
+  'note' => '  ${s['text']}',
+  _ => s['ok'] == false
+      ? '  refused ${s['do']} ${s['app']}: ${s['message']}'
+      : '  ${s['do']} ${s['app']}: ${s['state']}${s['up_to_date'] == true ? ' (up to date)' : ''}'
+          '${s['state'] != 'succeeded' && s['message'] != null ? ' — ${s['message']}' : s['do'] == 'pub_get' && s['message'] != null ? '\n    ${'${s['message']}'.replaceAll('\n', '\n    ')}' : ''}',
+};

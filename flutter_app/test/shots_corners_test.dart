@@ -110,7 +110,7 @@ void main() {
       // Switched off through the settings menu.
       await tester.tap(find.byTooltip('Settings'));
       await tester.pumpAndSettle();
-      await tester.tap(find.byType(CheckedPopupMenuItem<String>).last);
+      await tester.tap(find.text('F12 saves a screenshot'));
       await tester.pumpAndSettle();
       expect(settings['screenshot_key'], isFalse);
       await press(tester);

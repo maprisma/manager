@@ -1,6 +1,8 @@
 /// Maprisma Manager's core: the catalog, status, git provenance and the routes.
 library;
 
+export 'src/ai_update.dart';
+export 'src/ai/ask_ai.dart' show AskError, helperStates;
 export 'src/bar.dart';
 export 'src/bar_cosmic.dart';
 export 'src/bar_kde.dart';

@@ -11,6 +11,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:maprisma_manager/app.dart';
 import 'package:maprisma_manager/app_facts.dart';
+import 'package:maprisma_manager/apps_page.dart';
 import 'package:maprisma_manager/core_call.dart';
 import 'package:maprisma_manager/jobs_model.dart';
 import 'package:maprisma_manager_core/maprisma_manager_core.dart';
@@ -462,6 +463,54 @@ void main() {
       expect(installed(appOf(await tester.runAsync(() => call()('apps.list')) as Map<String, dynamic>, 'fake')), isTrue);
     });
   }
+
+  testWidgets('Let AI do the updates: off without a helper; on, the AI button, the helper row and its steps', (tester) async {
+    await open(tester, 900);
+    await tester.tap(find.byTooltip('Settings'));
+    await settle(tester, 2);
+    expect(find.text('No AI helper is installed and signed in'), findsOneWidget);
+    final off = tester.widget<CheckedPopupMenuItem<String>>(find.byKey(const ValueKey('ai-updates')));
+    expect(off.enabled, isFalse);
+    Navigator.of(tester.element(find.byKey(const ValueKey('ai-updates')))).pop();
+    await settle(tester, 4);
+    expect(find.byKey(const ValueKey('ai-updates')), findsNothing);
+    expect(find.byKey(const ValueKey('ai-button')), findsNothing);
+
+    // a signed-in Claude Code; the helper answers from the test
+    w.fake('claude', 'exit 0');
+    w.writeFile(p.join(w.home, '.claude/.credentials.json'), '{}');
+    w.writeFile(p.join(w.projects, 'maprisma-wlan-monitor/flutter_app/pubspec.yaml'), 'name: x\n');
+    var round = 0;
+    core.ai.ask = (helper, prompt) async => ++round == 1
+        ? jsonEncode({'say': 'The WLAN Monitor needs its packages.', 'actions': [{'do': 'pub_get', 'app': 'wlan'}, {'do': 'update', 'app': 'manager'}], 'done': false})
+        : jsonEncode({'say': 'All done.', 'actions': [], 'done': true});
+    await tester.runAsync(() => tester.state<AppsPageState>(find.byType(AppsPage)).reload());
+    await settle(tester, 3);
+    await tester.tap(find.byTooltip('Settings'));
+    await settle(tester, 4);
+    expect(find.text('Claude Code'), findsOneWidget);
+    expect(tester.widget<CheckedPopupMenuItem<String>>(find.byKey(const ValueKey('ai-updates'))).enabled, isTrue);
+    await tester.tap(find.byKey(const ValueKey('ai-updates')));
+    await settle(tester, 3);
+    expect(Settings.load(w.paths).values['ai_updates'], isTrue);
+    expect(find.byKey(const ValueKey('ai-button')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('ai-button')));
+    await settle(tester, 3);
+    expect(find.text('Helper:'), findsOneWidget);
+    expect(find.descendant(of: find.byKey(const ValueKey('ai-helper')), matching: find.text('Claude Code')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('ai-start')));
+    await settle(tester, 12);
+    expect(find.text('The WLAN Monitor needs its packages.'), findsOneWidget);
+    expect(find.textContaining('Fetch Flutter packages · Maprisma WLAN Monitor — done'), findsOneWidget);
+    expect(find.textContaining('Update · Maprisma Manager — not done'), findsOneWidget);
+    expect(find.text('All done.'), findsOneWidget);
+    expect(find.text('Finished'), findsOneWidget);
+    await shot(tester, 'ai-900');
+    await tester.tap(find.text('Close'));
+    await settle(tester, 2);
+    expect(find.text('Helper:'), findsNothing);
+  });
 
   testWidgets('the details dialog: where it exists, the GitHub link, the installed build, prerequisites', (tester) async {
     await open(tester, 900);
