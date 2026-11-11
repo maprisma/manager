@@ -1,7 +1,7 @@
 name: maprisma_manager
 description: "Maprisma Manager: install, update and remove the Maprisma apps, and their bar icons."
 publish_to: 'none'
-version: 0.3.0+3
+version: 0.3.1+4
 
 environment:
   sdk: ^3.13.5
