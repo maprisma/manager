@@ -242,6 +242,13 @@ final class StatusReader {
 
     final rec = readReceipt(paths, app.id);
     final receipt = rec.receipt;
+    // The folders built on this desktop: a part for another desktop (the Launcher's COSMIC
+    // applet on KDE) isn't built here, so its folder is neither in the receipt nor an update.
+    final builtHere = {for (final c in basis) c.component.repo};
+    final usedInputs = [
+      for (final input in app.inputs)
+        if (builtHere.contains(input.repo) || !app.components.any((c) => c.repo == input.repo)) input,
+    ];
     final installedAtAll = state != InstallState.absent;
 
     // The three update facts (plan: "Update status").
@@ -252,7 +259,7 @@ final class StatusReader {
       differReasons.add(trf('installed from release {0}', [receipt.source!['tag']]));
     } else if (receipt != null) {
       var differs = false, unknown = false;
-      for (final input in app.inputs) {
+      for (final input in usedInputs) {
         final g = gitInfos[input.repo]!;
         final r = receipt.input(input.repo);
         if (r == null) {
@@ -278,7 +285,7 @@ final class StatusReader {
     }
     int? upstreamNew;
     final upstreamNotes = <String>[];
-    for (final input in app.inputs) {
+    for (final input in usedInputs) {
       final g = gitInfos[input.repo]!;
       if (g.upstream == null) continue;
       final n = g.newUpstreamCommits;

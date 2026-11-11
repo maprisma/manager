@@ -113,6 +113,25 @@ void main() {
   group('receipts and the three update facts', () {
     void receipt(Map<String, dynamic> data) => w.writeFile(p.join(w.paths.receipts, 'wlan.json'), jsonEncode(data));
 
+    test('a part for another desktop: its folder is not compared (the Launcher\'s COSMIC applet on KDE)', () async {
+      final core = w.core(desktop: 'KDE');
+      w.install('launcher');
+      w.repo('maprisma-launcher');
+      w.repo('maprisma-launcher-applet');
+      w.writeFile(p.join(w.paths.receipts, 'launcher.json'), jsonEncode({
+        'id': 'launcher',
+        'at': '2026-11-11T06:53:17Z',
+        'inputs': [{'repo': 'maprisma-launcher', 'commit': w.head('maprisma-launcher'), 'dirty': false}],
+        'paths': [{'path': '/d', 'dir': true}],
+      }));
+      var a = appOf(await core.call('apps.list'), 'launcher');
+      expect(a['updates'], containsPair('sourceDiffers', false));
+      // on COSMIC the applet is built too: not in the receipt, so the folder differs
+      a = appOf(await w.core(desktop: 'COSMIC').call('apps.list'), 'launcher');
+      expect(a['updates'], containsPair('sourceDiffers', true));
+      expect(a['updates']['sourceReasons'], contains('maprisma-launcher-applet: not in the receipt'));
+    });
+
     test('a matching receipt: build known, folder same', () async {
       w.install('wlan');
       w.repo('maprisma-wlan-monitor');
