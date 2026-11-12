@@ -1019,7 +1019,9 @@ const catalogs = <String, Map<String, String>>{
     "xdg-mime is missing (xdg-utils)": "xdg-mime is missing (xdg-utils)",
     "{0} is paired": "{0} is paired",
     "A password that starts or ends with a space can't be set here: use Maprisma WLAN Monitor or nmcli": "A password that starts or ends with a space can't be set here: use Maprisma WLAN Monitor or nmcli",
-    "Too late: the previous display settings are back": "Too late: the previous display settings are back"
+    "Too late: the previous display settings are back": "Too late: the previous display settings are back",
+    "same files as {0} (other commits)": "same files as {0} (other commits)",
+    "bar icon: {0}": "bar icon: {0}"
   },
   "de": {
     "Waiting": "Wartet",
@@ -2040,7 +2042,9 @@ const catalogs = <String, Map<String, String>>{
     "xdg-mime is missing (xdg-utils)": "xdg-mime fehlt (xdg-utils)",
     "{0} is paired": "{0} ist gekoppelt",
     "A password that starts or ends with a space can't be set here: use Maprisma WLAN Monitor or nmcli": "Ein Passwort, das mit einem Leerzeichen beginnt oder endet, lässt sich hier nicht setzen: Nutze Maprisma WLAN Monitor oder nmcli",
-    "Too late: the previous display settings are back": "Zu spät: Die vorherigen Bildschirmeinstellungen sind wieder da"
+    "Too late: the previous display settings are back": "Zu spät: Die vorherigen Bildschirmeinstellungen sind wieder da",
+    "same files as {0} (other commits)": "dieselben Dateien wie {0} (andere Commits)",
+    "bar icon: {0}": "Leistensymbol: {0}"
   },
   "fr": {
     "Waiting": "En attente",
@@ -3061,7 +3065,9 @@ const catalogs = <String, Map<String, String>>{
     "xdg-mime is missing (xdg-utils)": "xdg-mime est manquant (xdg-utils)",
     "{0} is paired": "{0} est associé",
     "A password that starts or ends with a space can't be set here: use Maprisma WLAN Monitor or nmcli": "Un mot de passe qui commence ou se termine par une espace ne peut pas être défini ici : utilisez Maprisma WLAN Monitor ou nmcli",
-    "Too late: the previous display settings are back": "Trop tard : les réglages d'affichage précédents sont rétablis"
+    "Too late: the previous display settings are back": "Trop tard : les réglages d'affichage précédents sont rétablis",
+    "same files as {0} (other commits)": "mêmes fichiers que {0} (autres commits)",
+    "bar icon: {0}": "icône de barre : {0}"
   },
   "es": {
     "Waiting": "En espera",
@@ -4082,7 +4088,9 @@ const catalogs = <String, Map<String, String>>{
     "xdg-mime is missing (xdg-utils)": "falta xdg-mime (xdg-utils)",
     "{0} is paired": "{0} está emparejado",
     "A password that starts or ends with a space can't be set here: use Maprisma WLAN Monitor or nmcli": "Aquí no se puede usar una contraseña que empiece o termine con un espacio: usa Maprisma WLAN Monitor o nmcli",
-    "Too late: the previous display settings are back": "Demasiado tarde: se han restaurado los ajustes de pantalla anteriores"
+    "Too late: the previous display settings are back": "Demasiado tarde: se han restaurado los ajustes de pantalla anteriores",
+    "same files as {0} (other commits)": "mismos archivos que {0} (otros commits)",
+    "bar icon: {0}": "icono de barra: {0}"
   },
   "it": {
     "Waiting": "In attesa",
@@ -5103,7 +5111,9 @@ const catalogs = <String, Map<String, String>>{
     "xdg-mime is missing (xdg-utils)": "xdg-mime mancante (xdg-utils)",
     "{0} is paired": "{0} è associato",
     "A password that starts or ends with a space can't be set here: use Maprisma WLAN Monitor or nmcli": "Qui non si può impostare una password che inizia o finisce con uno spazio: usa Maprisma WLAN Monitor o nmcli",
-    "Too late: the previous display settings are back": "Troppo tardi: le impostazioni dello schermo precedenti sono state ripristinate"
+    "Too late: the previous display settings are back": "Troppo tardi: le impostazioni dello schermo precedenti sono state ripristinate",
+    "same files as {0} (other commits)": "stessi file di {0} (altri commit)",
+    "bar icon: {0}": "icona della barra: {0}"
   },
   "pt": {
     "Waiting": "Em espera",
@@ -6124,7 +6134,9 @@ const catalogs = <String, Map<String, String>>{
     "xdg-mime is missing (xdg-utils)": "xdg-mime está ausente (xdg-utils)",
     "{0} is paired": "{0} está pareado",
     "A password that starts or ends with a space can't be set here: use Maprisma WLAN Monitor or nmcli": "Uma senha que começa ou termina com espaço não pode ser definida aqui: use o Maprisma WLAN Monitor ou o nmcli",
-    "Too late: the previous display settings are back": "Tarde demais: as configurações de tela anteriores foram restauradas"
+    "Too late: the previous display settings are back": "Tarde demais: as configurações de tela anteriores foram restauradas",
+    "same files as {0} (other commits)": "mesmos ficheiros que {0} (outros commits)",
+    "bar icon: {0}": "ícone da barra: {0}"
   },
   "nl": {
     "Waiting": "Wachten",
@@ -7145,7 +7157,9 @@ const catalogs = <String, Map<String, String>>{
     "xdg-mime is missing (xdg-utils)": "xdg-mime ontbreekt (xdg-utils)",
     "{0} is paired": "{0} is gekoppeld",
     "A password that starts or ends with a space can't be set here: use Maprisma WLAN Monitor or nmcli": "Een wachtwoord dat met een spatie begint of eindigt kan hier niet worden ingesteld: gebruik Maprisma WLAN Monitor of nmcli",
-    "Too late: the previous display settings are back": "Te laat: de vorige scherminstellingen zijn terug"
+    "Too late: the previous display settings are back": "Te laat: de vorige scherminstellingen zijn terug",
+    "same files as {0} (other commits)": "dezelfde bestanden als {0} (andere commits)",
+    "bar icon: {0}": "balkpictogram: {0}"
   },
   "pl": {
     "Waiting": "Oczekiwanie",
@@ -8166,6 +8180,8 @@ const catalogs = <String, Map<String, String>>{
     "xdg-mime is missing (xdg-utils)": "brak xdg-mime (xdg-utils)",
     "{0} is paired": "Sparowano z {0}",
     "A password that starts or ends with a space can't be set here: use Maprisma WLAN Monitor or nmcli": "Hasła zaczynającego się lub kończącego spacją nie można tu ustawić: użyj Maprisma WLAN Monitor lub nmcli",
-    "Too late: the previous display settings are back": "Za późno: przywrócono poprzednie ustawienia ekranu"
+    "Too late: the previous display settings are back": "Za późno: przywrócono poprzednie ustawienia ekranu",
+    "same files as {0} (other commits)": "te same pliki co {0} (inne commity)",
+    "bar icon: {0}": "ikona paska: {0}"
   }
 };

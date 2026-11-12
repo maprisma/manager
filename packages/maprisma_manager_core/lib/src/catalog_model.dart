@@ -411,6 +411,7 @@ final class AppEntry {
     this.processes = const [],
     this.units = const [],
     this.bar = const BarIcon(),
+    this.barVia,
     this.dependsOn = const [],
     this.version = const VersionSource(),
     this.postSteps = const [],
@@ -454,6 +455,10 @@ final class AppEntry {
   final List<ProcessMatch> processes;
   final List<UnitRef> units;
   final BarIcon bar;
+
+  /// The app whose bar icon stands for this one (it has none of its own); the list shows it
+  /// right after that app, in its section.
+  final String? barVia;
 
   /// Apps needed by this one.
   final List<String> dependsOn;

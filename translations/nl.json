@@ -1017,5 +1017,7 @@
   "xdg-mime is missing (xdg-utils)": "xdg-mime ontbreekt (xdg-utils)",
   "{0} is paired": "{0} is gekoppeld",
   "A password that starts or ends with a space can't be set here: use Maprisma WLAN Monitor or nmcli": "Een wachtwoord dat met een spatie begint of eindigt kan hier niet worden ingesteld: gebruik Maprisma WLAN Monitor of nmcli",
-  "Too late: the previous display settings are back": "Te laat: de vorige scherminstellingen zijn terug"
+  "Too late: the previous display settings are back": "Te laat: de vorige scherminstellingen zijn terug",
+  "same files as {0} (other commits)": "dezelfde bestanden als {0} (andere commits)",
+  "bar icon: {0}": "balkpictogram: {0}"
 }

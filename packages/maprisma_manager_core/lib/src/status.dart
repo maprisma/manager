@@ -321,7 +321,7 @@ final class StatusReader {
       }
       final n = switch (cmp['relation']) {
         'behind' || 'diverged' => cmp['behind'] as int?,
-        'upToDate' || 'ahead' => 0,
+        'upToDate' || 'ahead' || 'sameContent' => 0,
         _ => null,
       };
       if (n == null) continue;
@@ -408,6 +408,7 @@ final class StatusReader {
           },
       ],
       'bar': bar.stateOf(app),
+      if (app.barVia != null) 'barVia': {'id': app.barVia, 'name': catalog.where((a) => a.id == app.barVia).firstOrNull?.name ?? app.barVia},
       'running': running.length,
       'icon': appIconOf(paths, app),
       'open': app.open != null && isExecutableFile(paths.expand(app.open!.first)),

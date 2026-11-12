@@ -137,6 +137,7 @@ final List<AppEntry> builtinCatalog = [
       ProcessMatch(MatchKind.exeUnder, '/usr/lib/maprisma', note: 'maprisma, lib/maprisma-core; stop the provider service first'),
     ],
     bar: BarIcon(),
+    barVia: 'control',
     version: VersionSource(pacman: 'maprisma-bin', folderFile: 'addons.py', folderPattern: r'^MAPRISMA_VERSION = "([0-9.]+)"'),
     postSteps: ['systemctl --user restart maprisma-providers.service'],
     release: ReleaseSpec(

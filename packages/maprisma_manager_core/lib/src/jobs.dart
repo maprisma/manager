@@ -1091,6 +1091,8 @@ final class JobEngine {
         why = trf('up to date with {0}', [ref]);
       } else if (c.relation == Relation.ahead) {
         why = trf('the folder is ahead of {0}', [ref]);
+      } else if (c.relation == Relation.sameContent) {
+        why = trf('same files as {0} (other commits)', [ref]);
       } else if (c.relation == Relation.diverged) {
         why = trf('diverged from {0} ({1} local, {2} there)', [ref, c.ahead, c.behind]);
       } else if (c.relation != Relation.behind) {

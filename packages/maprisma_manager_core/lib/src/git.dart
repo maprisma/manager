@@ -9,7 +9,9 @@ import 'package:path/path.dart' as p;
 import 'run.dart';
 
 /// How the branch stands against its configured upstream (ancestry checked, not just counts).
-enum Relation { upToDate, behind, ahead, diverged, unknown }
+/// [sameContent]: the histories diverged but both sides hold the very same files (HEAD's tree is
+/// the other side's tree), e.g. a public mirror whose commits were rewritten; nothing to update.
+enum Relation { upToDate, behind, ahead, diverged, sameContent, unknown }
 
 /// One repo's provenance, read only (git never prompts, never takes optional locks).
 final class GitInfo {
@@ -58,7 +60,7 @@ final class GitInfo {
   /// Commits the upstream has that HEAD hasn't, when HEAD can fast-forward to them.
   int? get newUpstreamCommits => switch (relation) {
     Relation.behind || Relation.diverged => behind,
-    Relation.upToDate || Relation.ahead => 0,
+    Relation.upToDate || Relation.ahead || Relation.sameContent => 0,
     Relation.unknown => null,
   };
 
@@ -99,6 +101,15 @@ final class Git {
       runner.run(['git', ..._readOnlyConfig, '-C', folder, ...args], extraEnv: _readOnlyEnv, timeout: timeout);
 
   /// Whether [a] is an ancestor of [b]: null when git failed (exit codes other than 0 and 1).
+  /// Whether [a] and [b] hold the same files (equal tree ids); false when either can't be read.
+  Future<bool> _sameTree(String folder, String a, String b) async {
+    final x = await _git(folder, ['rev-parse', '-q', '--verify', '$a^{tree}']);
+    final y = await _git(folder, ['rev-parse', '-q', '--verify', '$b^{tree}']);
+    if (!x.ok || !y.ok) return false;
+    final t = x.stdout.trim();
+    return t.isNotEmpty && t == y.stdout.trim();
+  }
+
   Future<bool?> _isAncestor(String folder, String a, String b) async {
     final r = await _git(folder, ['merge-base', '--is-ancestor', a, b]);
     return r.code == 0 ? true : (r.code == 1 ? false : null);
@@ -163,6 +174,7 @@ final class Git {
         (false, false) => Relation.diverged,
         _ => Relation.unknown,
       };
+      if (relation == Relation.diverged && await _sameTree(folder, 'HEAD', '@{upstream}')) relation = Relation.sameContent;
       if (relation == Relation.unknown) errors.add(trf('could not compare with {0}', [upstream]));
       if (ahead == null || behind == null) errors.add(trf('could not count commits against {0}', [upstream]));
     }
@@ -250,13 +262,14 @@ final class Git {
     final behind = counts.ok && parts.length == 2 ? int.tryParse(parts[1]) : null;
     final headIn = await _isAncestor(folder, 'HEAD', full);
     final refIn = await _isAncestor(folder, full, 'HEAD');
-    final relation = switch ((headIn, refIn)) {
+    var relation = switch ((headIn, refIn)) {
       (true, true) => Relation.upToDate,
       (true, false) => Relation.behind,
       (false, true) => Relation.ahead,
       (false, false) => Relation.diverged,
       _ => Relation.unknown,
     };
+    if (relation == Relation.diverged && await _sameTree(folder, 'HEAD', full)) relation = Relation.sameContent;
     return (exists: true, commit: full, ahead: ahead, behind: behind, relation: relation);
   }
 

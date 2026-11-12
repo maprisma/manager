@@ -127,6 +127,8 @@ String subtitle(App a, String desktop) {
     if (avail == 'cloneable') parts.add(tr('cloned from GitHub when installed'));
     if (avail == 'not available here') parts.add(tr('not available here (no folder, not on GitHub)'));
   }
+  final via = a['barVia'];
+  if (installed(a) && via is Map && desktop != 'other') parts.add(trf('bar icon: {0}', ['${via['name']}']));
   if (_n(a['running']) > 0 && installed(a)) parts.add(tr('running'));
   final other = otherDesktopNote(a);
   if (other != null) parts.add(other);
@@ -141,11 +143,27 @@ List<(String, List<App>)> sections(List<App> apps, String desktop) {
       (tr('Not installed'), [for (final a in apps) if (!installed(a)) a]),
     ];
   }
+  // An app whose bar icon is another app's ([barVia]) follows that app, when both are installed.
+  final byId = {for (final a in apps) '${a['id']}': a};
+  App? hostOf(App a) {
+    final via = a['barVia'];
+    final h = via is Map ? byId['${via['id']}'] : null;
+    return h != null && installed(a) && installed(h) && hasBar(h) ? h : null;
+  }
+  final guests = <String, List<App>>{};
+  for (final a in apps) {
+    final h = hostOf(a);
+    if (h != null) guests.putIfAbsent('${h['id']}', () => []).add(a);
+  }
+  List<App> pick(bool Function(App) test) => [
+    for (final a in apps)
+      if (hostOf(a) == null && test(a)) ...[a, ...?guests['${a['id']}']],
+  ];
   return [
-    (tr('In the bar'), [for (final a in apps) if (installed(a) && hasBar(a) && inBar(a)) a]),
-    (tr('Not in the bar'), [for (final a in apps) if (installed(a) && hasBar(a) && !inBar(a)) a]),
-    (tr('No bar icon'), [for (final a in apps) if (installed(a) && !hasBar(a)) a]),
-    (tr('Not installed'), [for (final a in apps) if (!installed(a)) a]),
+    (tr('In the bar'), pick((a) => installed(a) && hasBar(a) && inBar(a))),
+    (tr('Not in the bar'), pick((a) => installed(a) && hasBar(a) && !inBar(a))),
+    (tr('No bar icon'), pick((a) => installed(a) && !hasBar(a))),
+    (tr('Not installed'), pick((a) => !installed(a))),
   ];
 }
 

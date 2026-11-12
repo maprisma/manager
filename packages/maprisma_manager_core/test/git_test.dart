@@ -107,6 +107,21 @@ void main() {
     expect(a['updates']['upstreamNotes'].single, contains('diverged'));
   });
 
+  test('diverged history with the very same files: sameContent, nothing new', () async {
+    final dir = w.repo('maprisma-wlan-monitor', upstream: true);
+    w.pushUpstreamCommit('maprisma-wlan-monitor');
+    final core = w.core();
+    await core.call('git.fetch', {'id': 'wlan', 'force': true});
+    // The upstream's files, committed again under another commit (as a rewritten mirror has them).
+    w.git(dir, ['checkout', '-q', 'origin/main', '--', '.']);
+    w.git(dir, ['commit', '-q', '-m', 'same files, other commit']);
+    final a = appOf(await core.call('apps.list'), 'wlan');
+    expect(repoOf(a)['relation'], 'sameContent');
+    expect([repoOf(a)['ahead'], repoOf(a)['behind']], [1, 1]);
+    expect(a['updates']['upstreamNew'], 0);
+    expect(a['updates']['upstreamNotes'], isNull);
+  });
+
   test('repos without an upstream are skipped by fetch', () async {
     w.repo('maprisma-home');
     final r = await w.core().call('git.fetch', {'id': 'home', 'force': true});
