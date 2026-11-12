@@ -108,15 +108,22 @@ final class Git {
   /// and the folder has more; else [Relation.diverged].
   static const historyDepth = 1000;
   Future<Relation> _byContent(String folder, String ref) async {
+    final at = await _treeAt(folder, ref, 'HEAD');
+    if (at == null) return Relation.diverged;
+    return at == 0 ? Relation.sameContent : Relation.ahead;
+  }
+
+  /// How far back in [rev]'s first-parent history (0 = [rev] itself) a commit holds [ref]'s
+  /// files; null when none of the last [historyDepth] does or git fails.
+  Future<int?> _treeAt(String folder, String ref, String rev) async {
     final r = await _git(folder, ['rev-parse', '-q', '--verify', '$ref^{tree}']);
     final tree = r.ok ? r.stdout.trim() : '';
-    if (tree.isEmpty) return Relation.diverged;
-    final log = await _git(folder, ['log', '--first-parent', '-n', '$historyDepth', '--format=%T', 'HEAD']);
-    if (!log.ok) return Relation.diverged;
+    if (tree.isEmpty) return null;
+    final log = await _git(folder, ['log', '--first-parent', '-n', '$historyDepth', '--format=%T', rev]);
+    if (!log.ok) return null;
     final trees = log.stdout.split('\n').map((l) => l.trim()).where((l) => l.isNotEmpty).toList();
-    if (trees.isEmpty) return Relation.diverged;
-    if (trees.first == tree) return Relation.sameContent;
-    return trees.contains(tree) ? Relation.ahead : Relation.diverged;
+    final i = trees.indexOf(tree);
+    return i < 0 ? null : i;
   }
 
   /// Whether [a] is an ancestor of [b]: null when git failed (exit codes other than 0 and 1).
@@ -287,7 +294,11 @@ final class Git {
   Future<int?> newSince(String folder, String commit, String ref) async {
     final full = ref.startsWith('refs/') ? ref : 'refs/remotes/$ref';
     final r = await _git(folder, ['rev-list', '--count', '$commit..$full']);
-    return r.ok ? int.tryParse(r.stdout.trim()) : null;
+    final n = r.ok ? int.tryParse(r.stdout.trim()) : null;
+    // A rewritten mirror of what the build already has (its files are those of [commit] or an
+    // earlier commit of it): nothing new.
+    if (n != null && n > 0 && await _treeAt(folder, full, commit) != null) return 0;
+    return n;
   }
 
   /// `git merge --ff-only <commit>` (an update job, only when clean and [commit] contains HEAD;

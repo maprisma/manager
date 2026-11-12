@@ -3,6 +3,9 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
+import 'package:maprisma_manager_core/src/git.dart';
+import 'package:maprisma_manager_core/src/run.dart';
+
 import 'support.dart';
 
 void main() {
@@ -137,6 +140,30 @@ void main() {
     expect(repoOf(a)['relation'], 'ahead');
     expect(a['updates']['upstreamNew'], 0);
     expect(a['updates']['upstreamNotes'], isNull);
+  });
+
+  test('newSince: a rewritten mirror of the build is nothing new; real new work counts', () async {
+    final dir = w.repo('maprisma-wlan-monitor', upstream: true);
+    w.pushUpstreamCommit('maprisma-wlan-monitor');
+    w.git(dir, ['fetch', '-q', 'origin']);
+    // The build: the upstream's files under another commit, then more local work.
+    w.git(dir, ['checkout', '-q', 'origin/main', '--', '.']);
+    w.git(dir, ['commit', '-q', '-m', 'same files, other commit']);
+    File(p.join(dir, 'LOCAL')).writeAsStringSync('more');
+    w.git(dir, ['add', '.']);
+    w.git(dir, ['commit', '-q', '-m', 'local work']);
+    final built = w.head('maprisma-wlan-monitor');
+    final git = Git(Runner(Platform.environment));
+    expect(await git.newSince(dir, built, 'origin/main'), 0);
+    // Something really new upstream: counted.
+    final other = p.join(w.dir, 'other-new');
+    w.git(w.dir, ['clone', '-q', p.join(w.dir, 'remotes', 'maprisma-wlan-monitor.git'), other]);
+    File(p.join(other, 'NEWER')).writeAsStringSync('newer\n');
+    w.git(other, ['add', '.']);
+    w.git(other, ['commit', '-q', '-m', 'really new']);
+    w.git(other, ['push', '-q', 'origin', 'main']);
+    w.git(dir, ['fetch', '-q', 'origin']);
+    expect(await git.newSince(dir, built, 'origin/main'), greaterThan(0));
   });
 
   test('repos without an upstream are skipped by fetch', () async {
