@@ -45,43 +45,60 @@ final class PowerService {
     };
   }
 
-  /// The idle part of shell.json as Maprisma Shell reads it (a bad value counts as its default).
-  Map<String, dynamic> _readIdle() {
-    final (raw, error) = _readShell();
+  /// The idle part of shell.json as Maprisma Shell reads it: any number ≥ 0 (shown rounded to
+  /// whole seconds), a bad value counts as its default.
+  Map<String, dynamic> _readIdle() => _idleOf(_readShell());
+
+  Map<String, dynamic> _idleOf(_Shell shell) {
+    final (raw, error, _) = shell;
     final idle = raw?['idle'] is Map ? raw!['idle'] as Map : const {};
-    int num(String key) {
+    int seconds(String key) {
       final v = idle[key];
-      return v is int && v >= 0 ? v : idleDefaults[key] as int;
+      return v is num && v.isFinite && v >= 0 ? v.round() : idleDefaults[key] as int;
     }
 
     return {
       'file': shellFile,
       'exists': File(shellFile).existsSync(),
       'error': ?error,
-      'lock': num('lock'),
-      'screenOff': num('screenOff'),
-      'suspend': num('suspend'),
+      'lock': seconds('lock'),
+      'screenOff': seconds('screenOff'),
+      'suspend': seconds('suspend'),
       'whilePlaying': idle['whilePlaying'] == true,
     };
   }
 
-  (Map<String, dynamic>?, String?) _readShell() {
+  /// shell.json: its object (null when unreadable), why not, and its text as read (null: no file).
+  _Shell _readShell() {
     final f = File(shellFile);
-    if (!f.existsSync()) return (<String, dynamic>{}, null);
+    String? text;
     try {
-      if (f.lengthSync() > 256 * 1024) return (null, tr('shell.json is too big'));
-      final v = jsonDecode(f.readAsStringSync());
-      if (v is! Map<String, dynamic>) return (null, trf('shell.json is not readable: {0}', ['not an object']));
-      return (v, null);
+      if (!f.existsSync()) return (<String, dynamic>{}, null, null);
+      if (f.lengthSync() > 256 * 1024) return (null, tr('shell.json is too big'), null);
+      text = f.readAsStringSync();
+      final v = jsonDecode(text);
+      if (v is! Map<String, dynamic>) return (null, trf('shell.json is not readable: {0}', ['not an object']), text);
+      return (v, null, text);
     } on FormatException catch (e) {
-      return (null, trf('shell.json is not readable: {0}', [e.message]));
+      return (null, trf('shell.json is not readable: {0}', [e.message]), text);
     } on FileSystemException catch (e) {
-      return (null, trf('shell.json is not readable: {0}', [e.message]));
+      return (null, trf('shell.json is not readable: {0}', [e.message]), text);
     }
   }
 
-  /// `power.set_idle`: any of lock, screenOff, suspend (seconds, 0 = never) and whilePlaying;
-  /// every other key of shell.json (the wallpaper Maprisma Theme writes, …) is kept.
+  String? _textNow() {
+    try {
+      final f = File(shellFile);
+      return f.existsSync() ? f.readAsStringSync() : null;
+    } on FileSystemException {
+      return '';
+    }
+  }
+
+  /// `power.set_idle`: any of lock, screenOff, suspend (seconds, 0 = never) and whilePlaying.
+  /// Only the given keys change; every other key of shell.json (the wallpaper Maprisma Theme
+  /// writes, idle values the Manager didn't touch) stays as it is. Maprisma Theme writes the file
+  /// too, so the write goes only through when the file is still as read (else read again, 3 tries).
   Future<Map<String, dynamic>> setIdle(Map<String, dynamic> params) async {
     if (ctx.desktop != DesktopId.hyprland) {
       throw RouteError('unavailable', tr('The idle times are Maprisma Shell\'s (Hyprland); this desktop has its own settings'));
@@ -99,20 +116,19 @@ final class PowerService {
       change['whilePlaying'] = v;
     }
     if (change.isEmpty) throw RouteError('bad_params', 'lock, screenOff, suspend or whilePlaying');
-    final (raw, error) = _readShell();
-    if (raw == null) throw RouteError('unreadable', error);
-    final idle = raw['idle'] is Map ? Map<String, dynamic>.from(raw['idle'] as Map) : <String, dynamic>{};
-    // Keys the shell doesn't know yet stay as they are; the known ones get their read value first,
-    // so the file always holds all four.
-    final now = _readIdle();
-    for (final k in idleDefaults.keys) {
-      idle[k] = now[k];
+    for (var attempt = 0; attempt < 3; attempt++) {
+      final shell = _readShell();
+      final (raw, error, text) = shell;
+      if (raw == null) throw RouteError('unreadable', error);
+      final idle = raw['idle'] is Map ? Map<String, dynamic>.from(raw['idle'] as Map) : <String, dynamic>{};
+      idle.addAll(change);
+      final out = '${const JsonEncoder.withIndent('  ').convert({...raw, 'idle': idle})}\n';
+      if (_textNow() != text) continue; // changed meanwhile: read it again
+      Directory(p.dirname(shellFile)).createSync(recursive: true);
+      atomicWrite(shellFile, out);
+      return {'idle': _readIdle(), 'written': true};
     }
-    idle.addAll(change);
-    final out = {...raw, 'idle': idle};
-    Directory(p.dirname(shellFile)).createSync(recursive: true);
-    atomicWrite(shellFile, '${const JsonEncoder.withIndent('  ').convert(out)}\n');
-    return {'idle': _readIdle(), 'written': true};
+    throw RouteError('changed', tr('shell.json keeps changing; try again'));
   }
 
   /// powerprofilesctl's profiles (power-profiles-daemon); null when it is missing.
@@ -153,3 +169,5 @@ final class PowerService {
     return {'opened': native[0]};
   }
 }
+
+typedef _Shell = (Map<String, dynamic>? raw, String? error, String? text);

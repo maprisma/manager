@@ -48,9 +48,14 @@ class PowerPageState extends State<PowerPage> {
     unawaited(load());
   }
 
+  /// The newest load: an older one that answers later is dropped.
+  int _loads = 0;
+
   Future<void> load() async {
+    final mine = ++_loads;
     try {
       final r = await widget.core('power.get');
+      if (mine != _loads) return;
       if (mounted) {
         setState(() {
           power = r;
@@ -58,25 +63,32 @@ class PowerPageState extends State<PowerPage> {
         });
       }
     } on ServiceError catch (e) {
-      if (mounted) setState(() => error = '${e.code}${e.reason == null ? '' : ': ${e.reason}'}');
+      if (mounted && mine == _loads) setState(() => error = '${e.code}${e.reason == null ? '' : ': ${e.reason}'}');
     }
   }
 
-  void _tell(String text) => ScaffoldMessenger.of(context)
-    ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(content: Text(text)));
+  void _tell(String text) {
+    // The page may be gone (another page was opened meanwhile).
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(text)));
+  }
 
   Future<void> _call(String route, Map<String, dynamic> params) async {
     if (working) return;
     setState(() => working = true);
     try {
-      await widget.core(route, params);
-    } on ServiceError catch (e) {
-      _tell(trf('That did not work ({0}){1}', [e.code, e.reason == null || e.reason!.isEmpty ? '' : ': ${e.reason}']));
+      try {
+        await widget.core(route, params);
+      } on ServiceError catch (e) {
+        _tell(trf('That did not work ({0}){1}', [e.code, e.reason == null || e.reason!.isEmpty ? '' : ': ${e.reason}']));
+      }
+      // The controls stay off until they show the values as they are now.
+      if (mounted) await load();
     } finally {
       if (mounted) setState(() => working = false);
     }
-    await load();
   }
 
   static String profileName(String id) => switch (id) {

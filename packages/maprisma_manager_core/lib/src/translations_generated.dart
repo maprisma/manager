@@ -828,7 +828,8 @@ const catalogs = <String, Map<String, String>>{
     "{0}: pub get could not start: {1}": "{0}: pub get could not start: {1}",
     "{0}: pub get failed ({1})": "{0}: pub get failed ({1})",
     "{0}: pub get ok": "{0}: pub get ok",
-    "{0}: the package cache doesn't fit ({1}); {2} pub get": "{0}: the package cache doesn't fit ({1}); {2} pub get"
+    "{0}: the package cache doesn't fit ({1}); {2} pub get": "{0}: the package cache doesn't fit ({1}); {2} pub get",
+    "shell.json keeps changing; try again": "shell.json keeps changing; try again"
   },
   "de": {
     "Waiting": "Wartet",
@@ -1658,7 +1659,8 @@ const catalogs = <String, Map<String, String>>{
     "{0}: pub get could not start: {1}": "{0}: pub get ließ sich nicht starten: {1}",
     "{0}: pub get failed ({1})": "{0}: pub get fehlgeschlagen ({1})",
     "{0}: pub get ok": "{0}: pub get ok",
-    "{0}: the package cache doesn't fit ({1}); {2} pub get": "{0}: der Paket-Cache passt nicht ({1}); {2} pub get"
+    "{0}: the package cache doesn't fit ({1}); {2} pub get": "{0}: der Paket-Cache passt nicht ({1}); {2} pub get",
+    "shell.json keeps changing; try again": "shell.json ändert sich laufend; bitte erneut versuchen"
   },
   "fr": {
     "Waiting": "En attente",
@@ -2488,7 +2490,8 @@ const catalogs = <String, Map<String, String>>{
     "{0}: pub get could not start: {1}": "{0} : pub get n'a pas pu démarrer : {1}",
     "{0}: pub get failed ({1})": "{0} : échec de pub get ({1})",
     "{0}: pub get ok": "{0} : pub get ok",
-    "{0}: the package cache doesn't fit ({1}); {2} pub get": "{0} : le cache des paquets ne correspond pas ({1}) ; {2} pub get"
+    "{0}: the package cache doesn't fit ({1}); {2} pub get": "{0} : le cache des paquets ne correspond pas ({1}) ; {2} pub get",
+    "shell.json keeps changing; try again": "shell.json change sans cesse ; réessayez"
   },
   "es": {
     "Waiting": "En espera",
@@ -3318,7 +3321,8 @@ const catalogs = <String, Map<String, String>>{
     "{0}: pub get could not start: {1}": "{0}: no se pudo iniciar pub get: {1}",
     "{0}: pub get failed ({1})": "{0}: pub get falló ({1})",
     "{0}: pub get ok": "{0}: pub get ok",
-    "{0}: the package cache doesn't fit ({1}); {2} pub get": "{0}: la caché de paquetes no encaja ({1}); {2} pub get"
+    "{0}: the package cache doesn't fit ({1}); {2} pub get": "{0}: la caché de paquetes no encaja ({1}); {2} pub get",
+    "shell.json keeps changing; try again": "shell.json cambia continuamente; inténtalo de nuevo"
   },
   "it": {
     "Waiting": "In attesa",
@@ -4148,7 +4152,8 @@ const catalogs = <String, Map<String, String>>{
     "{0}: pub get could not start: {1}": "{0}: impossibile avviare pub get: {1}",
     "{0}: pub get failed ({1})": "{0}: pub get non riuscito ({1})",
     "{0}: pub get ok": "{0}: pub get ok",
-    "{0}: the package cache doesn't fit ({1}); {2} pub get": "{0}: la cache dei pacchetti non corrisponde ({1}); {2} pub get"
+    "{0}: the package cache doesn't fit ({1}); {2} pub get": "{0}: la cache dei pacchetti non corrisponde ({1}); {2} pub get",
+    "shell.json keeps changing; try again": "shell.json continua a cambiare; riprova"
   },
   "pt": {
     "Waiting": "Em espera",
@@ -4978,7 +4983,8 @@ const catalogs = <String, Map<String, String>>{
     "{0}: pub get could not start: {1}": "{0}: não foi possível iniciar o pub get: {1}",
     "{0}: pub get failed ({1})": "{0}: pub get falhou ({1})",
     "{0}: pub get ok": "{0}: pub get ok",
-    "{0}: the package cache doesn't fit ({1}); {2} pub get": "{0}: a cache de pacotes não corresponde ({1}); {2} pub get"
+    "{0}: the package cache doesn't fit ({1}); {2} pub get": "{0}: a cache de pacotes não corresponde ({1}); {2} pub get",
+    "shell.json keeps changing; try again": "shell.json continua mudando; tente novamente"
   },
   "nl": {
     "Waiting": "Wachten",
@@ -5808,7 +5814,8 @@ const catalogs = <String, Map<String, String>>{
     "{0}: pub get could not start: {1}": "{0}: pub get kon niet starten: {1}",
     "{0}: pub get failed ({1})": "{0}: pub get mislukt ({1})",
     "{0}: pub get ok": "{0}: pub get ok",
-    "{0}: the package cache doesn't fit ({1}); {2} pub get": "{0}: de pakketcache past niet ({1}); {2} pub get"
+    "{0}: the package cache doesn't fit ({1}); {2} pub get": "{0}: de pakketcache past niet ({1}); {2} pub get",
+    "shell.json keeps changing; try again": "shell.json blijft veranderen; probeer het opnieuw"
   },
   "pl": {
     "Waiting": "Oczekiwanie",
@@ -6638,6 +6645,7 @@ const catalogs = <String, Map<String, String>>{
     "{0}: pub get could not start: {1}": "{0}: nie udało się uruchomić pub get: {1}",
     "{0}: pub get failed ({1})": "{0}: pub get nie powiódł się ({1})",
     "{0}: pub get ok": "{0}: pub get ok",
-    "{0}: the package cache doesn't fit ({1}); {2} pub get": "{0}: pamięć podręczna pakietów nie pasuje ({1}); {2} pub get"
+    "{0}: the package cache doesn't fit ({1}); {2} pub get": "{0}: pamięć podręczna pakietów nie pasuje ({1}); {2} pub get",
+    "shell.json keeps changing; try again": "shell.json ciągle się zmienia; spróbuj ponownie"
   }
 };

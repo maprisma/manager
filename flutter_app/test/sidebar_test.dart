@@ -91,8 +91,14 @@ esac
         await tester.tap(find.byKey(const ValueKey('nav-toggle')));
         await settle(tester, 2);
       }
+      // the list's filter has the keyboard; on another page Esc must not reach the hidden list
+      await tester.enterText(find.byKey(const ValueKey('filter')), 'wlan');
+      await settle(tester, 2);
       await nav(tester, 'power');
       expect(find.byKey(const ValueKey('sidebar')), condensed ? findsNothing : findsOneWidget);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await settle(tester, 2);
+      expect(tester.widget<TextField>(find.byKey(const ValueKey('filter'), skipOffstage: false)).controller!.text, 'wlan');
       for (final s in ['Power mode', 'Power saving options', 'Extended battery life', 'High performance']) {
         expect(find.text(s), findsOneWidget, reason: s);
       }

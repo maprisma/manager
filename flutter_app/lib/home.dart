@@ -78,6 +78,8 @@ class ManagerHomeState extends State<ManagerHome> {
     if (!sections.contains(s) || s == section) return;
     final left = section;
     setState(() => section = s);
+    // Back on the list: the keyboard goes to its filter again.
+    if (s == Section.apps) WidgetsBinding.instance.addPostFrameCallback((_) => appsKey.currentState?.filterFocus.requestFocus());
     // Back from the bar: the list shows the bar states as they are now.
     if (left == Section.bar) unawaited(appsKey.currentState?.reload());
   }
@@ -163,7 +165,11 @@ class ManagerHomeState extends State<ManagerHome> {
     );
     final pages = Stack(
       children: [
-        Offstage(offstage: section != Section.apps, child: TickerMode(enabled: section == Section.apps, child: apps)),
+        // Hidden, the list keeps its state but not the keyboard (Esc, F5 there act on the list).
+        Offstage(
+          offstage: section != Section.apps,
+          child: ExcludeFocus(excluding: section != Section.apps, child: TickerMode(enabled: section == Section.apps, child: apps)),
+        ),
         if (section != Section.apps) Positioned.fill(child: _page(section)),
         if (condensed && navOpen)
           Positioned.fill(
@@ -192,7 +198,7 @@ class ManagerHomeState extends State<ManagerHome> {
         ),
       );
     }
-    // Condensed: a header with the toggle and the page's name, as COSMIC's header bar.
+    // Condensed: a header with the toggle, as COSMIC's header bar (the page shows its own title).
     return Scaffold(
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -208,8 +214,6 @@ class ManagerHomeState extends State<ManagerHome> {
                   onPressed: () => setState(() => navOpen = !navOpen),
                   icon: const Icon(Icons.menu),
                 ),
-                const SizedBox(width: 4),
-                Expanded(child: Text(name(section), maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w600))),
               ],
             ),
           ),

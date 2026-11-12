@@ -48,11 +48,21 @@ esac
     expect((await core.call('power.get'))['idle'], containsPair('lock', 180));
     final r = await core.call('power.set_idle', {'suspend': 0, 'whilePlaying': true});
     expect(r['idle'], allOf(containsPair('suspend', 0), containsPair('screenOff', 120), containsPair('whilePlaying', true)));
+    // only the changed keys are written; the shell keeps reading the others as before
     expect(stored(), {
       'wallpaper': '/w.jpg',
-      'idle': {'lock': 180, 'screenOff': 120, 'future': 1, 'suspend': 0, 'whilePlaying': true},
+      'idle': {'lock': -1, 'screenOff': 120, 'future': 1, 'suspend': 0, 'whilePlaying': true},
       'other': true,
     });
+  });
+
+  test('a number with a fraction counts, as the shell reads it, and stays untouched', () async {
+    w.writeFile(shellFile(), '{"idle": {"lock": 60.0, "screenOff": 90.4}}');
+    final core = w.core(desktop: 'Hyprland');
+    expect((await core.call('power.get'))['idle'], allOf(containsPair('lock', 60), containsPair('screenOff', 90)));
+    await core.call('power.set_idle', {'whilePlaying': true});
+    expect((stored()['idle'] as Map)['lock'], 60.0);
+    expect((stored()['idle'] as Map)['screenOff'], 90.4);
   });
 
   test('set_idle refuses bad values, a broken file and other desktops', () async {

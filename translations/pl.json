@@ -826,5 +826,6 @@
   "{0}: pub get could not start: {1}": "{0}: nie udało się uruchomić pub get: {1}",
   "{0}: pub get failed ({1})": "{0}: pub get nie powiódł się ({1})",
   "{0}: pub get ok": "{0}: pub get ok",
-  "{0}: the package cache doesn't fit ({1}); {2} pub get": "{0}: pamięć podręczna pakietów nie pasuje ({1}); {2} pub get"
+  "{0}: the package cache doesn't fit ({1}); {2} pub get": "{0}: pamięć podręczna pakietów nie pasuje ({1}); {2} pub get",
+  "shell.json keeps changing; try again": "shell.json ciągle się zmienia; spróbuj ponownie"
 }
