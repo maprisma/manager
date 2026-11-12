@@ -50,10 +50,9 @@ final class InputService {
 
   Future<Map<String, dynamic>> get() async {
     hypr.need();
-    final values = <String, Object?>{};
-    for (final k in options.keys) {
-      values[k] = await hypr.option('input.$k');
-    }
+    final keys = options.keys.toList();
+    final read = await Future.wait([for (final k in keys) hypr.option('input.$k')]);
+    final values = <String, Object?>{for (var i = 0; i < keys.length; i++) keys[i]: read[i]};
     final devices = await hypr.json(['devices']) as Map;
     final mice = [for (final m in (devices['mice'] as List? ?? const [])) '${(m as Map)['name']}'];
     return {

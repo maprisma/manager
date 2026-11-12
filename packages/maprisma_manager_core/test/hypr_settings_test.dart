@@ -1,41 +1,11 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:maprisma_manager_core/maprisma_manager_core.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
+import 'fakes.dart';
 import 'support.dart';
-
-final monitorsFixture = [
-  {
-    'name': 'HDMI-A-1', 'description': 'LG TV', 'width': 3840, 'height': 2160, 'refreshRate': 120.0, 'x': 0, 'y': 0, 'scale': 2, 'transform': 0,
-    'vrr': false, 'disabled': false, 'mirrorOf': 'none', 'availableModes': ['3840x2160@120.00Hz', '3840x2160@60.00Hz', '1920x1080@60.00Hz'],
-  },
-  {
-    'name': 'DP-1', 'description': 'Dell', 'width': 2560, 'height': 1440, 'refreshRate': 59.95, 'x': 1920, 'y': 0, 'scale': 1, 'transform': 0,
-    'vrr': false, 'disabled': false, 'mirrorOf': 'none', 'availableModes': ['2560x1440@59.95Hz'],
-  },
-];
-
-/// A fake hyprctl (monitors, devices, getoption from $HOME/opt/<key>, reload logged) and
-/// localectl (two layouts).
-void fakeHypr(World w, {bool touchpad = false}) {
-  w.writeFile(p.join(w.home, 'hypr', 'monitors.json'), jsonEncode(monitorsFixture));
-  w.writeFile(p.join(w.home, 'hypr', 'devices.json'), jsonEncode({'mice': [{'name': touchpad ? 'elan-touchpad' : 'logitech-mouse'}], 'keyboards': []}));
-  w.writeFile(p.join(w.home, 'opt', 'input.kb_layout'), '{"option": "input:kb_layout", "str": "de", "set": true}');
-  w.writeFile(p.join(w.home, 'opt', 'input.repeat_rate'), '{"option": "input:repeat_rate", "int": 35, "set": true}');
-  w.fake('hyprctl', r'''
-show() { while IFS= read -r l || [ -n "$l" ]; do echo "$l"; done < "$1"; }
-case "$1" in
-  monitors) show "$HOME/hypr/monitors.json" ;;
-  devices) show "$HOME/hypr/devices.json" ;;
-  getoption) if [ -f "$HOME/opt/$2" ]; then show "$HOME/opt/$2"; else echo '{"option": "x", "bool": false, "set": false}'; fi ;;
-  reload) echo reload >> "$HOME/hyprctl.log"; echo ok ;;
-  *) exit 1 ;;
-esac''');
-  w.fake('localectl', 'echo de; echo us; echo fr');
-}
 
 void main() {
   late World w;

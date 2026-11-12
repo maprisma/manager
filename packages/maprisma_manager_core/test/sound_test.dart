@@ -1,50 +1,11 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:maprisma_manager_core/maprisma_manager_core.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
+import 'fakes.dart';
 import 'support.dart';
-
-/// pactl's JSON as PipeWire's pulse server gives it (shortened from a real machine).
-final soundFixtures = {
-  'info': {'default_sink_name': 'hdmi', 'default_source_name': 'mic'},
-  'sinks': [
-    {'index': 72, 'name': 'hdmi', 'description': 'HDMI (LG TV)', 'mute': false, 'volume': {'front-left': {'value_percent': '80%'}, 'front-right': {'value_percent': '60%'}}},
-    {'index': 74, 'name': 'speakers', 'description': 'USB Audio Speakers', 'mute': true, 'volume': {'front-left': {'value_percent': '100%'}}},
-  ],
-  'sources': [
-    {'index': 72, 'name': 'hdmi.monitor', 'description': 'Monitor of HDMI', 'monitor_source': 'hdmi', 'mute': false, 'volume': {}},
-    {'index': 78, 'name': 'mic', 'description': 'Razer Kiyo', 'monitor_source': '', 'mute': false, 'volume': {'mono': {'value_percent': '45%'}}},
-  ],
-  'sink-inputs': [
-    {'index': 4374, 'mute': false, 'properties': {'application.name': 'Google Chrome', 'media.name': 'Playback'}, 'volume': {'front-left': {'value_percent': '100%'}}},
-  ],
-  'cards': [
-    {
-      'name': 'alsa_card.usb',
-      'properties': {'device.description': 'USB Audio'},
-      'active_profile': 'HiFi',
-      'profiles': {'off': {'description': 'Off', 'available': true}, 'HiFi': {'description': 'HiFi', 'available': true}},
-    },
-  ],
-};
-
-/// A fake pactl: `-f json list <what>` / `-f json info` from $HOME/pactl/<what>.json, every
-/// other call appended to $HOME/pactl.log.
-void fakePactl(World w) {
-  for (final MapEntry(:key, :value) in soundFixtures.entries) {
-    w.writeFile(p.join(w.home, 'pactl', '$key.json'), jsonEncode(value));
-  }
-  w.fake('pactl', r'''
-if [ "$1" = "-f" ]; then
-  if [ "$3" = "info" ]; then f="$HOME/pactl/info.json"; else f="$HOME/pactl/$4.json"; fi
-  while IFS= read -r l || [ -n "$l" ]; do echo "$l"; done < "$f"
-  exit 0
-fi
-echo "$*" >> "$HOME/pactl.log"''');
-}
 
 void main() {
   late World w;

@@ -3,7 +3,9 @@ import 'dart:io';
 
 import 'translations.dart';
 
+import 'about.dart';
 import 'ai_update.dart';
+import 'applications.dart';
 import 'bar.dart';
 import 'bluetooth.dart';
 import 'catalog.dart';
@@ -25,6 +27,7 @@ import 'sources.dart';
 import 'run.dart';
 import 'sound.dart';
 import 'status.dart';
+import 'time_lang.dart';
 
 const coreVersion = '0.3.1';
 
@@ -196,6 +199,22 @@ final class CoreService {
       'bluetooth.disconnect': (params) => bluetooth.device('disconnect', params),
       'bluetooth.forget': (params) => bluetooth.device('forget', params),
       'bluetooth.pair': (params) => bluetooth.device('pair', params),
+      // Applications, Time & Language and About on Hyprland.
+      'apps_default.get': (_) => applications.defaults(),
+      'apps_default.set': (params) => applications.setDefault(params),
+      'autostart.list': (_) async => applications.autostart(),
+      'autostart.set': (params) async => applications.setAutostart(params),
+      'autostart.add': (params) async => applications.add(params),
+      'autostart.remove': (params) async => applications.remove(params),
+      'time.get': (_) => timeLang.time(),
+      'time.set_ntp': (params) => timeLang.setNtp(params),
+      'time.set_timezone': (params) => timeLang.setTimezone(params),
+      'locale.get': (_) => timeLang.locale(),
+      'locale.set': (params) => timeLang.setLocale(params),
+      'about.get': (_) => about.get(),
+      // One read per page.
+      'applications.get': (_) async => {...await applications.defaults(), 'autostart': applications.autostart()},
+      'timelang.get': (_) async => {'time': await timeLang.time(), 'locale': await timeLang.locale()},
       'apps.open': (params) async {
         final app = findApp(_app(params))!;
         final cmd = app.open;
@@ -247,6 +266,11 @@ final class CoreService {
   /// The Network & Wireless and Bluetooth pages (network.*, bluetooth.*).
   late final NetworkService network = NetworkService(ctx);
   late final BluetoothService bluetooth = BluetoothService(ctx);
+
+  /// The Applications, Time & Language and About pages.
+  late final ApplicationsService applications = ApplicationsService(ctx);
+  late final TimeLangService timeLang = TimeLangService(ctx);
+  late final AboutService about = AboutService(ctx);
 
   /// The Sound page (sound.*).
   late final SoundService sound = SoundService(ctx);

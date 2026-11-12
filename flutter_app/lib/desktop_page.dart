@@ -249,3 +249,59 @@ mixin RoutePage<T extends StatefulWidget> on State<T> {
       const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator())),
   ];
 }
+
+/// A dialog that picks one of many (time zones, apps) with a filter field; the value or null.
+Future<String?> pickOne(BuildContext context, {required String title, required List<(String, String)> choices, String? current}) =>
+    showDialog<String>(context: context, builder: (_) => _PickOne(title: title, choices: choices, current: current));
+
+class _PickOne extends StatefulWidget {
+  const _PickOne({required this.title, required this.choices, this.current});
+  final String title;
+  final List<(String, String)> choices;
+  final String? current;
+  @override
+  State<_PickOne> createState() => _PickOneState();
+}
+
+class _PickOneState extends State<_PickOne> {
+  String query = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final q = query.toLowerCase();
+    final shown = [for (final c in widget.choices) if (q.isEmpty || c.$2.toLowerCase().contains(q) || c.$1.toLowerCase().contains(q)) c];
+    return AlertDialog(
+      title: Text(widget.title),
+      contentPadding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      content: SizedBox(
+        width: 420,
+        height: 420,
+        child: Column(
+          children: [
+            TextField(
+              key: const ValueKey('pick-filter'),
+              autofocus: true,
+              decoration: InputDecoration(hintText: tr('Type to filter'), prefixIcon: const Icon(Icons.search, size: 20)),
+              onChanged: (v) => setState(() => query = v),
+              onSubmitted: (_) => shown.isEmpty ? null : Navigator.pop(context, shown.first.$1),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: ListView.builder(
+                itemCount: shown.length,
+                itemBuilder: (_, i) => ListTile(
+                  key: ValueKey('pick-${shown[i].$1}'),
+                  dense: true,
+                  selected: shown[i].$1 == widget.current,
+                  title: Text(shown[i].$2),
+                  onTap: () => Navigator.pop(context, shown[i].$1),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('Cancel')))],
+    );
+  }
+}

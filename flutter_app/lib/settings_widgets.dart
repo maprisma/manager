@@ -236,7 +236,7 @@ class _SettingsSliderState extends State<SettingsSlider> {
       title: widget.title,
       description: widget.description,
       trailing: SizedBox(
-        width: 260,
+        width: 280,
         child: Row(
           children: [
             ?widget.leading,
@@ -255,7 +255,7 @@ class _SettingsSliderState extends State<SettingsSlider> {
                       },
               ),
             ),
-            SizedBox(width: 48, child: Text(widget.label(v), textAlign: TextAlign.end)),
+            SizedBox(width: 64, child: Text(widget.label(v), textAlign: TextAlign.end, maxLines: 1, softWrap: false)),
           ],
         ),
       ),

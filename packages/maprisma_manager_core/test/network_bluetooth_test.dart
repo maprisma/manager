@@ -4,42 +4,8 @@ import 'package:maprisma_manager_core/maprisma_manager_core.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
 
+import 'fakes.dart';
 import 'support.dart';
-
-const uuidHome = '11111111-2222-3333-4444-555555555555';
-const uuidWired = '66666666-7777-8888-9999-000000000000';
-const uuidVpn = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
-const uuidNew = '12345678-1234-1234-1234-123456789abc';
-
-/// A fake nmcli: terse answers from the arguments, every call (and an editor's stdin) logged
-/// to $HOME/nmcli.log; `connection up` fails for the uuid in $HOME/fail-up.
-void fakeNmcli(World w) {
-  w.fake('nmcli', '''
-echo "\$*" >> "\$HOME/nmcli.log"
-case "\$*" in
-  "-t radio wifi") echo enabled ;;
-  "-t -f DEVICE,TYPE,STATE,CONNECTION device status") printf 'wlan0:wifi:connected:Home\\\\:Net\\nenp16s0:ethernet:unavailable:\\n' ;;
-  "-t -f NAME,UUID,TYPE,ACTIVE,DEVICE connection show") printf 'Home\\\\:Net:$uuidHome:802-11-wireless:yes:wlan0\\nWired connection 1:$uuidWired:802-3-ethernet:no:\\nWork:$uuidVpn:wireguard:no:\\nlo:x:loopback:yes:lo\\n' ;;
-  "-t -f IN-USE,SSID,SECURITY,SIGNAL device wifi list --rescan auto"|"-t -f IN-USE,SSID,SECURITY,SIGNAL device wifi list --rescan yes")
-    printf '*:Home\\\\:Net:WPA2:70\\n :Home\\\\:Net:WPA3:40\\n :Cafe::55\\n ::WPA2:30\\n :Neighbour:WPA2:80\\n' ;;
-  "-t -f connection.uuid connection add"*) echo "connection.uuid:$uuidNew" ;;
-  "connection edit uuid "*) while IFS= read -r l; do echo "stdin: \$l" >> "\$HOME/nmcli.log"; done ;;
-  "connection up uuid "*) if [ -f "\$HOME/fail-up" ]; then echo "Error: Secrets were required, but not provided." >&2; exit 4; fi ;;
-esac
-exit 0''');
-}
-
-void fakeBluetoothctl(World w) {
-  w.fake('bluetoothctl', r'''
-echo "$*" >> "$HOME/bt.log"
-case "$*" in
-  show) printf 'Controller 60:E9:AA:5D:C2:BC (public)\n\tName: pc\n\tPowered: yes\n' ;;
-  "devices Paired") echo "Device AA:BB:CC:DD:EE:01 Headphones" ;;
-  devices) printf 'Device AA:BB:CC:DD:EE:01 Headphones\nDevice AA:BB:CC:DD:EE:02 Keyboard K3\nDevice AA:BB:CC:DD:EE:03 AA-BB-CC-DD-EE-03\n' ;;
-  "info AA:BB:CC:DD:EE:01") printf 'Device AA:BB:CC:DD:EE:01 (public)\n\tAlias: My Headphones\n\tIcon: audio-headset\n\tConnected: yes\n\tBattery Percentage: 0x50 (80)\n' ;;
-esac
-exit 0''');
-}
 
 void main() {
   late World w;

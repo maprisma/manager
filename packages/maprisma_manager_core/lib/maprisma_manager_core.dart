@@ -1,7 +1,9 @@
 /// Maprisma Manager's core: the catalog, status, git provenance and the routes.
 library;
 
+export 'src/about.dart';
 export 'src/ai_update.dart';
+export 'src/applications.dart';
 export 'src/ai/ask_ai.dart' show AskError, helperStates, helpers, jailArgv, codexOff;
 export 'src/bar.dart';
 export 'src/bar_cosmic.dart';
@@ -38,5 +40,6 @@ export 'src/private_files.dart' show PrivateFolder, makePrivateFolder, debugFail
 export 'src/run.dart';
 export 'src/screenshot.dart';
 export 'src/status.dart';
+export 'src/time_lang.dart';
 export 'src/sysproc.dart';
 export 'src/translations.dart';

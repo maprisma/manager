@@ -40,16 +40,18 @@ class _InputState extends State<_Input> with RoutePage {
   Future<void> set(String key, Object? value) => act('input.set', {'key': key, 'value': value});
 
   bool flag(String key) => values[key] == true;
-  double number(String key, double fallback) => (values[key] as num?)?.toDouble() ?? fallback;
+  double number(String key, double fallback) => values[key] is num ? (values[key] as num).toDouble() : fallback;
 
   /// kb_options with one group (caps:, compose:) set to [choice] and the other options kept.
+  String get kbOptions => values['kb_options'] is String ? values['kb_options'] as String : '';
+
   String withOption(String group, String choice) {
-    final now = '${values['kb_options'] ?? ''}'.split(',').where((x) => x.isNotEmpty && !x.startsWith('$group:')).toList();
+    final now = kbOptions.split(',').where((x) => x.isNotEmpty && !x.startsWith('$group:')).toList();
     if (choice.isNotEmpty) now.add(choice);
     return now.join(',');
   }
 
-  String option(String group) => '${values['kb_options'] ?? ''}'.split(',').firstWhere((x) => x.startsWith('$group:'), orElse: () => '');
+  String option(String group) => kbOptions.split(',').firstWhere((x) => x.startsWith('$group:'), orElse: () => '');
 
   static String capsName(String c) => switch (c) {
     'caps:escape' => tr('Escape'),
@@ -75,7 +77,7 @@ class _InputState extends State<_Input> with RoutePage {
 
   List<Widget> _keyboard(Map d) {
     final layouts = (d['layouts'] as List).cast<String>();
-    final now = '${values['kb_layout'] ?? ''}'.split(',').where((l) => l.isNotEmpty).toList();
+    final now = (values['kb_layout'] is String ? values['kb_layout'] as String : '').split(',').where((l) => l.isNotEmpty).toList();
     final first = now.isEmpty ? '' : now.first;
     final second = now.length > 1 ? now[1] : '';
     List<(String, String)> choices(String current, {bool none = false}) => [
