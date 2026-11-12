@@ -1,0 +1,6 @@
+[workspace]
+members = ["applet", "tray"]
+resolver = "3"
+
+[profile.release]
+lto = "thin"

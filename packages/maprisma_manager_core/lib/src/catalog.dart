@@ -758,8 +758,9 @@ final List<AppEntry> builtinCatalog = [
         install: ['tools/install-local'],
         flutter: FlutterEnv.path,
         stopsOwnProcesses: true,
+        optionalParts: {'bar icon'},
         prerequisites: [Prerequisite('flutter'), Prerequisite('dart'), Prerequisite('bash'), Prerequisite('setsid')],
-        trees: [TreeRoot('{lib}/maprisma-manager', swap: true, note: 'the Flutter bundle; swapped in by the self-update helper once the Manager has quit')],
+        trees: [TreeRoot('{lib}/maprisma-manager', swap: true, note: 'the Flutter bundle with bin/ (core CLI, COSMIC applet, tray); swapped in by the self-update helper once the Manager has quit')],
         note: 'Updates itself: tools/install-local --stage builds and checks the new bundle, a helper swaps it in after the Manager quit and starts it again.',
         paths: [
           InstalledPath('{lib}/maprisma-manager/maprisma-manager', PathKind.executable, key: true),
@@ -770,11 +771,27 @@ final List<AppEntry> builtinCatalog = [
           InstalledPath('{bin}/maprisma-manager-core', PathKind.link, target: '{lib}/maprisma-manager/bin/maprisma-manager-core'),
           InstalledPath('{apps}/com.maprisma.Manager.desktop', PathKind.file),
           InstalledPath('{icons}/com.maprisma.Manager.svg', PathKind.file),
+          // The bar icon (bar/: Rust; the build leaves it out without cargo).
+          InstalledPath('{lib}/maprisma-manager/bin/maprisma-manager-applet', PathKind.executable, note: 'the COSMIC applet', part: 'bar icon'),
+          InstalledPath('{lib}/maprisma-manager/bin/maprisma-manager-tray', PathKind.executable, note: 'the tray (KDE, Maprisma Shell)', part: 'bar icon'),
+          InstalledPath('{bin}/maprisma-manager-applet', PathKind.link, target: '{lib}/maprisma-manager/bin/maprisma-manager-applet', part: 'bar icon'),
+          InstalledPath('{bin}/maprisma-manager-tray', PathKind.link, target: '{lib}/maprisma-manager/bin/maprisma-manager-tray', part: 'bar icon'),
+          InstalledPath('{apps}/${_c}Manager.desktop', PathKind.file, note: 'the COSMIC applet', part: 'bar icon'),
+          InstalledPath('{icons}/${_c}Manager-symbolic.svg', PathKind.file, part: 'bar icon'),
+          InstalledPath('{autostart}/com.maprisma.Manager.Tray.desktop', PathKind.file, note: 'the tray', part: 'bar icon'),
         ],
       ),
     ],
     data: [DataPath('{config}/maprisma-manager'), DataPath('{state}/maprisma-manager')],
-    processes: [ProcessMatch(MatchKind.exeUnder, '{lib}/maprisma-manager')],
+    processes: [ProcessMatch(MatchKind.exeUnder, '{lib}/maprisma-manager', note: 'app, core, applet, tray')],
+    bar: BarIcon(
+      cosmicApplet: '${_c}Manager',
+      cosmicAppletExe: '{bin}/maprisma-manager-applet',
+      kdeId: 'maprisma-manager',
+      kdeAutostart: '{autostart}/com.maprisma.Manager.Tray.desktop',
+      kdeTrayExe: '{lib}/maprisma-manager/bin/maprisma-manager-tray',
+      iconName: '${_c}Manager-symbolic',
+    ),
     version: VersionSource(
       installedJson: '{lib}/maprisma-manager/data/flutter_assets/version.json',
       folderFile: 'flutter_app/pubspec.yaml',
@@ -784,7 +801,7 @@ final List<AppEntry> builtinCatalog = [
     removal: Support.terminal,
     supportNote: 'it updates itself (the new build is checked, swapped in once it has quit, and rolled back when it doesn\'t start); '
         'it doesn\'t remove itself: run tools/uninstall-local in its folder from a terminal',
-    note: 'Opens from the app menu.',
+    note: 'Opens from the app menu or its bar icon.',
   ),
 ];
 

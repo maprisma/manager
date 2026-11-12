@@ -1,0 +1,13 @@
+[Desktop Entry]
+Name=Maprisma Manager
+Comment=Install, update and set up the Maprisma apps and the desktop
+Type=Application
+Exec=maprisma-manager-applet
+Terminal=false
+Categories=COSMIC;
+Keywords=COSMIC;Applet;Maprisma;Manager;Settings;
+Icon=io.github.ubruckhaus.CosmicMaprismaManager-symbolic
+NoDisplay=true
+X-CosmicApplet=true
+X-HostWaylandDisplay=true
+X-OverflowPriority=10

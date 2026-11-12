@@ -14,6 +14,7 @@ import 'pages.dart';
 import 'power_page.dart';
 import 'settings_page.dart';
 import 'theme.dart';
+import 'window.dart';
 
 /// The window's pages, in the sidebar's order.
 enum Section { apps, network, bluetooth, appearance, bar, displays, sound, power, input, applications, time, about, settings }
@@ -34,8 +35,12 @@ class ManagerHome extends StatefulWidget {
     this.cornersSetting = 'windows',
     this.screenshotKey = true,
     this.onSettingsChanged,
+    this.page,
   });
   final CoreCall core;
+
+  /// The first page (a Section's name); a later `--page` comes through AppWindow.onOpen.
+  final String? page;
   final JobsModel jobs;
   final VoidCallback? onRestart;
   final bool checkOnStart;
@@ -139,7 +144,16 @@ class ManagerHomeState extends State<ManagerHome> {
   void initState() {
     super.initState();
     HardwareKeyboard.instance.addHandler(_keys);
+    final first = sectionNamed(widget.page);
+    if (first != null) section = first;
+    AppWindow.onOpen((words) {
+      final s = sectionNamed(AppWindow.pageOf(words));
+      if (s != null && mounted) open(s);
+    });
   }
+
+  /// A Section by its name ("power"), null for an unknown one.
+  static Section? sectionNamed(String? name) => Section.values.where((s) => s.name == name).firstOrNull;
 
   @override
   void dispose() {

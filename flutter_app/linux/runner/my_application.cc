@@ -6,7 +6,9 @@
 
 // Maprisma Manager's window: one instance (com.maprisma.Manager; a second start shows the
 // first window), a header bar titled "Maprisma Manager", and the "maprisma-manager/window"
-// channel: "titlebar" (dark or light, as the desktop's palette).
+// channel: "titlebar" (dark or light, as the desktop's palette) and, to Dart, "open" with a
+// second start's words (`--page <page>`). `--toggle` (the bar icon) hides the window when it is
+// in front and shows it otherwise: hidden, not closed, as a job may be running.
 
 struct _MyApplication {
   GtkApplication parent_instance;
@@ -38,11 +40,18 @@ static void first_frame_cb(MyApplication* self, FlView* view) {
   gtk_widget_show(gtk_widget_get_toplevel(GTK_WIDGET(view)));
 }
 
+// The window, also while hidden (gtk_application_get_active_window skips none of them).
+static GtkWindow* main_window(GApplication* application) {
+  GList* windows = gtk_application_get_windows(GTK_APPLICATION(application));
+  return windows == nullptr ? nullptr : GTK_WINDOW(windows->data);
+}
+
 // Implements GApplication::activate.
 static void my_application_activate(GApplication* application) {
   MyApplication* self = MY_APPLICATION(application);
-  GtkWindow* existing = gtk_application_get_active_window(GTK_APPLICATION(application));
+  GtkWindow* existing = main_window(application);
   if (existing != nullptr) {
+    gtk_widget_show(GTK_WIDGET(existing));
     gtk_window_present(existing);
     return;
   }
@@ -89,13 +98,37 @@ static gboolean my_application_local_command_line(GApplication* application,
                                                   gchar*** arguments,
                                                   int* exit_status) {
   MyApplication* self = MY_APPLICATION(application);
-  // Strip out the first argument as it is the binary name.
-  self->dart_entrypoint_arguments = g_strdupv(*arguments + 1);
+  // Strip out the first argument as it is the binary name; --toggle is the runner's own.
+  gboolean toggle = FALSE;
+  g_autoptr(GPtrArray) words = g_ptr_array_new_with_free_func(g_free);
+  for (gchar** arg = *arguments + 1; *arg != nullptr; arg++) {
+    if (g_strcmp0(*arg, "--toggle") == 0) {
+      toggle = TRUE;
+    } else {
+      g_ptr_array_add(words, g_strdup(*arg));
+    }
+  }
+  g_ptr_array_add(words, nullptr);
+  self->dart_entrypoint_arguments = g_strdupv((gchar**)words->pdata);
 
   g_autoptr(GError) error = nullptr;
   if (!g_application_register(application, nullptr, &error)) {
     g_warning("Failed to register: %s", error->message);
     *exit_status = 1;
+    return TRUE;
+  }
+
+  if (g_application_get_is_remote(application)) {
+    // A second start: the first one acts.
+    if (toggle) {
+      g_action_group_activate_action(G_ACTION_GROUP(application), "toggle", nullptr);
+    } else if (g_strv_length(self->dart_entrypoint_arguments) > 0) {
+      g_action_group_activate_action(G_ACTION_GROUP(application), "open",
+                                     g_variant_new_strv(self->dart_entrypoint_arguments, -1));
+    } else {
+      g_application_activate(application);
+    }
+    *exit_status = 0;
     return TRUE;
   }
 
@@ -105,13 +138,38 @@ static gboolean my_application_local_command_line(GApplication* application,
   return TRUE;
 }
 
+// --toggle: hide the window when it is shown and in front, else show it and bring it up.
+static void toggle_activated(GSimpleAction* action, GVariant* parameter, gpointer user_data) {
+  GApplication* application = G_APPLICATION(user_data);
+  GtkWindow* window = main_window(application);
+  if (window != nullptr && gtk_widget_get_visible(GTK_WIDGET(window)) && gtk_window_is_active(window)) {
+    gtk_widget_hide(GTK_WIDGET(window));
+    return;
+  }
+  g_application_activate(application);
+}
+
+// A second start's words (--page <page>) go to Dart; the window comes up.
+static void open_activated(GSimpleAction* action, GVariant* parameter, gpointer user_data) {
+  MyApplication* self = MY_APPLICATION(user_data);
+  g_application_activate(G_APPLICATION(self));
+  if (self->window_channel == nullptr || parameter == nullptr) return;
+  g_autoptr(FlValue) list = fl_value_new_list();
+  gsize n = 0;
+  g_autofree const gchar** strv = g_variant_get_strv(parameter, &n);
+  for (gsize i = 0; i < n; i++) fl_value_append_take(list, fl_value_new_string(strv[i]));
+  fl_method_channel_invoke_method(self->window_channel, "open", list, nullptr, nullptr, nullptr);
+}
+
 // Implements GApplication::startup.
 static void my_application_startup(GApplication* application) {
-  // MyApplication* self = MY_APPLICATION(object);
-
-  // Perform any actions required at application startup.
-
   G_APPLICATION_CLASS(my_application_parent_class)->startup(application);
+  g_autoptr(GSimpleAction) toggle = g_simple_action_new("toggle", nullptr);
+  g_signal_connect(toggle, "activate", G_CALLBACK(toggle_activated), application);
+  g_action_map_add_action(G_ACTION_MAP(application), G_ACTION(toggle));
+  g_autoptr(GSimpleAction) open = g_simple_action_new("open", G_VARIANT_TYPE_STRING_ARRAY);
+  g_signal_connect(open, "activate", G_CALLBACK(open_activated), application);
+  g_action_map_add_action(G_ACTION_MAP(application), G_ACTION(open));
 }
 
 // Implements GApplication::shutdown.

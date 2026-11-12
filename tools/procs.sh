@@ -83,3 +83,15 @@ take_lock() {
   exec 9>"$1/lock"
   flock -n 9
 }
+
+# pid:start of the bundle's tray (bin/maprisma-manager-tray, in the bundle or a .new/.old sibling).
+tray_ids() {
+  local id pid exe
+  for id in $(running_ids 1); do
+    pid=${id%%:*}
+    exe=$(readlink "$proc/$pid/exe" 2>/dev/null) || continue
+    exe=${exe% (deleted)}
+    [[ $exe == */bin/maprisma-manager-tray ]] && echo "$id"
+  done
+  return 0
+}

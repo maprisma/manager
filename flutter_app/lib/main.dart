@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import 'app.dart';
 import 'backend.dart';
+import 'window.dart';
 
 /// `maprisma-manager`: the window. With MAPRISMA_MANAGER_READY (the self-update helper started this
 /// build) the file gets this process' pid after the first frame: the helper keeps the new build then.
@@ -27,6 +28,8 @@ Future<void> main(List<String> args) async {
     });
   }
   runApp(ManagerApp(
+    // The bar icon's menu: `--page <page>`.
+    page: AppWindow.pageOf(args),
     core: backend.call,
     look: look,
     settings: settings,

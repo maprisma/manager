@@ -17,7 +17,10 @@ import 'window.dart';
 /// Maprisma Manager's window: the list page in the desktop's colours (`desktop.look`, read as
 /// Maprisma Launcher reads them).
 class ManagerApp extends StatefulWidget {
-  const ManagerApp({super.key, required this.core, this.look = const {}, this.onRestart, this.checkOnStart = true, this.jobs, this.screenshots, this.settings = const {}});
+  const ManagerApp({super.key, required this.core, this.look = const {}, this.onRestart, this.checkOnStart = true, this.jobs, this.screenshots, this.settings = const {}, this.page});
+
+  /// The page to open first (`--page <page>`, a Section's name); null: Apps.
+  final String? page;
   final CoreCall core;
   final Map<String, dynamic> look;
   final VoidCallback? onRestart;
@@ -178,7 +181,7 @@ class _ManagerAppState extends State<ManagerApp> with WidgetsBindingObserver {
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       debugShowCheckedModeBanner: false,
       theme: appTheme(MediaQuery.platformBrightnessOf(context), look['colors'] as Map? ?? {}, radius),
-      home: ManagerHome(core: widget.core, jobs: jobs, onRestart: widget.onRestart, checkOnStart: widget.checkOnStart, onLanguageChanged: _loadSettings, languageSetting: languageSetting,
+      home: ManagerHome(page: widget.page, core: widget.core, jobs: jobs, onRestart: widget.onRestart, checkOnStart: widget.checkOnStart, onLanguageChanged: _loadSettings, languageSetting: languageSetting,
           cornersSetting: cornersSetting, screenshotKey: screenshotKey, onSettingsChanged: _loadSettings),
     );
   }

@@ -34,26 +34,59 @@ done
 export PATH="${FLUTTER:-/mnt/Data/flutter/bin}:$PATH"
 bundle="$root/flutter_app/build/linux/x64/release/bundle"
 
+# A desktop file's Exec value for a program path: quoted, escaped for the Exec rules and the
+# desktop file value layer (Plasma's own PATH has no ~/.local/bin, so the full path).
+exec_of() {
+  local x=$1
+  x=${x//\\/\\\\}; x=${x//\"/\\\"}; x=${x//\`/\\\`}; x=${x//\$/\\\$}
+  x=${x//\\/\\\\}; x=${x//\%/%%}
+  printf '"%s"' "$x"
+}
+
+# $1 (a packaging file) to $2 with its Exec= set to $3; Hidden=true of an existing $2 is kept
+# (the Bar page took the icon out).
+put_entry() {
+  local hidden=0
+  [[ -f $2 ]] && grep -qx 'Hidden=true' "$2" && hidden=1
+  { grep -v '^Exec=' "$1"; printf 'Exec=%s\n' "$3"; if (( hidden )); then echo 'Hidden=true'; fi; } > "$2.tmp.$$"
+  mv -f "$2.tmp.$$" "$2"
+}
+
 integrate() {
-  mkdir -p "$bin" "$data/applications" "$data/icons/hicolor/scalable/apps"
+  local autostart="${XDG_CONFIG_HOME:-$HOME/.config}/autostart" icons="$data/icons/hicolor/scalable/apps" f
+  mkdir -p "$bin" "$data/applications" "$icons" "$autostart"
   ln -sfn "$lib/maprisma-manager" "$bin/maprisma-manager"
-  ln -sfn "$lib/bin/maprisma-manager-core" "$bin/maprisma-manager-core"
-  # Exec with the full path, quoted: Plasma's own PATH has no ~/.local/bin.
-  local gui="$bin/maprisma-manager"
-  gui=${gui//\\/\\\\}; gui=${gui//\"/\\\"}; gui=${gui//\`/\\\`}; gui=${gui//\$/\\\$}
-  # …then the desktop file value layer: every backslash doubled again, % as %%.
-  gui=${gui//\\/\\\\}; gui=${gui//\%/%%}
-  local entry="$data/applications/com.maprisma.Manager.desktop"
-  { grep -v '^Exec=' "$root/packaging/com.maprisma.Manager.desktop"; printf 'Exec="%s"\n' "$gui"; } > "$entry.tmp.$$"
-  mv -f "$entry.tmp.$$" "$entry"
-  install -m644 "$root/packaging/com.maprisma.Manager.svg" "$data/icons/hicolor/scalable/apps/com.maprisma.Manager.svg.tmp.$$"
-  mv -f "$data/icons/hicolor/scalable/apps/com.maprisma.Manager.svg.tmp.$$" "$data/icons/hicolor/scalable/apps/com.maprisma.Manager.svg"
+  for f in maprisma-manager-core maprisma-manager-applet maprisma-manager-tray; do
+    [[ -e $lib/bin/$f ]] && ln -sfn "$lib/bin/$f" "$bin/$f"
+  done
+  put_entry "$root/packaging/com.maprisma.Manager.desktop" "$data/applications/com.maprisma.Manager.desktop" "$(exec_of "$bin/maprisma-manager")"
+  for f in com.maprisma.Manager.svg io.github.ubruckhaus.CosmicMaprismaManager-symbolic.svg; do
+    [[ -f $root/packaging/$f ]] || continue
+    install -m644 "$root/packaging/$f" "$icons/$f.tmp.$$"
+    mv -f "$icons/$f.tmp.$$" "$icons/$f"
+  done
+  # The bar icon: COSMIC's applet entry, the tray's autostart (KDE, Maprisma Shell on Hyprland).
+  if [[ -x $lib/bin/maprisma-manager-applet && -f $root/packaging/io.github.ubruckhaus.CosmicMaprismaManager.desktop ]]; then
+    put_entry "$root/packaging/io.github.ubruckhaus.CosmicMaprismaManager.desktop" "$data/applications/io.github.ubruckhaus.CosmicMaprismaManager.desktop" "$(exec_of "$bin/maprisma-manager-applet")"
+  fi
+  if [[ -x $lib/bin/maprisma-manager-tray && -f $root/packaging/com.maprisma.Manager.Tray.desktop ]]; then
+    put_entry "$root/packaging/com.maprisma.Manager.Tray.desktop" "$autostart/com.maprisma.Manager.Tray.desktop" "$(exec_of "$bin/maprisma-manager-tray")"
+    # The tray of the build before (still mapping the old files) makes way for this one.
+    local ids
+    ids=$(tray_ids)
+    # shellcheck disable=SC2086
+    [[ -n $ids ]] && { signal_ids TERM $ids; sleep 0.3; }
+    if [[ ${XDG_CURRENT_DESKTOP:-} =~ (KDE|Hyprland) ]] && ! grep -qx 'Hidden=true' "$autostart/com.maprisma.Manager.Tray.desktop"; then
+      setsid -f "$bin/maprisma-manager-tray" >/dev/null 2>&1 < /dev/null || true
+    fi
+  fi
   command -v gtk-update-icon-cache >/dev/null && gtk-update-icon-cache -f -t "$data/icons/hicolor" >/dev/null 2>&1 || true
   command -v update-desktop-database >/dev/null && update-desktop-database "$data/applications" >/dev/null 2>&1 || true
 }
 
 if (( integrate )); then
   [[ -x $lib/maprisma-manager ]] || { echo "no Maprisma Manager in $lib" >&2; exit 1; }
+  source "$root/tools/procs.sh"
   integrate
   echo "Linked Maprisma Manager in $lib"
   exit 0
@@ -64,6 +97,13 @@ if (( build )); then
   (cd "$root/flutter_app" && flutter build linux --release >/dev/null)
   mkdir -p "$bundle/bin"
   (cd "$root/packages/maprisma_manager_core" && dart compile exe bin/maprisma_manager_core.dart -o "$bundle/bin/maprisma-manager-core" >/dev/null)
+  # The bar icon (COSMIC applet, tray): Rust; without cargo the Manager has no bar icon.
+  if command -v cargo >/dev/null; then
+    (cd "$root/bar" && cargo build --release -q)
+    install -m755 "$root/bar/target/release/maprisma-manager-applet" "$root/bar/target/release/maprisma-manager-tray" "$bundle/bin/"
+  else
+    echo "cargo is missing: no bar icon this time" >&2
+  fi
 fi
 for f in maprisma-manager lib/libapp.so data/flutter_assets/version.json bin/maprisma-manager-core; do
   [[ -e $bundle/$f ]] || { echo "missing in the build: $f (run without --no-build)" >&2; exit 1; }
@@ -75,7 +115,7 @@ if [[ -n $stage ]]; then
   cp -a "$bundle/." "$stage/bundle/"
   install -m755 "$root/tools/install-local" "$root/tools/self-update" "$stage/tools/"
   install -m644 "$root/tools/procs.sh" "$stage/tools/"
-  install -m644 "$root/packaging/com.maprisma.Manager.desktop" "$root/packaging/com.maprisma.Manager.svg" "$stage/packaging/"
+  install -m644 "$root/packaging/"*.desktop "$root/packaging/"*.svg "$stage/packaging/"
   echo "Staged Maprisma Manager in $stage"
   exit 0
 fi

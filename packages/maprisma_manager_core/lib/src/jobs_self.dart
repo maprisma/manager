@@ -205,13 +205,27 @@ extension _SelfUpdate on JobEngine {
       throw JobFailure('self_update_failed', '${s.state}${s.why == null ? '' : ': ${s.why}'}');
     }
     _phase(r, 'verify');
-    final failing = [for (final ip in c.paths) checkPath(paths, ip)].where((ch) => ch['ok'] != true).toList();
+    // As the other jobs: an optional part (the bar icon without cargo) may be missing whole.
+    final checks = [for (final ip in c.paths) checkPath(paths, ip)];
+    final failing = <Map<String, dynamic>>[];
+    final partial = <String>{};
+    for (final part in {for (final ch in checks) ch['part'] as String}) {
+      final mine = checks.where((ch) => ch['part'] == part).toList();
+      final bad = mine.where((ch) => ch['ok'] != true).toList();
+      if (bad.isEmpty) continue;
+      if (c.optionalParts.contains(part) && bad.length == mine.length) {
+        partial.add(part);
+      } else {
+        failing.addAll(bad);
+      }
+    }
     if (failing.isNotEmpty) {
       for (final f in failing) {
         r.log.note(trf('postcondition: {0}: {1}', [f['path'], f['problem']]));
       }
       throw JobFailure('verify_failed', trf('{0} path(s) not as the installer leaves them', [failing.length]));
     }
+    if (partial.isNotEmpty) r.log.note(trf('partly installed: no {0}', [partial.join(', ')]));
     _phase(r, 'finish');
     _writeSelfReceipt(app, c, prep.inputs, r.id, r.kind.name, paths: paths);
     r.log.note(tr('receipt written'));

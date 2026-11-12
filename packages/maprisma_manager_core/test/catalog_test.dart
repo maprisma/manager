@@ -71,7 +71,9 @@ void main() {
     expect(findApp('narrator')!.bar.kdeId, 'com.maprisma.Narrator.Tray');
     expect(findApp('theme')!.bar.kdeId, 'maprisma-theme');
     expect(findApp('launcher')!.bar.kdeKind, KdeBarKind.widgetEntry);
-    for (final id in ['maprisma', 'tiling', 'icons', 'shell', 'manager']) {
+    expect(findApp('manager')!.bar.kdeId, 'maprisma-manager');
+    expect(findApp('manager')!.bar.cosmicApplet, 'io.github.ubruckhaus.CosmicMaprismaManager');
+    for (final id in ['maprisma', 'tiling', 'icons', 'shell']) {
       expect(findApp(id)!.bar.none, isTrue, reason: id);
     }
   });

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Maprisma Manager Tray
+Comment=Maprisma Manager's icon in the KDE and Maprisma Shell tray
+Exec=maprisma-manager-tray
+Icon=io.github.ubruckhaus.CosmicMaprismaManager-symbolic
+Terminal=false
+OnlyShowIn=KDE;Hyprland;
+X-KDE-autostart-phase=2

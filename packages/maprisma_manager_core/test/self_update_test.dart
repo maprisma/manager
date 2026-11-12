@@ -40,6 +40,8 @@ echo "$*" >> "$HOME/.mm-test/core-calls"
 CORE
 chmod 755 "$stage/bundle/bin/maprisma-manager-core"
 [[ -e $ctl/no-core ]] && rm "$stage/bundle/bin/maprisma-manager-core"
+# the bar icon (bar/, Rust): a COSMIC applet and a tray that end at once
+for b in maprisma-manager-applet maprisma-manager-tray; do printf '#!/bin/sh\nexit 0\n' > "$stage/bundle/bin/$b"; chmod 755 "$stage/bundle/bin/$b"; done
 cp "$here/tools/real-install-local" "$stage/tools/install-local"
 [[ -e $ctl/bad-integrate ]] && printf '#!/bin/sh\n[ "$1" = --integrate ] && exit 1\nexit 0\n' > "$stage/tools/install-local"
 cp "$here/tools/self-update" "$stage/tools/self-update"
@@ -83,7 +85,7 @@ void main() {
     File(p.join(_repoRoot, 'tools/install-local')).copySync(p.join(repo, 'tools/real-install-local'));
     File(p.join(_repoRoot, 'tools/self-update')).copySync(p.join(repo, 'tools/self-update'));
     File(p.join(_repoRoot, 'tools/procs.sh')).copySync(p.join(repo, 'tools/procs.sh'));
-    for (final f in ['com.maprisma.Manager.desktop', 'com.maprisma.Manager.svg']) {
+    for (final f in ['com.maprisma.Manager.desktop', 'com.maprisma.Manager.svg', 'com.maprisma.Manager.Tray.desktop', 'io.github.ubruckhaus.CosmicMaprismaManager.desktop', 'io.github.ubruckhaus.CosmicMaprismaManager-symbolic.svg']) {
       w.writeFile(p.join(repo, 'packaging', f), File(p.join(_repoRoot, 'packaging', f)).readAsStringSync());
     }
   });
