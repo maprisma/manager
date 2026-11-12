@@ -10,6 +10,7 @@ import 'bar_editor.dart';
 import 'core_call.dart';
 import 'jobs_model.dart';
 import 'desktop_page.dart';
+import 'notifications_page.dart';
 import 'pages.dart';
 import 'power_page.dart';
 import 'settings_page.dart';
@@ -17,7 +18,7 @@ import 'theme.dart';
 import 'window.dart';
 
 /// The window's pages, in the sidebar's order.
-enum Section { apps, network, bluetooth, appearance, bar, displays, sound, power, input, applications, time, about, settings }
+enum Section { apps, network, bluetooth, appearance, bar, displays, sound, notifications, power, input, applications, time, about, settings }
 
 /// The window as COSMIC Settings lays it out: a sidebar of pages left (icon and name, the open
 /// one highlighted), the page right. Below [condensedBelow] the sidebar hides behind a toggle
@@ -74,6 +75,7 @@ class ManagerHomeState extends State<ManagerHome> {
     Section.bar => on ? Icons.view_week : Icons.view_week_outlined,
     Section.displays => on ? Icons.monitor : Icons.monitor_outlined,
     Section.sound => on ? Icons.volume_up : Icons.volume_up_outlined,
+    Section.notifications => on ? Icons.notifications : Icons.notifications_outlined,
     Section.power => on ? Icons.power_settings_new : Icons.power_settings_new_outlined,
     Section.input => on ? Icons.keyboard : Icons.keyboard_outlined,
     Section.applications => on ? Icons.grid_view : Icons.grid_view_outlined,
@@ -90,6 +92,7 @@ class ManagerHomeState extends State<ManagerHome> {
     Section.bar => tr('Bar'),
     Section.displays => tr('Displays'),
     Section.sound => tr('Sound'),
+    Section.notifications => tr('Notifications'),
     Section.power => tr('Power'),
     Section.input => tr('Input devices'),
     Section.applications => tr('Applications'),
@@ -164,6 +167,19 @@ class ManagerHomeState extends State<ManagerHome> {
     }
   }
 
+  /// Installs app [id] from a page (Notifications without Maprisma Notifier): the Apps page's
+  /// install job, whose sheet shows there; null while the list doesn't know the app or it
+  /// can't be installed on this desktop.
+  VoidCallback? _installer(String id) {
+    final list = appsKey.currentState;
+    final app = list?.apps.where((a) => a['id'] == id).firstOrNull;
+    if (list == null || app == null || app['supportedHere'] == false || (app['support'] as Map?)?['install'] == false) return null;
+    return () {
+      open(Section.apps);
+      unawaited(list.startJob(app, 'install'));
+    };
+  }
+
   /// A Section by its name ("power"), null for an unknown one.
   static Section? sectionNamed(String? name) => Section.values.where((s) => s.name == name).firstOrNull;
 
@@ -187,6 +203,7 @@ class ManagerHomeState extends State<ManagerHome> {
     Section.network => NetworkPage(key: const ValueKey('network-page'), core: widget.core),
     Section.bluetooth => BluetoothPage(key: const ValueKey('bluetooth-page'), core: widget.core),
     Section.sound => SoundPage(key: const ValueKey('sound-page'), core: widget.core),
+    Section.notifications => NotificationsPage(key: const ValueKey('notifications-page'), core: widget.core, onInstall: _installer('notifier')),
     Section.displays => DisplaysPage(key: const ValueKey('displays-page'), core: widget.core),
     Section.input => InputPage(key: const ValueKey('input-page'), core: widget.core),
     Section.applications => ApplicationsPage(key: const ValueKey('applications-page'), core: widget.core),

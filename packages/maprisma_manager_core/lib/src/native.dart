@@ -16,7 +16,7 @@ final class NativeSettings {
   final Future<bool> Function(String exe, [List<String> args]) startDetached;
 
   /// The pages that have a native counterpart.
-  static const pages = ['network', 'bluetooth', 'sound', 'displays', 'power', 'input', 'applications', 'time', 'about'];
+  static const pages = ['network', 'bluetooth', 'sound', 'notifications', 'displays', 'power', 'input', 'applications', 'time', 'about'];
 
   String? get appName => switch (ctx.desktop) {
     DesktopId.cosmic => tr('COSMIC Settings'),
@@ -33,6 +33,7 @@ final class NativeSettings {
           'network' => cosmic([(tr('Network & Wireless'), 'network')]),
           'bluetooth' => cosmic([(tr('Bluetooth'), 'bluetooth')]),
           'sound' => cosmic([(tr('Sound'), 'sound')]),
+          'notifications' => cosmic([(tr('Notifications'), 'notifications')]),
           'displays' => cosmic([(tr('Displays'), 'displays')]),
           'power' => cosmic([(tr('Power & battery'), 'power')]),
           'input' => cosmic([(tr('Keyboard'), 'keyboard'), (tr('Mouse'), 'mouse'), (tr('Touchpad'), 'touchpad')]),
@@ -46,6 +47,7 @@ final class NativeSettings {
           'network' => kde([(tr('Network & Wireless'), 'kcm_networkmanagement')]),
           'bluetooth' => kde([(tr('Bluetooth'), 'kcm_bluetooth')]),
           'sound' => kde([(tr('Sound'), 'kcm_pulseaudio')]),
+          'notifications' => kde([(tr('Notifications'), 'kcm_notifications')]),
           'displays' => kde([(tr('Displays'), 'kcm_kscreen'), (tr('Night light'), 'kcm_nightlight')]),
           'power' => kde([(tr('Power & battery'), 'kcm_powerdevilprofilesconfig')]),
           'input' => kde([(tr('Keyboard'), 'kcm_keyboard'), (tr('Mouse'), 'kcm_mouse'), (tr('Touchpad'), 'kcm_touchpad')]),

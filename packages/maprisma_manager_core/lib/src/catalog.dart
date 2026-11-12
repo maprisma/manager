@@ -35,12 +35,15 @@ AppEntry _rustApp({
   List<RuntimePath> runtime = const [],
   String? iconNote,
   bool cosmicIconBuiltIn = false,
+  Set<DesktopId> desktops = const {DesktopId.cosmic, DesktopId.kde, DesktopId.hyprland, DesktopId.other},
+  List<ProcessMatch> moreProcesses = const [],
 }) {
   final appId = '$_c$suffix';
   return AppEntry(
     id: id,
     name: name,
     kind: 'rust',
+    desktops: desktops,
     open: ['{bin}/$binary', '--window'],
     inputs: [Input(repo, github: github)],
     components: [
@@ -70,6 +73,7 @@ AppEntry _rustApp({
       // Started as `python3 -I {bin}/../share/<app>/scripts/x.py`: matched after normalizing.
       for (final s in scripts.where((s) => s.endsWith('.py') || s.endsWith('.sh')))
         ProcessMatch(MatchKind.script, '{data}/$binary/scripts/$s'),
+      ...moreProcesses,
     ],
     bar: BarIcon(
       cosmicApplet: appId,
@@ -460,6 +464,26 @@ final List<AppEntry> builtinCatalog = [
     data: const [DataPath('{config}/ubruckhaus-wlan-monitor', sharedWithOmarchy: true)],
     iconNote: 'the COSMIC applet draws a built-in copy of its radar (with the signal colours): a changed icon shows in the KDE tray and the menus',
     cosmicIconBuiltIn: true,
+  ),
+
+  // The notification centre (history, unread count, do not disturb); the desktops keep showing
+  // the popups (docs/plan.md of maprisma-notifier). Its settings page is the Manager's
+  // Notifications page (notifications.dart).
+  _rustApp(
+    id: 'notifier',
+    name: 'Maprisma Notifier',
+    repo: 'maprisma-notifier',
+    suffix: 'Notifier',
+    binary: 'maprisma-notifier',
+    github: 'maprisma/notifier',
+    scripts: const [],
+    desktops: const {DesktopId.cosmic, DesktopId.kde, DesktopId.hyprland},
+    data: const [
+      DataPath('{config}/maprisma-notifier', note: 'settings.json'),
+      DataPath('{state}/maprisma-notifier', note: 'history.jsonl: the recorded notifications'),
+    ],
+    // The recorder runs inside the tray (KDE, Hyprland) or the applet (COSMIC), or on its own.
+    moreProcesses: const [ProcessMatch(MatchKind.exe, '{bin}/maprisma-notifier-recorder', note: 'the recorder, when it runs on its own')],
   ),
 
   // --- narrator ----------------------------------------------------------------------------

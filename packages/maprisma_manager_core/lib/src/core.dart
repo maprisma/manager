@@ -17,6 +17,7 @@ import 'icons.dart';
 import 'input.dart';
 import 'jobs.dart';
 import 'network.dart';
+import 'notifications.dart';
 import 'native.dart';
 import 'paths.dart';
 import 'power.dart';
@@ -183,6 +184,12 @@ final class CoreService {
       'sound.default': (params) => sound.setDefault(params),
       'sound.stream': (params) => sound.stream(params),
       'sound.profile': (params) => sound.profile(params),
+      // The Notifications page: Maprisma Notifier's settings and history, Maprisma Shell's
+      // popups on Hyprland, do not disturb per desktop (notifications.dart).
+      'notifications.get': (_) => notifications.get(),
+      'notifications.set': (params) => notifications.set(params),
+      'notifications.set_shell': (params) => notifications.setShell(params),
+      'notifications.clear_history': (_) => notifications.clearHistory(),
       // Displays and Input devices on Hyprland (hypr-manager.lua, hypr_config.dart).
       'displays.get': (_) => displays.get(),
       'displays.set': (params) => displays.set(params),
@@ -279,6 +286,9 @@ final class CoreService {
 
   /// The Sound page (sound.*).
   late final SoundService sound = SoundService(ctx);
+
+  /// The Notifications page (notifications.*).
+  late final NotificationsService notifications = NotificationsService(ctx, native);
 
   /// The Power page (power.*).
   late final PowerService power = PowerService(ctx, jobs.startDetached);

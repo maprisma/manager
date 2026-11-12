@@ -30,6 +30,7 @@ export 'src/jobs.dart';
 export 'src/ownership.dart';
 export 'src/native.dart';
 export 'src/network.dart';
+export 'src/notifications.dart';
 export 'src/paths.dart';
 export 'src/power.dart';
 export 'src/procs.dart';
