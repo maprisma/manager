@@ -75,6 +75,11 @@ ThemeData appTheme(Brightness platform, Map colors, double radius) {
     Color step(double amount) => Color.lerp(background, foreground, amount)!;
     scheme = scheme.copyWith(
       primary: hexColor(colors, 'accent') ?? scheme.primary,
+      // Text on the accent: black on a light accent, white on a dark one.
+      onPrimary: switch (hexColor(colors, 'accent')) {
+        final accent? => accent.computeLuminance() > .4 ? Colors.black : Colors.white,
+        null => scheme.onPrimary,
+      },
       surface: background,
       onSurface: foreground,
       onSurfaceVariant: hexColor(colors, 'muted') == null

@@ -109,14 +109,14 @@ class _JobSheetState extends State<JobSheet> {
                         SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: stateColor))
                       else
                         Icon(stateIcon, size: 20, color: stateColor),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 12),
                       Flexible(
                         child: Text(j.title, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700)),
                       ),
                       const SizedBox(width: 8),
                       _Chip(j.finished ? uiLabel(j.state) : phaseName(j.phase), color: stateColor),
                       if (queued > 0) ...[
-                        const SizedBox(width: 6),
+                        const SizedBox(width: 8),
                         Tooltip(
                           message: tr('They start one after the other'),
                           child: _Chip(trf('{0} more queued', [queued]), color: scheme.onSurfaceVariant),
@@ -162,8 +162,8 @@ class _JobSheetState extends State<JobSheet> {
                   ),
                 Expanded(
                   child: Container(
-                    margin: const EdgeInsets.fromLTRB(12, 4, 12, 10),
-                    padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    margin: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
                       color: scheme.surfaceContainerLowest,
                       borderRadius: BorderRadius.circular(cornerSizes(context).control),
@@ -175,7 +175,7 @@ class _JobSheetState extends State<JobSheet> {
                         controller: _scroll,
                         child: SelectableText(
                           text.isEmpty ? tr('Waiting for the first output…') : text,
-                          style: TextStyle(fontFamily: 'monospace', fontSize: 12, height: 1.35, color: scheme.onSurfaceVariant),
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(fontFamily: 'monospace', height: 1.35, color: scheme.onSurfaceVariant),
                         ),
                       ),
                     ),
@@ -201,7 +201,7 @@ class _Chip extends StatelessWidget {
       color: color.withValues(alpha: .12),
       borderRadius: BorderRadius.circular(cornerSizes(context).control),
     ),
-    child: Text(text, style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w600)),
+    child: Text(text, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: color, fontWeight: FontWeight.w600)),
   );
 }
 
@@ -214,13 +214,13 @@ class _Note extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = color ?? Theme.of(context).colorScheme.onSurfaceVariant;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 2, 16, 2),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(icon, size: 16, color: c),
           const SizedBox(width: 8),
-          Expanded(child: Text(text, style: TextStyle(fontSize: 12.5, color: c))),
+          Expanded(child: Text(text, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: c))),
         ],
       ),
     );

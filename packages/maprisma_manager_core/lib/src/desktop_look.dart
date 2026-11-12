@@ -9,7 +9,7 @@ import 'context.dart';
 /// `desktop.look`: the desktop's palette and window corners, as Maprisma Launcher reads them
 /// (maprisma_launcher_core desktops.dart), so the Manager looks like the Launcher's pages.
 /// `{desktop, colors: {accent, background, foreground, muted, selection, red, yellow, orange, green}, rounding, is_dark}`.
-Map<String, dynamic> desktopLook(Ctx ctx) {
+Future<Map<String, dynamic>> desktopLook(Ctx ctx) async {
   final colors = switch (ctx.desktop) {
     DesktopId.cosmic => _cosmicColors(ctx),
     DesktopId.kde => _kdeColors(ctx),
@@ -23,11 +23,36 @@ Map<String, dynamic> desktopLook(Ctx ctx) {
     'rounding': switch (ctx.desktop) {
       DesktopId.cosmic => _cosmicRounding(ctx),
       DesktopId.kde => 8,
-      DesktopId.hyprland => null,
+      DesktopId.hyprland => await hyprRounding(ctx),
       DesktopId.other => null,
     },
     'is_dark': bg == null ? null : _dark(bg),
   };
+}
+
+/// The last answer of `hyprctl` per core, so the look's re-reads (every few seconds while the
+/// window is open) ask Hyprland at most every 30 s.
+final _roundingCache = Expando<({DateTime at, int? value})>('hyprRounding');
+
+/// Hyprland's window rounding (`hyprctl -j getoption decoration:rounding` → `.int`, 0–64), null
+/// when hyprctl is missing, fails or gives no number. Asked at most every 30 s per core.
+Future<int?> hyprRounding(Ctx ctx) async {
+  final now = ctx.clock();
+  final cached = _roundingCache[ctx];
+  if (cached != null && now.difference(cached.at).abs() < const Duration(seconds: 30)) return cached.value;
+  int? value;
+  final r = await ctx.runner.run(['hyprctl', '-j', 'getoption', 'decoration:rounding'], timeout: const Duration(seconds: 3));
+  if (r.ok) {
+    try {
+      final data = jsonDecode(r.stdout);
+      final v = data is Map ? data['int'] : null;
+      if (v is int) value = v.clamp(0, 64);
+    } on FormatException {
+      value = null;
+    }
+  }
+  _roundingCache[ctx] = (at: now, value: value);
+  return value;
 }
 
 /// Maprisma Shell's colour scheme (XDG_STATE_HOME/maprisma-shell/scheme.json, written by

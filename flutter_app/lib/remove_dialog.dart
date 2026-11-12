@@ -64,7 +64,7 @@ class _RemoveDialogState extends State<RemoveDialog> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Icon(goes ? Icons.remove_circle_outline : Icons.shield_outlined, size: 14, color: goes ? scheme.error : scheme.onSurfaceVariant),
-                const SizedBox(width: 6),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Text.rich(
                     TextSpan(children: [
@@ -73,7 +73,7 @@ class _RemoveDialogState extends State<RemoveDialog> {
                       if (e['kind'] == 'package') TextSpan(text: trf('  (pacman package {0})', [e['version'] ?? '']), style: TextStyle(color: scheme.onSurfaceVariant)),
                       if (e['why'] != null) TextSpan(text: ': ${uiLabel(e['why'])}', style: TextStyle(color: scheme.onSurfaceVariant)),
                     ]),
-                    style: TextStyle(fontSize: 12.5),
+                    style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ),
               ],
@@ -113,7 +113,7 @@ class _RemoveDialogState extends State<RemoveDialog> {
                       Text(trf('It can\'t be removed now: {0}', [blocked]), style: TextStyle(color: scheme.error, fontWeight: FontWeight.w600)),
                     if (dependents.isNotEmpty)
                       Padding(
-                        padding: const EdgeInsets.only(bottom: 6),
+                        padding: const EdgeInsets.only(bottom: 8),
                         child: Text(
                           trf('{0} {1} it: {2} without it.', [dependents.map((d) => d['name']).join(', '), dependents.length == 1 ? tr('needs') : tr('need'), dependents.length == 1 ? tr('it stops working') : tr('they stop working')]),
                           style: TextStyle(color: scheme.error),
@@ -126,7 +126,7 @@ class _RemoveDialogState extends State<RemoveDialog> {
                       ),
                     if (steps.isNotEmpty) ...[
                       Padding(padding: EdgeInsets.only(top: 12, bottom: 4), child: Text(tr('Steps first'), style: TextStyle(fontWeight: FontWeight.w700))),
-                      for (final s in steps) Text('• ${s['title']}', style: const TextStyle(fontSize: 12.5)),
+                      for (final s in steps) Text('• ${s['title']}', style: Theme.of(context).textTheme.bodySmall),
                     ],
                     _paths(tr('Goes'), (p['goes'] as List?) ?? [], goes: true),
                     _paths(tr('Stays'), [

@@ -139,8 +139,8 @@ class BarEditorPageState extends State<BarEditorPage> {
     // The measuring key only on the chip in the bar: the drag's feedback and placeholder are copies.
     Widget box({Key? key}) => Container(
       key: key,
-      margin: const EdgeInsets.symmetric(horizontal: 3, vertical: 4),
-      padding: EdgeInsets.fromLTRB(6, 4, 10, 4),
+      margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      padding: EdgeInsets.fromLTRB(8, 4, 12, 4),
       decoration: BoxDecoration(
         color: ours ? scheme.secondaryContainer.withValues(alpha: .7) : scheme.surfaceContainer,
         borderRadius: BorderRadius.circular(cornerSizes(context).control),
@@ -153,10 +153,10 @@ class BarEditorPageState extends State<BarEditorPage> {
             AppIcon(icon?['file'] as String?, symbolic: icon?['symbolic'] == true, size: 20)
           else
             Icon(Icons.widgets_outlined, size: 18, color: scheme.onSurfaceVariant.withValues(alpha: .6)),
-          const SizedBox(width: 6),
+          const SizedBox(width: 8),
           Text(
             _label(e),
-            style: TextStyle(fontSize: 13, color: ours ? scheme.onSurface : scheme.onSurfaceVariant.withValues(alpha: .75)),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: ours ? scheme.onSurface : scheme.onSurfaceVariant.withValues(alpha: .75)),
           ),
           if (hidden) ...[
             const SizedBox(width: 4),
@@ -273,7 +273,7 @@ class BarEditorPageState extends State<BarEditorPage> {
       },
       builder: (context, candidates, _) => Container(
         key: ValueKey('area-$area'),
-        margin: const EdgeInsets.symmetric(vertical: 5),
+        margin: const EdgeInsets.symmetric(vertical: 4),
         padding: EdgeInsets.fromLTRB(12, 8, 12, 8),
         decoration: BoxDecoration(
           color: scheme.surfaceContainerLow,
@@ -283,7 +283,7 @@ class BarEditorPageState extends State<BarEditorPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: TextStyle(fontWeight: FontWeight.w700, color: scheme.onSurfaceVariant, fontSize: 12.5)),
+            Text(title, style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700, color: scheme.onSurfaceVariant)),
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: ConstrainedBox(
@@ -298,7 +298,7 @@ class BarEditorPageState extends State<BarEditorPage> {
                     if (list.isEmpty)
                       Padding(
                         padding: const EdgeInsets.all(8),
-                        child: Text(tr('Empty: drop an icon here'), style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12.5)),
+                        child: Text(tr('Empty: drop an icon here'), style: Theme.of(context).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
                       ),
                   ],
                 ),
@@ -317,7 +317,7 @@ class BarEditorPageState extends State<BarEditorPage> {
       onAcceptWithDetails: (d) => unawaited(takeOut(d.data)),
       builder: (context, candidates, _) => Container(
         key: const ValueKey('area-out'),
-        margin: EdgeInsets.symmetric(vertical: 5),
+        margin: EdgeInsets.symmetric(vertical: 4),
         padding: EdgeInsets.fromLTRB(12, 8, 12, 8),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(cornerSizes(context).board),
@@ -326,7 +326,7 @@ class BarEditorPageState extends State<BarEditorPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(tr('Not in the bar'), style: TextStyle(fontWeight: FontWeight.w700, color: scheme.onSurfaceVariant, fontSize: 12.5)),
+            Text(tr('Not in the bar'), style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700, color: scheme.onSurfaceVariant)),
             Wrap(
               children: [
                 for (final o in out) _chip(o, area: null),
@@ -334,7 +334,7 @@ class BarEditorPageState extends State<BarEditorPage> {
                   Padding(
                     padding: const EdgeInsets.all(8),
                     child: Text(tr('Every installed Maprisma icon is in the bar: drop one here to take it out'),
-                        style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12.5)),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
                   ),
               ],
             ),
@@ -381,13 +381,13 @@ class BarEditorPageState extends State<BarEditorPage> {
                     : tr('Maprisma Icons in the panel: drag the icons where you want them. The greyed ones are Plasma\'s own.'),
             style: TextStyle(color: scheme.onSurfaceVariant),
           ),
-          SizedBox(height: 6),
+          SizedBox(height: 8),
           for (final a in _areas) _area(a),
           _outRow(),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           Text(
             tr('Keys: Tab to a chip; Left and Right move it, Up and Down to the area above or below, Delete takes it out; Enter puts one from "Not in the bar" into the centre.'),
-            style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
           ),
         ],
       );
@@ -400,7 +400,7 @@ class BarEditorPageState extends State<BarEditorPage> {
           child: Column(
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(8, 10, 16, 4),
+                padding: const EdgeInsets.fromLTRB(8, 12, 16, 4),
                 child: Row(
                   children: [
                     if (!widget.embedded)

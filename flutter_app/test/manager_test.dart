@@ -201,7 +201,7 @@ void main() {
     final jobs = JobsModel(call(), every: const Duration(milliseconds: 200));
     addTearDown(jobs.dispose);
     final look = await tester.runAsync(() => call()('desktop.look'));
-    await tester.pumpWidget(ManagerApp(core: call(), look: {...?look, 'colors': _dark}, checkOnStart: false, jobs: jobs));
+    await tester.pumpWidget(ManagerApp(core: call(), look: {...?look, 'colors': _dark}, checkOnStart: false, relook: null, jobs: jobs));
     await settle(tester);
     return jobs;
   }

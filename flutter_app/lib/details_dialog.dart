@@ -33,12 +33,12 @@ class _DetailsDialogState extends State<DetailsDialog> {
   }
 
   Widget _heading(String text) => Padding(
-    padding: const EdgeInsets.fromLTRB(0, 14, 0, 4),
+    padding: const EdgeInsets.fromLTRB(0, 16, 0, 4),
     child: Text(text, style: TextStyle(fontWeight: FontWeight.w700)),
   );
 
   Widget _line(String label, Widget value) => Padding(
-    padding: EdgeInsets.symmetric(vertical: 2),
+    padding: EdgeInsets.symmetric(vertical: 4),
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

@@ -472,20 +472,20 @@ class AppsPageState extends State<AppsPage> {
   }
 
   Widget _mark(String tooltip, IconData icon, Color color) => Padding(
-    padding: const EdgeInsets.only(left: 6),
+    padding: const EdgeInsets.only(left: 8),
     child: Tooltip(message: tooltip, child: Icon(icon, size: 16, color: color)),
   );
 
   Widget _sourceChip(String text) {
     final scheme = Theme.of(context).colorScheme;
     return Container(
-      margin: const EdgeInsets.only(left: 6),
-      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+      margin: const EdgeInsets.only(left: 8),
+      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 1),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(cornerSizes(context).control),
         border: Border.all(color: scheme.outlineVariant),
       ),
-      child: Text(text, style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
+      child: Text(text, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: scheme.onSurfaceVariant)),
     );
   }
 
@@ -522,8 +522,8 @@ class AppsPageState extends State<AppsPage> {
               children: [
                 Flexible(child: Text('${a['name']}', overflow: TextOverflow.ellipsis)),
                 if (version.isNotEmpty) ...[
-                  const SizedBox(width: 6),
-                  Text(version, style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+                  const SizedBox(width: 8),
+                  Text(version, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
                 ],
                 if (reasons.isNotEmpty) _mark(reasons.join('\n'), Icons.arrow_circle_up, marks.update),
                 if (a['state'] == 'partial')
@@ -627,7 +627,7 @@ class AppsPageState extends State<AppsPage> {
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
               child: Row(
                 children: [
                   // In a narrow window the title gives way to the toolbar's buttons.
@@ -720,10 +720,10 @@ class AppsPageState extends State<AppsPage> {
                             child: Text(tr('New, not in the catalog'), style: TextStyle(fontWeight: FontWeight.w700)),
                           ),
                           Padding(
-                            padding: const EdgeInsets.fromLTRB(12, 2, 12, 4),
+                            padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
                             child: Text(
                               tr('Found in the projects folder or the maprisma GitHub org. The Manager can install them once they have a catalog entry.'),
-                              style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
                             ),
                           ),
                           for (final n in shownNew) _newRow(n),

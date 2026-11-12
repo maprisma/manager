@@ -65,7 +65,7 @@ void main() {
     final core = w.core(desktop: desktop, extra: {'XDG_DATA_DIRS': '/usr/share', 'XDG_SESSION_TYPE': 'wayland'});
     final jobs = JobsModel(call(core), every: const Duration(milliseconds: 200));
     addTearDown(jobs.dispose);
-    await tester.pumpWidget(ManagerApp(core: call(core), look: const {'colors': _dark}, checkOnStart: false, jobs: jobs, screenshots: p.join(w.dir, 'shots')));
+    await tester.pumpWidget(ManagerApp(core: call(core), look: const {'colors': _dark}, checkOnStart: false, relook: null, jobs: jobs, screenshots: p.join(w.dir, 'shots')));
     await settle(tester);
   }
 

@@ -12,7 +12,9 @@ import 'package:maprisma_manager_core/maprisma_manager_core.dart';
 void main() {
   late Directory home;
   late Map<String, dynamic> settings;
+  late Map<String, dynamic> desktopLook;
   setUp(() {
+    desktopLook = {};
     configureLanguage('en');
     home = Directory.systemTemp.createTempSync('manager-shots-');
     settings = {'language': 'en', 'corners': 'windows', 'screenshot_key': true};
@@ -26,6 +28,8 @@ void main() {
       case 'settings.set':
         settings[params['key'] as String] = params['value'];
         return {...params};
+      case 'desktop.look':
+        return {...desktopLook};
       case 'apps.list':
         return {'apps': <Map<String, dynamic>>[], 'desktop': 'other'};
     }
@@ -38,7 +42,7 @@ void main() {
       : <String>[];
 
   Future<void> pump(WidgetTester tester, {Map<String, dynamic> look = const {}}) async {
-    await tester.pumpWidget(ManagerApp(core: core, look: look, checkOnStart: false, screenshots: shots()));
+    await tester.pumpWidget(ManagerApp(core: core, look: look, checkOnStart: false, relook: null, screenshots: shots()));
     await tester.pumpAndSettle();
   }
 
@@ -195,6 +199,34 @@ void main() {
       settings['corners'] = 'odd';
       await pump(tester, look: {'rounding': 9});
       expect(Theme.of(tester.element(find.byType(Scaffold).first)).extension<Corners>()!.radius, 9);
+    });
+  });
+
+  group('the look follows the desktop while the window is open', () {
+    ThemeData theme(WidgetTester tester) => Theme.of(tester.element(find.byType(Scaffold).first));
+
+    testWidgets('a Maprisma Theme change and Hyprland\'s rounding show within 5 s, and on focus', (tester) async {
+      desktopLook = {'desktop': 'hyprland', 'colors': {'background': '#231a13', 'accent': '#e78a4e', 'foreground': '#e8d5b7'}, 'rounding': 15};
+      await tester.pumpWidget(ManagerApp(core: core, look: {...desktopLook}, checkOnStart: false, screenshots: shots()));
+      await tester.pumpAndSettle();
+      expect(theme(tester).colorScheme.surface, const Color(0xff231a13));
+      expect(theme(tester).colorScheme.primary, const Color(0xffe78a4e));
+      expect(theme(tester).colorScheme.onPrimary, Colors.white);
+      expect(theme(tester).extension<Corners>()!.radius, 15);
+
+      desktopLook = {'desktop': 'hyprland', 'colors': {'background': '#1e1e2e', 'accent': '#89b4fa', 'foreground': '#cdd6f4'}, 'rounding': 4};
+      await tester.pump(const Duration(seconds: 6));
+      await tester.pumpAndSettle();
+      expect(theme(tester).colorScheme.surface, const Color(0xff1e1e2e));
+      expect(theme(tester).colorScheme.onPrimary, Colors.black);
+      expect(theme(tester).extension<Corners>()!.radius, 4);
+
+      desktopLook = {...desktopLook, 'rounding': 0};
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      await tester.pump(const Duration(seconds: 3));
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pumpAndSettle();
+      expect(theme(tester).extension<Corners>()!.radius, 0);
     });
   });
 }

@@ -143,7 +143,7 @@ class AiDialogState extends State<AiDialog> {
               for (final h in ready) CheckedPopupMenuItem(value: h['id'] as String, checked: h['id'] == helper, child: Text(helperName(h))),
             ],
             child: Container(
-              padding: const EdgeInsets.fromLTRB(10, 6, 6, 6),
+              padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
               decoration: BoxDecoration(color: scheme.surfaceContainerHighest, borderRadius: radius),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -176,7 +176,7 @@ class AiDialogState extends State<AiDialog> {
       );
     }
     if (s['kind'] == 'note') {
-      return Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Text('${s['text']}', style: TextStyle(color: scheme.onSurfaceVariant)));
+      return Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Text('${s['text']}', style: TextStyle(color: scheme.onSurfaceVariant)));
     }
     final what = switch (s['do']) {
       'update' => tr('Update'),
@@ -203,7 +203,7 @@ class AiDialogState extends State<AiDialog> {
         Expanded(child: Text('$what · $name — $state', maxLines: 2, overflow: TextOverflow.ellipsis)),
       ],
     );
-    if (detail.isEmpty) return Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: line);
+    if (detail.isEmpty) return Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: line);
     return ExpansionTile(
       dense: true,
       tilePadding: EdgeInsets.zero,
@@ -212,7 +212,7 @@ class AiDialogState extends State<AiDialog> {
       children: [
         Align(
           alignment: Alignment.centerLeft,
-          child: SelectableText(detail, style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
+          child: SelectableText(detail, style: Theme.of(context).textTheme.bodySmall?.copyWith(fontFamily: 'monospace')),
         ),
       ],
     );
@@ -227,7 +227,7 @@ class AiDialogState extends State<AiDialog> {
       title: Row(
         children: [
           Icon(Icons.auto_awesome, color: scheme.primary),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           Expanded(child: Text(tr('Let AI do the updates'))),
         ],
       ),
@@ -243,7 +243,7 @@ class AiDialogState extends State<AiDialog> {
                   const SizedBox(height: 8),
                   Text(
                     tr('The helper sees the apps\' status and the results, and tells the Manager what to do. The Manager only updates or reinstalls apps and fetches Flutter packages: no code changes, no push, no password. Maprisma and the Manager itself keep their own Update buttons.'),
-                    style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
                   ),
                   if (ready.isEmpty)
                     Padding(
@@ -264,7 +264,7 @@ class AiDialogState extends State<AiDialog> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 8),
                     if (running)
                       Row(
                         children: [

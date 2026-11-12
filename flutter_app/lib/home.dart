@@ -255,7 +255,7 @@ class ManagerHomeState extends State<ManagerHome> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(8, 6, 8, 0),
+            padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
             child: Row(
               children: [
                 IconButton(
@@ -356,7 +356,7 @@ class _Entry extends StatelessWidget {
                 Icon(ManagerHomeState.icon(section, on: on), size: 16, color: color),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 14, color: color, fontWeight: on ? FontWeight.w600 : FontWeight.w400)),
+                  child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: color, fontWeight: on ? FontWeight.w600 : FontWeight.w400)),
                 ),
               ],
             ),

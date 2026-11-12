@@ -136,7 +136,7 @@ class _IconPickerState extends State<IconPicker> {
                       Column(children: [
                         _svg(i['file'] as String?, 40),
                         const SizedBox(height: 4),
-                        Text(i['current'] == 'original' ? tr('now (original)') : tr('now (changed)'), style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
+                        Text(i['current'] == 'original' ? tr('now (original)') : tr('now (changed)'), style: Theme.of(context).textTheme.labelSmall?.copyWith(color: scheme.onSurfaceVariant)),
                       ]),
                       SizedBox(width: 12),
                       Icon(Icons.arrow_forward, color: scheme.onSurfaceVariant),
@@ -144,7 +144,7 @@ class _IconPickerState extends State<IconPicker> {
                       Column(children: [
                         pickedFile == null ? SizedBox(width: 40, height: 40, child: Icon(Icons.help_outline, color: scheme.outlineVariant)) : _svg(pickedFile, 40),
                         const SizedBox(height: 4),
-                        Text(tr('new'), style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
+                        Text(tr('new'), style: Theme.of(context).textTheme.labelSmall?.copyWith(color: scheme.onSurfaceVariant)),
                       ]),
                       SizedBox(width: 16),
                       Expanded(
@@ -159,17 +159,17 @@ class _IconPickerState extends State<IconPicker> {
                   ),
                   if (!changeable)
                     Padding(
-                      padding: const EdgeInsets.only(top: 10),
+                      padding: const EdgeInsets.only(top: 12),
                       child: Text(trf('It can\'t be changed: {0}', [i['why'] ?? tr('no icon of its own')]), style: TextStyle(color: scheme.error)),
                     ),
                   if (i['note'] != null)
                     Padding(
-                      padding: EdgeInsets.only(top: 10),
+                      padding: EdgeInsets.only(top: 12),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Icon(Icons.info_outline, size: 16, color: scheme.onSurfaceVariant),
-                          const SizedBox(width: 6),
+                          const SizedBox(width: 8),
                           // a long note stays short on narrow windows; the whole text in its tooltip
                           Expanded(
                             child: Tooltip(
@@ -177,14 +177,14 @@ class _IconPickerState extends State<IconPicker> {
                               child: Text(trf('Note: {0}', [uiLabel(i['note'])]),
                                   maxLines: width < 640 ? 3 : 5,
                                   overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(fontSize: 12.5, color: scheme.onSurfaceVariant)),
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
                             ),
                           ),
                         ],
                       ),
                     ),
                   if (error != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(error!, style: TextStyle(color: scheme.error))),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 12),
                   TextField(
                     key: ValueKey('icon-search'),
                     autofocus: true,
@@ -199,10 +199,10 @@ class _IconPickerState extends State<IconPicker> {
                       _debounce = Timer(const Duration(milliseconds: 250), _search);
                     },
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 8),
                   Text(
                     trf('{0} icons{1}', [i['total'], i['truncated'] == true ? trf(', the first {0} shown', [choices.length]) : '']),
-                    style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
                   ),
                   SizedBox(height: 4),
                   Expanded(

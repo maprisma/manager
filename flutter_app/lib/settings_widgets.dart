@@ -19,7 +19,7 @@ abstract final class SettingsMetrics {
 }
 
 /// COSMIC's title3: 24 px bold.
-TextStyle pageTitleStyle(BuildContext context) => TextStyle(fontSize: 24, height: 1.5, fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.onSurface);
+TextStyle pageTitleStyle(BuildContext context) => Theme.of(context).textTheme.headlineSmall!.copyWith(height: 1.5, fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.onSurface);
 
 /// The page's title, as COSMIC Settings shows it above the sections.
 class SettingsTitle extends StatelessWidget {
@@ -87,7 +87,7 @@ class SettingsSection extends StatelessWidget {
         if (title != null)
           Padding(
             padding: const EdgeInsets.only(left: 2, bottom: SettingsMetrics.headingGap),
-            child: Text(title!, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+            child: Text(title!, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
           ),
         Container(
           decoration: BoxDecoration(color: scheme.surfaceContainer, borderRadius: BorderRadius.circular(radius)),
@@ -108,7 +108,7 @@ class SettingsSection extends StatelessWidget {
         if (note != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(2, 6, 2, 0),
-            child: Text(note!, style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+            child: Text(note!, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
           ),
       ],
     );
@@ -143,7 +143,7 @@ class SettingsItem extends StatelessWidget {
                   if (description != null && description!.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 2),
-                      child: Text(description!, style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+                      child: Text(description!, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant)),
                     ),
                 ],
               ),

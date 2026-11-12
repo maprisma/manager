@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -17,12 +19,17 @@ import 'window.dart';
 /// Maprisma Manager's window: the list page in the desktop's colours (`desktop.look`, read as
 /// Maprisma Launcher reads them).
 class ManagerApp extends StatefulWidget {
-  const ManagerApp({super.key, required this.core, this.look = const {}, this.onRestart, this.checkOnStart = true, this.jobs, this.screenshots, this.settings = const {}, this.page});
+  const ManagerApp({super.key, required this.core, this.look = const {}, this.onRestart, this.checkOnStart = true, this.jobs, this.screenshots, this.settings = const {}, this.page, this.relook = const Duration(seconds: 5)});
 
   /// The page to open first (`--page <page>`, a Section's name); null: Apps.
   final String? page;
   final CoreCall core;
   final Map<String, dynamic> look;
+
+  /// How often the look is read again while the window is open (Maprisma Theme can change the
+  /// colours and Hyprland's rounding at any time; the core asks hyprctl at most every 30 s);
+  /// null reads it only on focus and on a platform light/dark change.
+  final Duration? relook;
   final VoidCallback? onRestart;
   final bool checkOnStart;
 
@@ -51,11 +58,13 @@ class _ManagerAppState extends State<ManagerApp> with WidgetsBindingObserver {
   final _messenger = GlobalKey<ScaffoldMessengerState>();
   late Map<String, dynamic> look = widget.look;
   late final JobsModel jobs = widget.jobs ?? JobsModel(widget.core);
+  Timer? _relook, _lookCooling;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    if (widget.relook case final every?) _relook = Timer.periodic(every, (_) => _reloadLook());
     HardwareKeyboard.instance.addHandler(_f12);
     _titlebar();
     _loadSettings();
@@ -77,6 +86,8 @@ class _ManagerAppState extends State<ManagerApp> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _relook?.cancel();
+    _lookCooling?.cancel();
     HardwareKeyboard.instance.removeHandler(_f12);
     if (widget.jobs == null) jobs.dispose();
     super.dispose();
@@ -85,10 +96,21 @@ class _ManagerAppState extends State<ManagerApp> with WidgetsBindingObserver {
   @override
   void didChangePlatformBrightness() => _reloadLook();
 
+  /// The window got the focus back: the theme may have changed meanwhile (at most every 2 s).
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
+    if (_lookCooling?.isActive != true) _reloadLook();
+  }
+
+  /// Reads desktop.look again and rebuilds only when it changed.
   Future<void> _reloadLook() async {
+    _lookCooling?.cancel();
+    _lookCooling = Timer(const Duration(seconds: 2), () {});
     try {
       final fresh = await widget.core('desktop.look');
-      if (mounted) setState(() => look = fresh);
+      if (!mounted || jsonEncode(fresh) == jsonEncode(look)) return;
+      setState(() => look = fresh);
       _titlebar();
     } on Object {
       // the old look stays

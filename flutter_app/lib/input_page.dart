@@ -263,7 +263,7 @@ class _InputState extends State<_Input> with RoutePage {
         ..._keyboard(d),
         ..._mouse(),
         if (d['touchpad'] == true) ..._touchpad(),
-        Text(tr('Saved in ~/.config/hypr/hypr-manager.lua, which Hyprland loads after your own config.'), style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+        Text(tr('Saved in ~/.config/hypr/hypr-manager.lua, which Hyprland loads after your own config.'), style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
       ],
     );
   }

@@ -334,4 +334,32 @@ void main() {
     expect(look['is_dark'], isTrue);
     expect((await w.core(desktop: 'X').call('desktop.look'))['colors'], isEmpty);
   });
+
+  test('desktop.look on Hyprland takes the windows\' rounding from hyprctl, asked at most every 30 s', () async {
+    // No hyprctl in the fake PATH: the rounding is unknown (the window falls back to 12).
+    expect((await w.core(desktop: 'Hyprland').call('desktop.look'))['rounding'], isNull);
+    final calls = p.join(w.dir, 'hyprctl-calls');
+    w.fake('hyprctl', 'echo "\$@" >> $calls\n/usr/bin/cat ${p.join(w.dir, 'rounding.json')}');
+    w.writeFile(p.join(w.dir, 'rounding.json'), '{"option": "decoration:rounding", "int": 15, "set": true }');
+    var now = DateTime(2026, 11, 12, 10);
+    final c = w.core(desktop: 'Hyprland', clock: () => now);
+    expect((await c.call('desktop.look'))['rounding'], 15);
+    expect(File(calls).readAsStringSync().trim(), '-j getoption decoration:rounding');
+    // Within 30 s the answer is reused; after it Hyprland is asked again.
+    w.writeFile(p.join(w.dir, 'rounding.json'), '{"option": "decoration:rounding", "int": 0, "set": true }');
+    now = now.add(const Duration(seconds: 10));
+    expect((await c.call('desktop.look'))['rounding'], 15);
+    now = now.add(const Duration(seconds: 31));
+    expect((await c.call('desktop.look'))['rounding'], 0);
+    expect(File(calls).readAsLinesSync(), hasLength(2));
+    // Out of range is clamped; no number or a failing hyprctl give null.
+    w.writeFile(p.join(w.dir, 'rounding.json'), '{"int": 200}');
+    expect((await w.core(desktop: 'Hyprland').call('desktop.look'))['rounding'], 64);
+    w.writeFile(p.join(w.dir, 'rounding.json'), '{"str": "x"}');
+    expect((await w.core(desktop: 'Hyprland').call('desktop.look'))['rounding'], isNull);
+    w.writeFile(p.join(w.dir, 'rounding.json'), 'not json');
+    expect((await w.core(desktop: 'Hyprland').call('desktop.look'))['rounding'], isNull);
+    w.fake('hyprctl', 'exit 1');
+    expect((await w.core(desktop: 'Hyprland').call('desktop.look'))['rounding'], isNull);
+  });
 }

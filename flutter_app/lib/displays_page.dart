@@ -186,7 +186,7 @@ class _DisplaysState extends State<_Displays> with RoutePage {
       actions: reloadActions(),
       children: [
         for (final m in all) _monitor(m, all, d),
-        Text(tr('Saved in ~/.config/hypr/hypr-manager.lua, which Hyprland loads after your own config.'), style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+        Text(tr('Saved in ~/.config/hypr/hypr-manager.lua, which Hyprland loads after your own config.'), style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
       ],
     );
   }
