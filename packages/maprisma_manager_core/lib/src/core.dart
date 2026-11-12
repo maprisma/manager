@@ -12,6 +12,7 @@ import 'discovery.dart';
 import 'icons.dart';
 import 'jobs.dart';
 import 'paths.dart';
+import 'power.dart';
 import 'procs.dart';
 import 'protocol.dart';
 import 'removal.dart';
@@ -151,6 +152,12 @@ final class CoreService {
       'icons.get': (params) => icons.get(params),
       'icons.set': (params) => icons.set(params),
       'icons.reset': (params) => icons.reset(params),
+      // The Power page: the desktop's own settings app, or Maprisma Shell's idle times and the
+      // power profile (power.dart).
+      'power.get': (_) => power.get(),
+      'power.set_idle': (params) => power.setIdle(params),
+      'power.set_profile': (params) => power.setProfile(params),
+      'power.open_native': (_) => power.openNative(),
       'apps.open': (params) async {
         final app = findApp(_app(params))!;
         final cmd = app.open;
@@ -190,6 +197,9 @@ final class CoreService {
 
   /// Let AI do the updates (ai.*).
   late final AiUpdater ai = AiUpdater(ctx, jobs, fetch: () => _fetch(const {}));
+
+  /// The Power page (power.*).
+  late final PowerService power = PowerService(ctx, jobs.startDetached);
 
   /// Bar icon changes (icons.*).
   late final IconService icons = IconService(ctx, jobs);

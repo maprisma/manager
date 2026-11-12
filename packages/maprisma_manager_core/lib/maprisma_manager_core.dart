@@ -22,6 +22,7 @@ export 'src/sources.dart';
 export 'src/jobs.dart';
 export 'src/ownership.dart';
 export 'src/paths.dart';
+export 'src/power.dart';
 export 'src/procs.dart';
 export 'src/protocol.dart';
 export 'src/receipts.dart';

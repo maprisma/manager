@@ -8,7 +8,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:maprisma_manager_core/maprisma_manager_core.dart'
     show tr, trf, configureLanguage, currentLanguage, languageNames, homeShort, saveScreenshot, saveScreenshotNote, screenshotFolder, screenshotNoteLimit;
 
-import 'apps_page.dart';
+import 'home.dart';
 import 'core_call.dart';
 import 'jobs_model.dart';
 import 'theme.dart';
@@ -178,7 +178,7 @@ class _ManagerAppState extends State<ManagerApp> with WidgetsBindingObserver {
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       debugShowCheckedModeBanner: false,
       theme: appTheme(MediaQuery.platformBrightnessOf(context), look['colors'] as Map? ?? {}, radius),
-      home: AppsPage(core: widget.core, jobs: jobs, onRestart: widget.onRestart, checkOnStart: widget.checkOnStart, onLanguageChanged: _loadSettings, languageSetting: languageSetting,
+      home: ManagerHome(core: widget.core, jobs: jobs, onRestart: widget.onRestart, checkOnStart: widget.checkOnStart, onLanguageChanged: _loadSettings, languageSetting: languageSetting,
           cornersSetting: cornersSetting, screenshotKey: screenshotKey, onSettingsChanged: _loadSettings),
     );
   }

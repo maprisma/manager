@@ -11,7 +11,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:maprisma_manager/app.dart';
 import 'package:maprisma_manager/app_facts.dart';
-import 'package:maprisma_manager/apps_page.dart';
 import 'package:maprisma_manager/core_call.dart';
 import 'package:maprisma_manager/jobs_model.dart';
 import 'package:maprisma_manager_core/maprisma_manager_core.dart';
@@ -230,7 +229,7 @@ void main() {
   for (final width in [900.0, 460.0]) {
     testWidgets('the list at ${width.round()} px: sections, marks, source chips, the ⋮ menu, the filter and Esc', (tester) async {
       await open(tester, width, height: width > 600 ? 1250 : 1500);
-      expect(find.text('MAPRISMA APPS'), findsOneWidget);
+      expect(find.byKey(const ValueKey('apps-title')), findsOneWidget);
       for (final s in ['In the bar', 'Not in the bar', 'No bar icon', 'Not installed']) {
         expect(find.text(s), findsOneWidget, reason: s);
       }
@@ -341,9 +340,13 @@ void main() {
   for (final width in [900.0, 460.0]) {
     testWidgets('the bar editor at ${width.round()} px: real order, keyboard moves, a concurrent edit with Reload', (tester) async {
       await open(tester, width);
-      await tester.tap(find.byTooltip('Bar editor (Ctrl+B)'));
+      await tester.tap(find.byKey(ValueKey(width < 648 ? 'nav-toggle' : 'nav-bar')));
+      if (width < 648) {
+        await settle(tester, 2);
+        await tester.tap(find.byKey(const ValueKey('nav-bar')));
+      }
       await settle(tester);
-      expect(find.text('BAR'), findsOneWidget);
+      expect(find.byKey(const ValueKey('bar-page')), findsOneWidget);
       final left = find.byKey(const ValueKey('area-left'));
       expect(find.descendant(of: left, matching: find.text('Workspaces')), findsOneWidget);
       expect(find.descendant(of: left, matching: find.text('Launcher')), findsOneWidget);
@@ -401,7 +404,7 @@ void main() {
       // Esc goes back to the list
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await settle(tester, 3);
-      expect(find.text('MAPRISMA APPS'), findsOneWidget);
+      expect(find.byKey(const ValueKey('apps-title')), findsOneWidget);
     });
 
     testWidgets('the icon picker at ${width.round()} px: the note, search, preview, apply, reset', (tester) async {
@@ -466,14 +469,12 @@ void main() {
 
   testWidgets('Let AI do the updates: off without a helper; on, the AI button, the helper row and its steps', (tester) async {
     await open(tester, 900);
-    await tester.tap(find.byTooltip('Settings'));
+    await tester.tap(find.byKey(const ValueKey('nav-settings')));
     await settle(tester, 2);
     expect(find.text('No AI helper is installed and signed in'), findsOneWidget);
-    final off = tester.widget<CheckedPopupMenuItem<String>>(find.byKey(const ValueKey('ai-updates')));
-    expect(off.enabled, isFalse);
-    Navigator.of(tester.element(find.byKey(const ValueKey('ai-updates')))).pop();
-    await settle(tester, 4);
-    expect(find.byKey(const ValueKey('ai-updates')), findsNothing);
+    expect(tester.widget<Switch>(find.descendant(of: find.byKey(const ValueKey('ai-updates')), matching: find.byType(Switch))).onChanged, isNull);
+    await tester.tap(find.byKey(const ValueKey('nav-apps')));
+    await settle(tester, 2);
     expect(find.byKey(const ValueKey('ai-button')), findsNothing);
 
     // a signed-in Claude Code; the helper answers from the test
@@ -484,15 +485,14 @@ void main() {
     core.ai.ask = (helper, prompt) async => ++round == 1
         ? jsonEncode({'say': 'The WLAN Monitor needs its packages.', 'actions': [{'do': 'pub_get', 'app': 'wlan'}, {'do': 'update', 'app': 'manager'}], 'done': false})
         : jsonEncode({'say': 'All done.', 'actions': [], 'done': true});
-    await tester.runAsync(() => tester.state<AppsPageState>(find.byType(AppsPage)).reload());
-    await settle(tester, 3);
-    await tester.tap(find.byTooltip('Settings'));
+    await tester.tap(find.byKey(const ValueKey('nav-settings')));
     await settle(tester, 4);
     expect(find.text('Claude Code'), findsOneWidget);
-    expect(tester.widget<CheckedPopupMenuItem<String>>(find.byKey(const ValueKey('ai-updates'))).enabled, isTrue);
     await tester.tap(find.byKey(const ValueKey('ai-updates')));
     await settle(tester, 3);
     expect(Settings.load(w.paths).values['ai_updates'], isTrue);
+    await tester.tap(find.byKey(const ValueKey('nav-apps')));
+    await settle(tester, 3);
     expect(find.byKey(const ValueKey('ai-button')), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('ai-button')));

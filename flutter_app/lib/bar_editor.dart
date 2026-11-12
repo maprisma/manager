@@ -8,6 +8,7 @@ import 'app_facts.dart';
 import 'app_icon.dart';
 import 'backend.dart' show ServiceError;
 import 'core_call.dart';
+import 'settings_widgets.dart' show pageTitleStyle;
 import 'theme.dart';
 
 const _areas = ['left', 'center', 'right'];
@@ -18,8 +19,12 @@ const _areas = ['left', 'center', 'right'];
 /// above or below, Delete takes one of ours out. Writes with `bar.move` / `bar.place` / `bar.remove`, each
 /// with the revision it was read at: a concurrent edit (`changed`) is shown with Reload.
 class BarEditorPage extends StatefulWidget {
-  const BarEditorPage({super.key, required this.core, required this.apps});
+  const BarEditorPage({super.key, required this.core, required this.apps, this.embedded = false, this.onLeave});
   final CoreCall core;
+
+  /// In the sidebar's Bar page: no Back button; Esc calls [onLeave] (back to the list).
+  final bool embedded;
+  final VoidCallback? onLeave;
   final List<App> apps;
   @override
   State<BarEditorPage> createState() => BarEditorPageState();
@@ -389,7 +394,7 @@ class BarEditorPageState extends State<BarEditorPage> {
     }
     return Scaffold(
       body: CallbackShortcuts(
-        bindings: {const SingleActivator(LogicalKeyboardKey.escape): () => Navigator.maybePop(context)},
+        bindings: {const SingleActivator(LogicalKeyboardKey.escape): () => widget.embedded ? widget.onLeave?.call() : Navigator.maybePop(context)},
         child: Focus(
           autofocus: true,
           child: Column(
@@ -398,15 +403,19 @@ class BarEditorPageState extends State<BarEditorPage> {
                 padding: const EdgeInsets.fromLTRB(8, 10, 16, 4),
                 child: Row(
                   children: [
-                    TextButton.icon(
-                      onPressed: () => Navigator.maybePop(context),
-                      icon: const Icon(Icons.arrow_back, size: 18),
-                      label: Text(tr('Back')),
-                    ),
-                    const Spacer(),
+                    if (!widget.embedded)
+                      TextButton.icon(
+                        onPressed: () => Navigator.maybePop(context),
+                        icon: const Icon(Icons.arrow_back, size: 18),
+                        label: Text(tr('Back')),
+                      ),
+                    if (widget.embedded)
+                      Expanded(child: Padding(padding: const EdgeInsets.only(left: 8), child: Text(tr('Bar'), maxLines: 1, overflow: TextOverflow.ellipsis, style: pageTitleStyle(context))))
+                    else
+                      const Spacer(),
                     if (working) Padding(padding: EdgeInsets.only(right: 8), child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))),
                     IconButton(tooltip: tr('Reload'), onPressed: load, icon: Icon(Icons.refresh)),
-                    Text(tr('BAR'), style: TextStyle(letterSpacing: 1.2, fontWeight: FontWeight.w700, color: scheme.onSurfaceVariant)),
+                    if (!widget.embedded) Text(tr('BAR'), style: TextStyle(letterSpacing: 1.2, fontWeight: FontWeight.w700, color: scheme.onSurfaceVariant)),
                   ],
                 ),
               ),

@@ -17,8 +17,9 @@ void main() {
       setting = code;
       await tester.pumpWidget(ManagerApp(key: ValueKey(code), core: core, checkOnStart: false));
       await tester.pumpAndSettle();
-      expect(find.text(tr('MAPRISMA APPS')), findsOneWidget);
-      final context = tester.element(find.byType(Scaffold));
+      expect(find.byKey(const ValueKey('apps-title')), findsOneWidget);
+      expect(find.text(tr('Apps')), findsWidgets);
+      final context = tester.element(find.byType(Scaffold).first);
       expect(Localizations.localeOf(context).languageCode, code);
       expect(MaterialLocalizations.of(context).cancelButtonLabel, isNotEmpty);
       expect(tester.takeException(), isNull);
@@ -37,12 +38,15 @@ void main() {
     }
     await tester.pumpWidget(ManagerApp(core: core, checkOnStart: false));
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Language'));
+    await tester.tap(find.byKey(const ValueKey('nav-settings')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Deutsch'));
+    await tester.tap(find.byKey(const ValueKey('settings-language')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Deutsch').last);
     await tester.pumpAndSettle();
     expect(setting, 'de');
-    expect(find.byTooltip('Sprache'), findsOneWidget);
+    expect(find.text('Sprache'), findsOneWidget);
+    expect(find.text('Einstellungen'), findsWidgets);
     expect(currentLanguage, 'de');
     expect(tester.takeException(), isNull);
   });

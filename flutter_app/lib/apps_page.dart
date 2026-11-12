@@ -1,5 +1,4 @@
-import 'dart:io';
-import 'package:maprisma_manager_core/maprisma_manager_core.dart' show tr, trf, languageNames, systemLanguage;
+import 'package:maprisma_manager_core/maprisma_manager_core.dart' show tr, trf;
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -16,20 +15,20 @@ import 'icon_picker.dart';
 import 'job_sheet.dart';
 import 'jobs_model.dart';
 import 'remove_dialog.dart';
+import 'settings_widgets.dart' show pageTitleStyle;
 import 'theme.dart';
 
 /// The Maprisma apps in one filterable list, as Maprisma Launcher's Plugins page lists Omarchy's
 /// plugins: sections by bar state, a ⋮ menu per app (also on right-click), update marks with the
 /// number of new commits, and the log sheet of the jobs at the bottom.
 class AppsPage extends StatefulWidget {
-  const AppsPage({super.key, required this.core, required this.jobs, this.onRestart, this.checkOnStart = true, this.onLanguageChanged, this.languageSetting = 'auto', this.cornersSetting = 'windows', this.screenshotKey = true, this.onSettingsChanged});
-  final Future<void> Function()? onLanguageChanged;
-  final String languageSetting;
+  const AppsPage({super.key, required this.core, required this.jobs, this.onRestart, this.checkOnStart = true, this.onOpenBar, this.onDesktop});
 
-  /// The settings menu: Corners and F12 saves a screenshot; [onSettingsChanged] reloads them.
-  final String cornersSetting;
-  final bool screenshotKey;
-  final Future<void> Function()? onSettingsChanged;
+  /// The bar button and Ctrl+B open the sidebar's Bar page (null: the bar editor as a page of its own).
+  final VoidCallback? onOpenBar;
+
+  /// The desktop apps.list names (the sidebar has no Bar page on 'other').
+  final ValueChanged<String>? onDesktop;
   final CoreCall core;
   final JobsModel jobs;
 
@@ -100,6 +99,7 @@ class AppsPageState extends State<AppsPage> {
         loading = false;
         error = null;
       });
+      widget.onDesktop?.call(desktop);
       unawaited(_loadIcons());
       unawaited(_loadAi());
     } on ServiceError catch (e) {
@@ -248,6 +248,7 @@ class AppsPageState extends State<AppsPage> {
   }
 
   Future<void> openBarEditor() async {
+    if (widget.onOpenBar != null) return widget.onOpenBar!();
     await Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => BarEditorPage(core: widget.core, apps: apps)));
     await _load();
   }
@@ -632,100 +633,12 @@ class AppsPageState extends State<AppsPage> {
                   // In a narrow window the title gives way to the toolbar's buttons.
                   Expanded(
                     child: Text(
-                      tr('MAPRISMA APPS'),
+                      tr('Apps'),
+                      key: const ValueKey('apps-title'),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(letterSpacing: 1.2, fontWeight: FontWeight.w700, color: scheme.onSurfaceVariant),
+                      style: pageTitleStyle(context),
                     ),
-                  ),
-                  PopupMenuButton<String>(
-                    tooltip: tr('Language'),
-                    icon: Icon(Icons.language),
-                    itemBuilder: (_) => [
-                      CheckedPopupMenuItem(value: 'auto', checked: widget.languageSetting == 'auto', child: Text(trf('System ({0})', [languageNames[systemLanguage(Platform.environment)]]))),
-                      for (final entry in languageNames.entries)
-                        CheckedPopupMenuItem(value: entry.key, checked: entry.key == widget.languageSetting, child: Text(entry.value)),
-                    ],
-                    onSelected: (value) async {
-                      try {
-                        await widget.core('settings.language', {'language': value});
-                        await widget.onLanguageChanged?.call();
-                        await _load();
-                      } on Object {
-                        if (mounted) tell(tr('Could not save the language setting.'));
-                      }
-                    },
-                  ),
-                  PopupMenuButton<String>(
-                    key: const ValueKey('settings-menu'),
-                    tooltip: tr('Settings'),
-                    icon: Icon(Icons.tune),
-                    itemBuilder: (_) => [
-                      PopupMenuItem<String>(
-                        enabled: false,
-                        height: 32,
-                        child: Text(tr('Corners'), style: TextStyle(fontWeight: FontWeight.w700, color: scheme.onSurfaceVariant)),
-                      ),
-                      for (final (value, label) in [
-                        ('windows', tr('Like windows')),
-                        ('slight', trf('Slightly rounded ({0} px)', [slightRadius])),
-                        ('rounded', trf('Rounded ({0} px)', [roundedRadius])),
-                        ('square', tr('Square')),
-                      ])
-                        CheckedPopupMenuItem(value: 'corners:$value', checked: widget.cornersSetting == value, child: Text(label)),
-                      const PopupMenuDivider(),
-                      CheckedPopupMenuItem(
-                        value: 'screenshot_key',
-                        checked: widget.screenshotKey,
-                        child: Tooltip(
-                          message: tr('A picture of this window goes to ~/Pictures/Maprisma Manager; then you can add a note about what is wrong, saved next to it.'),
-                          child: Text(tr('F12 saves a screenshot')),
-                        ),
-                      ),
-                      const PopupMenuDivider(),
-                      PopupMenuItem<String>(
-                        enabled: false,
-                        height: 32,
-                        child: Text(tr('AI'), style: TextStyle(fontWeight: FontWeight.w700, color: scheme.onSurfaceVariant)),
-                      ),
-                      CheckedPopupMenuItem(
-                        key: const ValueKey('ai-updates'),
-                        value: 'ai_updates',
-                        checked: ai['enabled'] == true,
-                        enabled: aiReady.isNotEmpty || ai['enabled'] == true,
-                        child: Tooltip(
-                          message: tr('An installed, signed-in AI helper (Claude Code, Codex, pi, Hermes or a local model) decides what to update; the Manager checks each step and does it. Off until you turn it on; it runs only when you click the AI button.'),
-                          child: Text(tr('Let AI do the updates')),
-                        ),
-                      ),
-                      if (aiReady.isEmpty)
-                        PopupMenuItem<String>(enabled: false, height: 32, child: Text(tr('No AI helper is installed and signed in'), style: TextStyle(fontSize: 12)))
-                      else ...[
-                        PopupMenuItem<String>(
-                          enabled: false,
-                          height: 32,
-                          child: Text(tr('Helper'), style: TextStyle(fontWeight: FontWeight.w700, color: scheme.onSurfaceVariant)),
-                        ),
-                        for (final h in aiReady)
-                          CheckedPopupMenuItem(value: 'ai_helper:${h['id']}', checked: h['id'] == ai['chosen'], child: Text(AiDialogState.helperName(h))),
-                      ],
-                    ],
-                    onSelected: (choice) async {
-                      final (key, Object value) = choice == 'screenshot_key'
-                          ? ('screenshot_key', !widget.screenshotKey)
-                          : choice == 'ai_updates'
-                          ? ('ai_updates', ai['enabled'] != true)
-                          : choice.startsWith('ai_helper:')
-                          ? ('ai_helper', choice.substring('ai_helper:'.length))
-                          : ('corners', choice.substring('corners:'.length));
-                      try {
-                        await widget.core('settings.set', {'key': key, 'value': value});
-                        if (key.startsWith('ai_')) await _loadAi();
-                        await widget.onSettingsChanged?.call();
-                      } on Object {
-                        if (mounted) tell(tr('Could not save the setting.'));
-                      }
-                    },
                   ),
                   if (aiOn)
                     IconButton(
@@ -746,12 +659,6 @@ class AppsPageState extends State<AppsPage> {
                         ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
                         : const Icon(Icons.refresh),
                   ),
-                  if (desktop != 'other')
-                    IconButton(
-                      tooltip: tr('Bar editor (Ctrl+B)'),
-                      onPressed: openBarEditor,
-                      icon: Icon(Icons.view_week_outlined),
-                    ),
                   IconButton(
                     tooltip: tr('Job log (Ctrl+L)'),
                     isSelected: sheet,

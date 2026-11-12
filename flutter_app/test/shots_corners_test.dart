@@ -107,8 +107,8 @@ void main() {
       await press(tester, ctrl: true);
       expect(find.text('Screenshot saved'), findsNothing);
       expect(files(), hasLength(1));
-      // Switched off through the settings menu.
-      await tester.tap(find.byTooltip('Settings'));
+      // Switched off on the Settings page.
+      await tester.tap(find.byKey(const ValueKey('nav-settings')));
       await tester.pumpAndSettle();
       await tester.tap(find.text('F12 saves a screenshot'));
       await tester.pumpAndSettle();
@@ -172,16 +172,18 @@ void main() {
       expect(r(square.textButtonTheme.style!.shape!.resolve({})), 0);
     });
 
-    testWidgets('the settings menu: four choices; Slightly rounded makes the window 6 px', (tester) async {
+    testWidgets('the Settings page: four corner choices; Slightly rounded makes the window 6 px', (tester) async {
       await pump(tester, look: {'rounding': 10});
-      Corners sizes() => Theme.of(tester.element(find.byType(Scaffold))).extension<Corners>()!;
+      Corners sizes() => Theme.of(tester.element(find.byType(Scaffold).first)).extension<Corners>()!;
       expect(sizes().radius, 10); // like windows
-      await tester.tap(find.byTooltip('Settings'));
+      await tester.tap(find.byKey(const ValueKey('nav-settings')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('settings-corners')));
       await tester.pumpAndSettle();
       for (final label in ['Like windows', 'Slightly rounded (6 px)', 'Rounded (12 px)', 'Square']) {
-        expect(find.text(label), findsOneWidget);
+        expect(find.text(label), findsWidgets);
       }
-      await tester.tap(find.ancestor(of: find.text('Slightly rounded (6 px)'), matching: find.byType(CheckedPopupMenuItem<String>)));
+      await tester.tap(find.text('Slightly rounded (6 px)').last);
       await tester.pumpAndSettle();
       expect(settings['corners'], 'slight');
       expect(sizes().radius, 6);
@@ -192,7 +194,7 @@ void main() {
     testWidgets('an unknown stored value counts as like windows', (tester) async {
       settings['corners'] = 'odd';
       await pump(tester, look: {'rounding': 9});
-      expect(Theme.of(tester.element(find.byType(Scaffold))).extension<Corners>()!.radius, 9);
+      expect(Theme.of(tester.element(find.byType(Scaffold).first)).extension<Corners>()!.radius, 9);
     });
   });
 }
