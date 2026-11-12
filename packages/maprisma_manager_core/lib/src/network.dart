@@ -66,7 +66,7 @@ final class NetworkService {
     var visible = <List<String>>[];
     if (hasWifi && wifiOn) {
       try {
-        visible = await _rows(['-f', 'IN-USE,SSID,SECURITY,SIGNAL', 'device', 'wifi', 'list', '--rescan', rescan ? 'yes' : 'auto'], timeout: const Duration(seconds: 30));
+        visible = await _rows(['-f', 'IN-USE,SSID,SECURITY,SIGNAL', 'device', 'wifi', 'list', '--rescan', rescan ? 'yes' : 'no'], timeout: const Duration(seconds: 30));
       } on RouteError {
         visible = const [];
       }
@@ -145,7 +145,8 @@ final class NetworkService {
   Future<Map<String, dynamic>> connect(Map<String, dynamic> params) async {
     _need();
     final ssid = params['ssid'], password = params['password'];
-    if (ssid is! String || ssid.isEmpty || ssid.length > 32 || ssid.contains('\n')) throw RouteError('bad_params', 'ssid');
+    // A name starting with '-' would reach nmcli as an option.
+    if (ssid is! String || ssid.isEmpty || ssid.length > 32 || ssid.contains('\n') || ssid.startsWith('-')) throw RouteError('bad_params', 'ssid');
     if (password != null && (password is! String || password.length < 8 || password.length > 63 || password.contains('\n'))) {
       throw RouteError('bad_params', tr('The password needs 8 to 63 characters'));
     }

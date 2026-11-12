@@ -67,6 +67,7 @@ void main() {
       ('network.up', {'uuid': '--help'}),
       ('network.connect', {'ssid': 'x', 'password': 'short'}),
       ('network.connect', {'ssid': ''}),
+      ('network.connect', {'ssid': '--help'}),
     ]) {
       await expectLater(core.call(route, params), throwsA(isA<RouteError>()), reason: '$route $params');
     }

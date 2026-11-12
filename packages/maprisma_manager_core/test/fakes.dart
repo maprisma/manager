@@ -90,7 +90,7 @@ case "\$*" in
   "-t radio wifi") echo enabled ;;
   "-t -f DEVICE,TYPE,STATE,CONNECTION device status") printf 'wlan0:wifi:connected:Home\\\\:Net\\nenp16s0:ethernet:unavailable:\\n' ;;
   "-t -f NAME,UUID,TYPE,ACTIVE,DEVICE connection show") printf 'Home\\\\:Net:$uuidHome:802-11-wireless:yes:wlan0\\nWired connection 1:$uuidWired:802-3-ethernet:no:\\nWork:$uuidVpn:wireguard:no:\\nlo:x:loopback:yes:lo\\n' ;;
-  "-t -f IN-USE,SSID,SECURITY,SIGNAL device wifi list --rescan auto"|"-t -f IN-USE,SSID,SECURITY,SIGNAL device wifi list --rescan yes")
+  "-t -f IN-USE,SSID,SECURITY,SIGNAL device wifi list --rescan no"|"-t -f IN-USE,SSID,SECURITY,SIGNAL device wifi list --rescan yes")
     printf '*:Home\\\\:Net:WPA2:70\\n :Home\\\\:Net:WPA3:40\\n :Cafe::55\\n ::WPA2:30\\n :Neighbour:WPA2:80\\n' ;;
   "-t -f connection.uuid connection add"*) echo "connection.uuid:$uuidNew" ;;
   "connection edit uuid "*) while IFS= read -r l; do echo "stdin: \$l" >> "\$HOME/nmcli.log"; done ;;
