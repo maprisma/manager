@@ -38,6 +38,7 @@ import 'kde_remove.dart';
 import 'ownership.dart';
 import 'paths.dart';
 import 'procs.dart';
+import 'pub_refresh.dart';
 import 'receipts.dart';
 import 'removal.dart';
 import 'run.dart' show isExecutableFile;
@@ -1363,6 +1364,55 @@ final class JobEngine {
     return out;
   }
 
+  /// `pub get` with the Manager's Flutter in every package of [folder] whose package cache
+  /// points at another or a missing Flutter (or at package folders that are gone): the build
+  /// would fail on it and not fetch again by itself. A failed fetch is only noted; the build
+  /// then tells what is wrong.
+  Future<void> _refreshPackages(_Run r, Component c, String folder) async {
+    final flutter = ctx.flutter().exe;
+    if (flutter == null) return;
+    final root = flutterRootOf(flutter);
+    final dart = p.join(p.dirname(flutter), 'dart');
+    for (final dir in dartPackages(folder)) {
+      if (isWorkspaceMember(dir)) continue;
+      final why = stalePackageCache(dir, root);
+      if (why == null) continue;
+      _checkCancel(r);
+      final rel = dir == folder ? '.' : p.relative(dir, from: folder);
+      final exe = usesFlutter(dir) || !File(dart).existsSync() ? flutter : dart;
+      r.log.note(trf('{0}: the package cache doesn\'t fit ({1}); {2} pub get', [rel, why, p.basename(exe)]));
+      final setsid = ctx.runner.which('setsid') ?? '/usr/bin/setsid';
+      final Process proc;
+      try {
+        proc = await Process.start(setsid, [exe, 'pub', 'get'],
+            workingDirectory: dir, environment: scriptEnv(c, job: r.id), includeParentEnvironment: false);
+      } on ProcessException catch (e) {
+        r.log.note(trf('{0}: pub get could not start: {1}', [rel, e.message]));
+        continue;
+      }
+      unawaited(proc.stdin.close().catchError((_) {}));
+      final outDone = proc.stdout.listen(r.log.add).asFuture<void>().catchError((_) {});
+      final errDone = proc.stderr.listen(r.log.add).asFuture<void>().catchError((_) {});
+      int? code;
+      unawaited(proc.exitCode.then((v) => code = v));
+      final end = DateTime.now().add(const Duration(minutes: 5));
+      while (code == null) {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        if (code != null) break;
+        if (r.cancelRequested || DateTime.now().isAfter(end)) {
+          // setsid execs pub: its pid is the group's
+          await Process.run('kill', ['-KILL', '--', '-${proc.pid}']).catchError((_) => ProcessResult(0, 1, '', ''));
+          proc.kill(ProcessSignal.sigkill);
+          await proc.exitCode;
+          break;
+        }
+      }
+      await Future.wait([outDone, errDone]).timeout(const Duration(seconds: 2), onTimeout: () => []);
+      _checkCancel(r);
+      r.log.note(code == 0 ? trf('{0}: pub get ok', [rel]) : trf('{0}: pub get failed ({1})', [rel, '${code ?? tr('no answer in time')}']));
+    }
+  }
+
   /// Runs [c]'s install command (or [argv] in [cwd] with [extraEnv]) as the job's script.
   Future<void> _runScript(_Run r, Component c, {List<String>? argv, String? cwd, Map<String, String> extraEnv = const {}}) async {
     if (!r.committed) {
@@ -1377,6 +1427,7 @@ final class JobEngine {
     final setsid = ctx.runner.which('setsid') ?? '/usr/bin/setsid';
     final options = r.job['options'] as Map? ?? const {};
     argv ??= [...c.install, for (final f in c.flags.entries) if (options[f.key] == true) f.value];
+    if (!r.committed && cwd == null) await _refreshPackages(r, c, folder);
     r.log.note(trf('\$ {0}   (in {1})', [argv.join(' '), folder]));
     r.recent.clear();
     final Process proc;

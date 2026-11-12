@@ -777,7 +777,15 @@ const catalogs = <String, Map<String, String>>{
     "bar.json is not readable: {0}": "bar.json is not readable: {0}",
     "Maprisma Bar's layout changed since it was read": "Maprisma Bar's layout changed since it was read",
     "the bar's own entries can be moved, not taken out": "the bar's own entries can be moved, not taken out",
-    "Other tray icons": "Other tray icons"
+    "Other tray icons": "Other tray icons",
+    "the package cache is not readable": "the package cache is not readable",
+    "it points at a Flutter that is gone: {0}": "it points at a Flutter that is gone: {0}",
+    "it was made with another Flutter: {0}": "it was made with another Flutter: {0}",
+    "a package folder is gone: {0}": "a package folder is gone: {0}",
+    "{0}: the package cache doesn't fit ({1}); {2} pub get": "{0}: the package cache doesn't fit ({1}); {2} pub get",
+    "{0}: pub get could not start: {1}": "{0}: pub get could not start: {1}",
+    "{0}: pub get ok": "{0}: pub get ok",
+    "{0}: pub get failed ({1})": "{0}: pub get failed ({1})"
   },
   "de": {
     "Waiting": "Wartet",
@@ -1556,7 +1564,15 @@ const catalogs = <String, Map<String, String>>{
     "bar.json is not readable: {0}": "bar.json ist nicht lesbar: {0}",
     "Maprisma Bar's layout changed since it was read": "Die Anordnung der Maprisma Bar hat sich seit dem Lesen geändert",
     "the bar's own entries can be moved, not taken out": "die eigenen Einträge der Leiste lassen sich verschieben, nicht herausnehmen",
-    "Other tray icons": "Andere Tray-Symbole"
+    "Other tray icons": "Andere Tray-Symbole",
+    "the package cache is not readable": "der Paket-Cache ist nicht lesbar",
+    "it points at a Flutter that is gone: {0}": "er verweist auf ein Flutter, das nicht mehr da ist: {0}",
+    "it was made with another Flutter: {0}": "er wurde mit einem anderen Flutter erstellt: {0}",
+    "a package folder is gone: {0}": "ein Paketordner fehlt: {0}",
+    "{0}: the package cache doesn't fit ({1}); {2} pub get": "{0}: der Paket-Cache passt nicht ({1}); {2} pub get",
+    "{0}: pub get could not start: {1}": "{0}: pub get ließ sich nicht starten: {1}",
+    "{0}: pub get ok": "{0}: pub get ok",
+    "{0}: pub get failed ({1})": "{0}: pub get fehlgeschlagen ({1})"
   },
   "fr": {
     "Waiting": "En attente",
@@ -2335,7 +2351,15 @@ const catalogs = <String, Map<String, String>>{
     "bar.json is not readable: {0}": "bar.json est illisible : {0}",
     "Maprisma Bar's layout changed since it was read": "La disposition de Maprisma Bar a changé depuis sa lecture",
     "the bar's own entries can be moved, not taken out": "les éléments propres à la barre peuvent être déplacés, pas retirés",
-    "Other tray icons": "Autres icônes de la zone de notification"
+    "Other tray icons": "Autres icônes de la zone de notification",
+    "the package cache is not readable": "le cache des paquets est illisible",
+    "it points at a Flutter that is gone: {0}": "il pointe vers un Flutter qui n'existe plus : {0}",
+    "it was made with another Flutter: {0}": "il a été créé avec un autre Flutter : {0}",
+    "a package folder is gone: {0}": "un dossier de paquet a disparu : {0}",
+    "{0}: the package cache doesn't fit ({1}); {2} pub get": "{0} : le cache des paquets ne correspond pas ({1}) ; {2} pub get",
+    "{0}: pub get could not start: {1}": "{0} : pub get n'a pas pu démarrer : {1}",
+    "{0}: pub get ok": "{0} : pub get ok",
+    "{0}: pub get failed ({1})": "{0} : échec de pub get ({1})"
   },
   "es": {
     "Waiting": "En espera",
@@ -3114,7 +3138,15 @@ const catalogs = <String, Map<String, String>>{
     "bar.json is not readable: {0}": "bar.json no se puede leer: {0}",
     "Maprisma Bar's layout changed since it was read": "La disposición de Maprisma Bar cambió desde que se leyó",
     "the bar's own entries can be moved, not taken out": "los elementos propios de la barra se pueden mover, no quitar",
-    "Other tray icons": "Otros iconos de la bandeja"
+    "Other tray icons": "Otros iconos de la bandeja",
+    "the package cache is not readable": "la caché de paquetes no se puede leer",
+    "it points at a Flutter that is gone: {0}": "apunta a un Flutter que ya no existe: {0}",
+    "it was made with another Flutter: {0}": "se creó con otro Flutter: {0}",
+    "a package folder is gone: {0}": "falta una carpeta de paquete: {0}",
+    "{0}: the package cache doesn't fit ({1}); {2} pub get": "{0}: la caché de paquetes no encaja ({1}); {2} pub get",
+    "{0}: pub get could not start: {1}": "{0}: no se pudo iniciar pub get: {1}",
+    "{0}: pub get ok": "{0}: pub get ok",
+    "{0}: pub get failed ({1})": "{0}: pub get falló ({1})"
   },
   "it": {
     "Waiting": "In attesa",
@@ -3893,7 +3925,15 @@ const catalogs = <String, Map<String, String>>{
     "bar.json is not readable: {0}": "bar.json non è leggibile: {0}",
     "Maprisma Bar's layout changed since it was read": "La disposizione di Maprisma Bar è cambiata da quando è stata letta",
     "the bar's own entries can be moved, not taken out": "gli elementi propri della barra si possono spostare, non togliere",
-    "Other tray icons": "Altre icone dell'area di notifica"
+    "Other tray icons": "Altre icone dell'area di notifica",
+    "the package cache is not readable": "la cache dei pacchetti non è leggibile",
+    "it points at a Flutter that is gone: {0}": "punta a un Flutter che non esiste più: {0}",
+    "it was made with another Flutter: {0}": "è stata creata con un altro Flutter: {0}",
+    "a package folder is gone: {0}": "manca una cartella di pacchetto: {0}",
+    "{0}: the package cache doesn't fit ({1}); {2} pub get": "{0}: la cache dei pacchetti non corrisponde ({1}); {2} pub get",
+    "{0}: pub get could not start: {1}": "{0}: impossibile avviare pub get: {1}",
+    "{0}: pub get ok": "{0}: pub get ok",
+    "{0}: pub get failed ({1})": "{0}: pub get non riuscito ({1})"
   },
   "pt": {
     "Waiting": "Em espera",
@@ -4672,7 +4712,15 @@ const catalogs = <String, Map<String, String>>{
     "bar.json is not readable: {0}": "bar.json não pode ser lido: {0}",
     "Maprisma Bar's layout changed since it was read": "A disposição da Maprisma Bar mudou desde que foi lida",
     "the bar's own entries can be moved, not taken out": "os elementos próprios da barra podem ser movidos, não retirados",
-    "Other tray icons": "Outros ícones da bandeja"
+    "Other tray icons": "Outros ícones da bandeja",
+    "the package cache is not readable": "a cache de pacotes não pode ser lida",
+    "it points at a Flutter that is gone: {0}": "aponta para um Flutter que já não existe: {0}",
+    "it was made with another Flutter: {0}": "foi criada com outro Flutter: {0}",
+    "a package folder is gone: {0}": "falta uma pasta de pacote: {0}",
+    "{0}: the package cache doesn't fit ({1}); {2} pub get": "{0}: a cache de pacotes não corresponde ({1}); {2} pub get",
+    "{0}: pub get could not start: {1}": "{0}: não foi possível iniciar o pub get: {1}",
+    "{0}: pub get ok": "{0}: pub get ok",
+    "{0}: pub get failed ({1})": "{0}: pub get falhou ({1})"
   },
   "nl": {
     "Waiting": "Wachten",
@@ -5451,7 +5499,15 @@ const catalogs = <String, Map<String, String>>{
     "bar.json is not readable: {0}": "bar.json is niet leesbaar: {0}",
     "Maprisma Bar's layout changed since it was read": "De indeling van Maprisma Bar is gewijzigd sinds het lezen",
     "the bar's own entries can be moved, not taken out": "de eigen onderdelen van de balk kunnen worden verplaatst, niet verwijderd",
-    "Other tray icons": "Andere systeemvakpictogrammen"
+    "Other tray icons": "Andere systeemvakpictogrammen",
+    "the package cache is not readable": "de pakketcache is niet leesbaar",
+    "it points at a Flutter that is gone: {0}": "hij verwijst naar een Flutter die er niet meer is: {0}",
+    "it was made with another Flutter: {0}": "hij is gemaakt met een andere Flutter: {0}",
+    "a package folder is gone: {0}": "een pakketmap ontbreekt: {0}",
+    "{0}: the package cache doesn't fit ({1}); {2} pub get": "{0}: de pakketcache past niet ({1}); {2} pub get",
+    "{0}: pub get could not start: {1}": "{0}: pub get kon niet starten: {1}",
+    "{0}: pub get ok": "{0}: pub get ok",
+    "{0}: pub get failed ({1})": "{0}: pub get mislukt ({1})"
   },
   "pl": {
     "Waiting": "Oczekiwanie",
@@ -6230,6 +6286,14 @@ const catalogs = <String, Map<String, String>>{
     "bar.json is not readable: {0}": "Nie można odczytać bar.json: {0}",
     "Maprisma Bar's layout changed since it was read": "Układ Maprisma Bar zmienił się od odczytu",
     "the bar's own entries can be moved, not taken out": "własne elementy paska można przesuwać, ale nie usuwać",
-    "Other tray icons": "Inne ikony zasobnika"
+    "Other tray icons": "Inne ikony zasobnika",
+    "the package cache is not readable": "nie można odczytać pamięci podręcznej pakietów",
+    "it points at a Flutter that is gone: {0}": "wskazuje na Fluttera, którego już nie ma: {0}",
+    "it was made with another Flutter: {0}": "utworzono ją innym Flutterem: {0}",
+    "a package folder is gone: {0}": "brakuje folderu pakietu: {0}",
+    "{0}: the package cache doesn't fit ({1}); {2} pub get": "{0}: pamięć podręczna pakietów nie pasuje ({1}); {2} pub get",
+    "{0}: pub get could not start: {1}": "{0}: nie udało się uruchomić pub get: {1}",
+    "{0}: pub get ok": "{0}: pub get ok",
+    "{0}: pub get failed ({1})": "{0}: pub get nie powiódł się ({1})"
   }
 };

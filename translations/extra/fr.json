@@ -4,5 +4,13 @@
   "bar.json is not readable: {0}": "bar.json est illisible : {0}",
   "Maprisma Bar's layout changed since it was read": "La disposition de Maprisma Bar a changé depuis sa lecture",
   "the bar's own entries can be moved, not taken out": "les éléments propres à la barre peuvent être déplacés, pas retirés",
-  "Other tray icons": "Autres icônes de la zone de notification"
+  "Other tray icons": "Autres icônes de la zone de notification",
+  "the package cache is not readable": "le cache des paquets est illisible",
+  "it points at a Flutter that is gone: {0}": "il pointe vers un Flutter qui n'existe plus : {0}",
+  "it was made with another Flutter: {0}": "il a été créé avec un autre Flutter : {0}",
+  "a package folder is gone: {0}": "un dossier de paquet a disparu : {0}",
+  "{0}: the package cache doesn't fit ({1}); {2} pub get": "{0} : le cache des paquets ne correspond pas ({1}) ; {2} pub get",
+  "{0}: pub get could not start: {1}": "{0} : pub get n'a pas pu démarrer : {1}",
+  "{0}: pub get ok": "{0} : pub get ok",
+  "{0}: pub get failed ({1})": "{0} : échec de pub get ({1})"
 }

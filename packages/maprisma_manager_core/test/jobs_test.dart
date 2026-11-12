@@ -231,6 +231,46 @@ exit 0''');
     expect(rest['text'], utf8.decode(utf8.encode(text).sublist(10)));
   });
 
+  test('a package cache from a Flutter that is gone gets pub get before the build; one that fits not', () async {
+    w.fake('flutter', r'echo "$PWD $*" >> "$HOME/.mm-test/flutter.log"; exit 0');
+    final repo = p.join(w.projects, 'fake-app');
+    void cache(String rel, String root) => w.writeFile(p.join(repo, rel, '.dart_tool/package_config.json'),
+        jsonEncode({'flutterRoot': root, 'packages': []}));
+    w.writeFile(p.join(repo, 'app/pubspec.yaml'), 'name: app\ndependencies:\n  flutter:\n    sdk: flutter\n');
+    w.writeFile(p.join(repo, 'core/pubspec.yaml'), 'name: core\n');
+    cache('app', 'file:///nowhere/.cache/flutter_sdk');
+    cache('core', Uri.directory(w.fakeBin).toString());
+    final flutterLog = File(p.join(ctl, 'flutter.log'));
+
+    final job = await run(core(), 'install');
+    expect(job['state'], 'succeeded', reason: log(job));
+    final text = log(job);
+    expect(text, contains('app: the package cache doesn\'t fit (it points at a Flutter that is gone: /nowhere/.cache/flutter_sdk); flutter pub get'));
+    expect(text, contains('app: pub get ok'));
+    expect(text, isNot(contains('core: ')));
+    expect(text.indexOf('app: pub get ok'), lessThan(text.indexOf('\$ ./install.sh')));
+    expect(flutterLog.readAsLinesSync(), ['${p.join(repo, 'app')} pub get']);
+
+    // fetched (the fake doesn't rewrite it): now it fits, nothing runs
+    cache('app', Uri.directory(w.fakeBin).toString());
+    flutterLog.deleteSync();
+    final again = await run(core(), 'reinstall');
+    expect(again['state'], 'succeeded', reason: log(again));
+    expect(log(again), isNot(contains('pub get')));
+    expect(flutterLog.existsSync(), isFalse);
+  });
+
+  test('a failed pub get is noted and the build still runs', () async {
+    w.fake('flutter', 'echo nope >&2; exit 65');
+    final repo = p.join(w.projects, 'fake-app');
+    w.writeFile(p.join(repo, 'pubspec.yaml'), 'name: top\n');
+    w.writeFile(p.join(repo, '.dart_tool/package_config.json'), jsonEncode({'flutterRoot': 'file:///nowhere/flutter', 'packages': []}));
+    final job = await run(core(), 'install');
+    expect(job['state'], 'succeeded', reason: log(job));
+    expect(log(job), contains('.: pub get failed (65)'));
+    expect(log(job), contains('nope'));
+  });
+
   test('a failing script: state failed, no receipt, nothing deleted; repair only once it had written', () async {
     final c = core();
     File(p.join(ctl, 'fail-build')).createSync();

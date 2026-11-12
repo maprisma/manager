@@ -4,5 +4,13 @@
   "bar.json is not readable: {0}": "Nie można odczytać bar.json: {0}",
   "Maprisma Bar's layout changed since it was read": "Układ Maprisma Bar zmienił się od odczytu",
   "the bar's own entries can be moved, not taken out": "własne elementy paska można przesuwać, ale nie usuwać",
-  "Other tray icons": "Inne ikony zasobnika"
+  "Other tray icons": "Inne ikony zasobnika",
+  "the package cache is not readable": "nie można odczytać pamięci podręcznej pakietów",
+  "it points at a Flutter that is gone: {0}": "wskazuje na Fluttera, którego już nie ma: {0}",
+  "it was made with another Flutter: {0}": "utworzono ją innym Flutterem: {0}",
+  "a package folder is gone: {0}": "brakuje folderu pakietu: {0}",
+  "{0}: the package cache doesn't fit ({1}); {2} pub get": "{0}: pamięć podręczna pakietów nie pasuje ({1}); {2} pub get",
+  "{0}: pub get could not start: {1}": "{0}: nie udało się uruchomić pub get: {1}",
+  "{0}: pub get ok": "{0}: pub get ok",
+  "{0}: pub get failed ({1})": "{0}: pub get nie powiódł się ({1})"
 }

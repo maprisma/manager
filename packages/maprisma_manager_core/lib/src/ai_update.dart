@@ -27,6 +27,7 @@ import 'catalog.dart';
 import 'context.dart';
 import 'jobs.dart';
 import 'paths.dart';
+import 'pub_refresh.dart';
 import 'status.dart';
 import 'translations.dart';
 
@@ -349,10 +350,7 @@ final class AiUpdater {
     final flutter = ctx.flutter().exe;
     if (flutter == null) return {'state': 'failed', 'message': tr('Flutter was not found')};
     final dart = p.join(p.dirname(flutter), 'dart');
-    final dirs = <String>[];
-    for (final input in app.inputs) {
-      _packages(ctx.repoFolder(input.repo), 0, dirs);
-    }
+    final dirs = [for (final input in app.inputs) ...dartPackages(ctx.repoFolder(input.repo))];
     if (dirs.isEmpty) return {'state': 'succeeded', 'message': tr('no Dart or Flutter packages')};
     // Not while a job builds, updates or removes the app (here or in another Manager).
     if (jobs.activeFor(app.id) || pendingSelfUpdate(ctx.paths) != null) {
@@ -363,13 +361,11 @@ final class AiUpdater {
     for (final dir in dirs) {
       if (_cancel) return {'state': 'cancelled'};
       final rel = p.relative(dir, from: ctx.projectsDir);
-      final pubspec = File(p.join(dir, 'pubspec.yaml')).readAsStringSync();
-      // A workspace member resolves in a folder above it: pub could write outside the app.
-      if (RegExp(r'^resolution:\s*workspace', multiLine: true).hasMatch(pubspec)) {
+      if (isWorkspaceMember(dir)) {
         out.writeln('$rel: ${tr('skipped (a pub workspace member)')}');
         continue;
       }
-      final exe = RegExp(r'sdk:\s*flutter').hasMatch(pubspec) || !File(dart).existsSync() ? flutter : dart;
+      final exe = usesFlutter(dir) || !File(dart).existsSync() ? flutter : dart;
       final (code, text) = await _runGroup([exe, 'pub', 'get'], dir, {...ctx.environment, 'PATH': '${p.dirname(flutter)}:${ctx.environment['PATH'] ?? ''}'});
       if (code == null) return {'state': 'cancelled', 'message': out.toString().trim()};
       out.writeln('$rel: ${code == 0 ? 'ok' : 'exit $code'}');
@@ -426,26 +422,6 @@ final class AiUpdater {
     if (stopped) return (null, buf.toString());
     if (late) return (-1, '${buf.toString()}\n${tr('no answer in time')}');
     return (code, buf.toString());
-  }
-
-  static const _skip = {'build', 'node_modules', 'target', 'linux', 'windows', 'macos', 'android', 'ios', 'web'};
-
-  void _packages(String dir, int depth, List<String> out) {
-    if (FileSystemEntity.typeSync(dir, followLinks: false) != FileSystemEntityType.directory) return;
-    if (File(p.join(dir, 'pubspec.yaml')).existsSync()) out.add(dir);
-    if (depth >= 3) return;
-    List<FileSystemEntity> children;
-    try {
-      children = Directory(dir).listSync(followLinks: false);
-    } on FileSystemException {
-      return;
-    }
-    children.sort((a, b) => a.path.compareTo(b.path));
-    for (final c in children) {
-      final name = p.basename(c.path);
-      if (c is! Directory || name.startsWith('.') || _skip.contains(name)) continue;
-      _packages(c.path, depth + 1, out);
-    }
   }
 
   /// The run as a log under the Manager's state (what the AI said and did).
