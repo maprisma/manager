@@ -83,10 +83,13 @@ core_done() {
 
 start_gui() {
   # $1: the ready file, or empty
+  # 9>&-: the lock stays with the helper. The Manager would hold it for as long as it runs and
+  # hand it on to everything its jobs start (a restarted shell, the launcher …), and no later
+  # self-update or install-local could take it.
   if [[ -n ${1:-} ]]; then
-    MAPRISMA_MANAGER_READY=$1 setsid -f "$lib/maprisma-manager" >/dev/null 2>&1 </dev/null
+    MAPRISMA_MANAGER_READY=$1 setsid -f "$lib/maprisma-manager" >/dev/null 2>&1 </dev/null 9>&-
   else
-    setsid -f "$lib/maprisma-manager" >/dev/null 2>&1 </dev/null
+    setsid -f "$lib/maprisma-manager" >/dev/null 2>&1 </dev/null 9>&-
   fi
 }
 

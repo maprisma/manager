@@ -26,7 +26,7 @@ build=$(cat "$ctl/build" 2>/dev/null || echo 1)
 if [[ -e $ctl/never-ready ]]; then
   printf '#!/bin/sh\nexit 0\n' > "$stage/bundle/maprisma-manager"
 else
-  printf '#!/bin/sh\n[ -n "${MAPRISMA_MANAGER_READY:-}" ] && echo $$ > "$MAPRISMA_MANAGER_READY"\necho "started build %s" >> "$HOME/.mm-test/started"\n' "$build" > "$stage/bundle/maprisma-manager"
+  printf '#!/bin/sh\n[ -n "${MAPRISMA_MANAGER_READY:-}" ] && echo $$ > "$MAPRISMA_MANAGER_READY"\necho "started build %s" >> "$HOME/.mm-test/started"\nls -l /proc/$$/fd > "$HOME/.mm-test/gui-fds"\n' "$build" > "$stage/bundle/maprisma-manager"
 fi
 chmod 755 "$stage/bundle/maprisma-manager"
 echo "lib $build" > "$stage/bundle/lib/libapp.so"
@@ -202,6 +202,8 @@ void main() {
     expect(s, 'done', reason: File(p.join(selfDir(), '$id.log')).readAsStringSync());
     expect(File(p.join(lib(), 'lib/libapp.so')).readAsStringSync(), 'lib 2\n');
     expect(File(p.join(ctl, 'started')).readAsStringSync(), contains('started build 2'));
+    // without the helper's lock: everything its jobs start would inherit it (a restarted shell …)
+    expect(File(p.join(ctl, 'gui-fds')).readAsStringSync(), isNot(contains('self-update/lock')));
     // the new core was asked to record it (the fake core only notes the call): do what it does
     expect(File(p.join(ctl, 'core-calls')).readAsStringSync().trim(), 'self-update-done $id');
     final done = finishSelfUpdate(w.paths, id);
