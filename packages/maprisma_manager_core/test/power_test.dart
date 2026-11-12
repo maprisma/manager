@@ -104,4 +104,11 @@ esac
     expect(r['idle'], isNull);
     expect(r['profiles'], isNull);
   });
+
+  test('jobs keep Hyprland\'s socket name, so a restarted Maprisma Shell reaches Hyprland', () {
+    final core = w.core(desktop: 'Hyprland', extra: {'HYPRLAND_INSTANCE_SIGNATURE': 'abc_1_2', 'SECRET_TOKEN': 'x'});
+    final env = core.jobs.scriptEnv(findApp('shell')!.components.first);
+    expect(env['HYPRLAND_INSTANCE_SIGNATURE'], 'abc_1_2');
+    expect(env.containsKey('SECRET_TOKEN'), isFalse);
+  });
 }

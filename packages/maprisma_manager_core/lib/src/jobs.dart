@@ -1333,6 +1333,9 @@ final class JobEngine {
       'XDG_CONFIG_HOME', 'XDG_DATA_HOME', 'XDG_STATE_HOME', 'XDG_CACHE_HOME', 'XDG_RUNTIME_DIR',
       'XDG_CURRENT_DESKTOP', 'XDG_SESSION_TYPE', 'XDG_SESSION_DESKTOP', 'XDG_DATA_DIRS', 'XDG_CONFIG_DIRS',
       'DISPLAY', 'WAYLAND_DISPLAY', 'DBUS_SESSION_BUS_ADDRESS', 'SSH_AUTH_SOCK',
+      // Hyprland's socket: without it a restarted Maprisma Shell (or hyprctl in a script) can't
+      // reach Hyprland (no workspaces, no clicks to switch).
+      'HYPRLAND_INSTANCE_SIGNATURE',
       'CARGO_HOME', 'RUSTUP_HOME', 'PUB_CACHE',
       'GIT_CONFIG_GLOBAL', 'GIT_CONFIG_NOSYSTEM', 'GIT_ALLOW_PROTOCOL',
     };
