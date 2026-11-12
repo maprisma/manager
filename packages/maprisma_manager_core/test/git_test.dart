@@ -122,6 +122,23 @@ void main() {
     expect(a['updates']['upstreamNotes'], isNull);
   });
 
+  test('a rewritten mirror of older work: ahead, nothing new', () async {
+    final dir = w.repo('maprisma-wlan-monitor', upstream: true);
+    w.pushUpstreamCommit('maprisma-wlan-monitor');
+    final core = w.core();
+    await core.call('git.fetch', {'id': 'wlan', 'force': true});
+    // The upstream's files under another commit, then more local work on top.
+    w.git(dir, ['checkout', '-q', 'origin/main', '--', '.']);
+    w.git(dir, ['commit', '-q', '-m', 'same files, other commit']);
+    File(p.join(dir, 'LOCAL')).writeAsStringSync('more');
+    w.git(dir, ['add', '.']);
+    w.git(dir, ['commit', '-q', '-m', 'local work']);
+    final a = appOf(await core.call('apps.list'), 'wlan');
+    expect(repoOf(a)['relation'], 'ahead');
+    expect(a['updates']['upstreamNew'], 0);
+    expect(a['updates']['upstreamNotes'], isNull);
+  });
+
   test('repos without an upstream are skipped by fetch', () async {
     w.repo('maprisma-home');
     final r = await w.core().call('git.fetch', {'id': 'home', 'force': true});
