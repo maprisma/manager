@@ -152,6 +152,18 @@ class ManagerHomeState extends State<ManagerHome> {
     });
   }
 
+  /// Esc (esc_close.dart): a page other than Apps, or the condensed window's page list, is open.
+  bool get onSidePage => navOpen || section != Section.apps;
+
+  /// Esc there: the page list closes, or Back to Apps.
+  void back() {
+    if (navOpen) {
+      setState(() => navOpen = false);
+    } else {
+      open(Section.apps);
+    }
+  }
+
   /// A Section by its name ("power"), null for an unknown one.
   static Section? sectionNamed(String? name) => Section.values.where((s) => s.name == name).firstOrNull;
 

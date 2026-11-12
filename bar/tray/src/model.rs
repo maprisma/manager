@@ -1,7 +1,7 @@
 /// What a click in the tray or its menu does.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Action {
-    /// The icon: open, bring to the front, or hide when in front (`--toggle`).
+    /// The icon: open when closed or hidden, hide when shown (`--toggle`).
     Toggle,
     /// A menu entry: open on this page (`--page <page>`); None: the page it had.
     Open(Option<&'static str>),

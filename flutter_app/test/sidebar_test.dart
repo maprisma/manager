@@ -91,14 +91,17 @@ esac
         await tester.tap(find.byKey(const ValueKey('nav-toggle')));
         await settle(tester, 2);
       }
-      // the list's filter has the keyboard; on another page Esc must not reach the hidden list
+      // the list's filter has the keyboard; on another page Esc must not reach the hidden list:
+      // it goes back to Apps (rule 5a) with the filter as it was
       await tester.enterText(find.byKey(const ValueKey('filter')), 'wlan');
       await settle(tester, 2);
       await nav(tester, 'power');
       expect(find.byKey(const ValueKey('sidebar')), condensed ? findsNothing : findsOneWidget);
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await settle(tester, 2);
+      expect(find.byKey(const ValueKey('power-page')), findsNothing);
       expect(tester.widget<TextField>(find.byKey(const ValueKey('filter'), skipOffstage: false)).controller!.text, 'wlan');
+      await nav(tester, 'power');
       for (final s in ['Power mode', 'Power saving options', 'Extended battery life', 'High performance']) {
         expect(find.text(s), findsOneWidget, reason: s);
       }
@@ -158,6 +161,33 @@ esac
     await settle(tester);
     expect(Settings.load(w.paths).corners, 'square');
     expect(tester.takeException(), isNull);
+  });
+
+  // Rule 5a: Esc on a side page goes back to Apps; on Apps (the filter has the keyboard) it
+  // hides the window as --toggle does; a dialog takes its own Esc first.
+  testWidgets('Esc: side page back to Apps, then the window hides; a dialog first', (tester) async {
+    final calls = <String>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('maprisma-manager/window'), (call) async {
+      calls.add(call.method);
+      return null;
+    });
+    addTearDown(() => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(const MethodChannel('maprisma-manager/window'), null));
+    await open(tester, 'hyprland', 900);
+    await nav(tester, 'power');
+    expect(find.byKey(const ValueKey('power-page')), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await settle(tester, 2);
+    expect(find.byKey(const ValueKey('power-page')), findsNothing);
+    expect(calls, isNot(contains('hide')));
+    showDialog<void>(context: tester.element(find.byKey(const ValueKey('sidebar'))), builder: (_) => const AlertDialog(content: Text('a dialog')));
+    await settle(tester, 2);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await settle(tester, 2);
+    expect(find.text('a dialog'), findsNothing);
+    expect(calls, isNot(contains('hide')));
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await settle(tester, 2);
+    expect(calls, contains('hide'));
   });
 }
 

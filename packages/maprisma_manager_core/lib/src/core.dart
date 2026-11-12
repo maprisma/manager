@@ -78,6 +78,8 @@ final class CoreService {
           'screenshot_key': settings.screenshotKey,
           'ai_updates': settings.values['ai_updates'] == true,
           'ai_helper': settings.str('ai_helper'),
+          // The window's size as the user left it (rule 5a), null when missing or broken.
+          'window_size': windowSize(settings.values['window_size']),
         };
       },
       'settings.language': (params) async {
@@ -99,6 +101,8 @@ final class CoreService {
           'ai_updates' => value is bool,
           // Sound › Amplification: volumes up to 150 %.
           'sound_amplify' => value is bool,
+          // The window's size (GTK's [width, height]), saved after a resize.
+          'window_size' => windowSize(value) != null,
           'ai_helper' => value == null || (value is String && RegExp(r'^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,160}$').hasMatch(value)),
           _ => false,
         };
@@ -428,3 +432,10 @@ final class CoreService {
 }
 
 String _firstLine(String s) => s.trim().split('\n').firstWhere((l) => l.trim().isNotEmpty, orElse: () => 'failed');
+
+/// A saved window size: [width, height], whole numbers 100…20000; else null.
+List<int>? windowSize(Object? value) => value is List &&
+        value.length == 2 &&
+        value.every((v) => v is int && v >= 100 && v <= 20000)
+    ? [value[0] as int, value[1] as int]
+    : null;

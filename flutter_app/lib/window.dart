@@ -18,6 +18,25 @@ abstract final class AppWindow {
     return i >= 0 && i + 1 < words.length ? words[i + 1] : null;
   }
 
+  /// Esc on the main page: hidden as by `--toggle` (running jobs go on).
+  static Future<void> hide() => _call('hide');
+
+  /// The saved size (rule 5a); the runner keeps it within the screen.
+  static Future<void> resize(int width, int height) => _call('size', [width, height]);
+
+  /// {width, height, free}: GTK's size; free = shown and neither maximized, fullscreen nor tiled.
+  static Future<Object?> geometry() => _channel.invokeMethod<Object?>('geometry');
+
+  static Future<void> _call(String method, [Object? args]) async {
+    try {
+      await _channel.invokeMethod<void>(method, args);
+    } on MissingPluginException {
+      // tests
+    } on PlatformException {
+      // ignore
+    }
+  }
+
   /// The title bar follows the palette (dark or light).
   static Future<void> titlebar(bool dark) async {
     try {

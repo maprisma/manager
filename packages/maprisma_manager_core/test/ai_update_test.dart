@@ -71,6 +71,17 @@ void main() {
     expect((h['helpers'] as List).firstWhere((x) => x['id'] == 'claude')['signed_in'], true);
   });
 
+  test('settings: the window size is saved when whole and sane, else refused (rule 5a)', () async {
+    expect((await core.call('settings.get'))['window_size'], isNull);
+    await core.call('settings.set', {'key': 'window_size', 'value': [1000, 720]});
+    expect((await core.call('settings.get'))['window_size'], [1000, 720]);
+    for (final bad in [null, [1000], [1000, '720'], [10, 720], [1000, 99999], 'big']) {
+      expect(() => core.call('settings.set', {'key': 'window_size', 'value': bad}), throwsA(isA<RouteError>()), reason: '$bad');
+    }
+    expect(windowSize([900.5, 700]), isNull);
+    expect(windowSize([900, 700]), [900, 700]);
+  });
+
   test('ai.start is refused while the setting is off', () async {
     await expectLater(core.call('ai.start'), throwsA(isA<RouteError>().having((e) => e.code, 'code', 'off')));
   });

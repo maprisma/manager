@@ -1,6 +1,6 @@
 // Maprisma Manager's icon in the system tray of KDE and Maprisma Shell (a StatusNotifierItem
-// with a dbusmenu). A click opens Maprisma Manager, brings it to the front, or hides it when it
-// is in front (`maprisma-manager --toggle`); the menu opens it on a page (`--page <page>`). Its
+// with a dbusmenu). A click opens Maprisma Manager when it is closed or hidden and hides it when
+// it is shown (`maprisma-manager --toggle`); the menu opens it on a page (`--page <page>`). Its
 // title starts with "Maprisma", so the Maprisma Icons panel widget shows it among the others.
 mod model;
 use model::Action;

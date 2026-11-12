@@ -8,7 +8,8 @@
 // first window), a header bar titled "Maprisma Manager", and the "maprisma-manager/window"
 // channel: "titlebar" (dark or light, as the desktop's palette) and, to Dart, "open" with a
 // second start's words (`--page <page>`). `--toggle` (the bar icon) hides the window when it is
-// in front and shows it otherwise: hidden, not closed, as a job may be running.
+// shown (in front or not) and shows it otherwise: hidden, not closed, as a job may be running.
+// Dart calls "hide" (Esc on the main page), "size" (the saved size) and "geometry".
 
 struct _MyApplication {
   GtkApplication parent_instance;
@@ -17,6 +18,65 @@ struct _MyApplication {
 };
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
+
+// The window, also while hidden (gtk_application_get_active_window skips none of them).
+static GtkWindow* main_window(GApplication* application) {
+  GList* windows = gtk_application_get_windows(GTK_APPLICATION(application));
+  return windows == nullptr ? nullptr : GTK_WINDOW(windows->data);
+}
+
+// --- the window's size (Maprisma layout rule 5a) ---------------------------------
+
+// The monitor the window is on, else the largest one (the window is not placed yet).
+static GdkMonitor* size_monitor(GtkWindow* window) {
+  GdkDisplay* display = gtk_widget_get_display(GTK_WIDGET(window));
+  GdkWindow* gdk_window = gtk_widget_get_window(GTK_WIDGET(window));
+  if (gdk_window != nullptr && gtk_widget_get_mapped(GTK_WIDGET(window))) {
+    GdkMonitor* at = gdk_display_get_monitor_at_window(display, gdk_window);
+    if (at != nullptr) return at;
+  }
+  GdkMonitor* best = nullptr;
+  gint best_area = 0;
+  for (gint i = 0; i < gdk_display_get_n_monitors(display); i++) {
+    GdkMonitor* monitor = gdk_display_get_monitor(display, i);
+    GdkRectangle area;
+    gdk_monitor_get_workarea(monitor, &area);
+    if (area.width * area.height > best_area) {
+      best = monitor;
+      best_area = area.width * area.height;
+    }
+  }
+  return best;
+}
+
+// "size" [width, height]: the saved size, at most the screen's work area, at least 420 x 320.
+static void resize_clamped(GtkWindow* window, gint width, gint height) {
+  GdkMonitor* monitor = size_monitor(window);
+  if (monitor != nullptr) {
+    GdkRectangle area;
+    gdk_monitor_get_workarea(monitor, &area);
+    if (area.width > 0) width = MIN(width, area.width);
+    if (area.height > 0) height = MIN(height, area.height);
+  }
+  gtk_window_resize(window, MAX(width, 420), MAX(height, 320));
+}
+
+// "geometry": {width, height, free}; free = shown and neither maximized, fullscreen nor tiled
+// (only a size the user gave it is saved).
+static FlValue* window_geometry(GtkWindow* window) {
+  gint width = 0, height = 0;
+  gtk_window_get_size(window, &width, &height);
+  GdkWindow* gdk_window = gtk_widget_get_window(GTK_WIDGET(window));
+  GdkWindowState state = gdk_window != nullptr ? gdk_window_get_state(gdk_window) : (GdkWindowState)0;
+  gboolean free = gtk_widget_get_visible(GTK_WIDGET(window)) &&
+                  (state & (GDK_WINDOW_STATE_MAXIMIZED | GDK_WINDOW_STATE_FULLSCREEN |
+                            GDK_WINDOW_STATE_TILED)) == 0;
+  FlValue* map = fl_value_new_map();
+  fl_value_set_string_take(map, "width", fl_value_new_int(width));
+  fl_value_set_string_take(map, "height", fl_value_new_int(height));
+  fl_value_set_string_take(map, "free", fl_value_new_bool(free));
+  return map;
+}
 
 static void window_call_cb(FlMethodChannel* channel, FlMethodCall* call,
                            gpointer user_data) {
@@ -29,6 +89,25 @@ static void window_call_cb(FlMethodChannel* channel, FlMethodCall* call,
                    fl_value_get_bool(args), nullptr);
     }
     response = FL_METHOD_RESPONSE(fl_method_success_response_new(nullptr));
+  } else if (g_strcmp0(name, "hide") == 0) {
+    // Esc on the main page: hidden as by --toggle; running jobs go on.
+    GtkWindow* window = main_window(g_application_get_default());
+    if (window != nullptr) gtk_widget_hide(GTK_WIDGET(window));
+    response = FL_METHOD_RESPONSE(fl_method_success_response_new(nullptr));
+  } else if (g_strcmp0(name, "size") == 0) {
+    GtkWindow* window = main_window(g_application_get_default());
+    if (window != nullptr && args != nullptr && fl_value_get_type(args) == FL_VALUE_TYPE_LIST &&
+        fl_value_get_length(args) == 2 &&
+        fl_value_get_type(fl_value_get_list_value(args, 0)) == FL_VALUE_TYPE_INT &&
+        fl_value_get_type(fl_value_get_list_value(args, 1)) == FL_VALUE_TYPE_INT) {
+      resize_clamped(window, (gint)fl_value_get_int(fl_value_get_list_value(args, 0)),
+                     (gint)fl_value_get_int(fl_value_get_list_value(args, 1)));
+    }
+    response = FL_METHOD_RESPONSE(fl_method_success_response_new(nullptr));
+  } else if (g_strcmp0(name, "geometry") == 0) {
+    GtkWindow* window = main_window(g_application_get_default());
+    g_autoptr(FlValue) geometry = window != nullptr ? window_geometry(window) : fl_value_new_null();
+    response = FL_METHOD_RESPONSE(fl_method_success_response_new(geometry));
   } else {
     response = FL_METHOD_RESPONSE(fl_method_not_implemented_response_new());
   }
@@ -38,12 +117,6 @@ static void window_call_cb(FlMethodChannel* channel, FlMethodCall* call,
 // Called when first Flutter frame received.
 static void first_frame_cb(MyApplication* self, FlView* view) {
   gtk_widget_show(gtk_widget_get_toplevel(GTK_WIDGET(view)));
-}
-
-// The window, also while hidden (gtk_application_get_active_window skips none of them).
-static GtkWindow* main_window(GApplication* application) {
-  GList* windows = gtk_application_get_windows(GTK_APPLICATION(application));
-  return windows == nullptr ? nullptr : GTK_WINDOW(windows->data);
 }
 
 // Implements GApplication::activate.
@@ -138,11 +211,12 @@ static gboolean my_application_local_command_line(GApplication* application,
   return TRUE;
 }
 
-// --toggle: hide the window when it is shown and in front, else show it and bring it up.
+// --toggle (the bar icon, the applet, Maprisma Shell): a shown window hides, in front or not (a
+// click on the bar may take the focus first); a hidden or closed one is shown and brought up.
 static void toggle_activated(GSimpleAction* action, GVariant* parameter, gpointer user_data) {
   GApplication* application = G_APPLICATION(user_data);
   GtkWindow* window = main_window(application);
-  if (window != nullptr && gtk_widget_get_visible(GTK_WIDGET(window)) && gtk_window_is_active(window)) {
+  if (window != nullptr && gtk_widget_get_visible(GTK_WIDGET(window))) {
     gtk_widget_hide(GTK_WIDGET(window));
     return;
   }

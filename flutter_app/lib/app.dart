@@ -12,9 +12,11 @@ import 'package:maprisma_manager_core/maprisma_manager_core.dart'
 
 import 'home.dart';
 import 'core_call.dart';
+import 'esc_close.dart';
 import 'jobs_model.dart';
 import 'theme.dart';
 import 'window.dart';
+import 'window_size.dart';
 
 /// Maprisma Manager's window: the list page in the desktop's colours (`desktop.look`, read as
 /// Maprisma Launcher reads them).
@@ -59,11 +61,31 @@ class _ManagerAppState extends State<ManagerApp> with WidgetsBindingObserver {
   late Map<String, dynamic> look = widget.look;
   late final JobsModel jobs = widget.jobs ?? JobsModel(widget.core);
   Timer? _relook, _lookCooling;
+  final _home = GlobalKey<ManagerHomeState>();
+
+  /// Esc that no page took (rule 5a): leave a field, Back to Apps, then hide the window as
+  /// --toggle does (running jobs go on).
+  late final _esc = EscFallback(
+    onClose: () => unawaited(AppWindow.hide()),
+    sidePage: () => _home.currentState?.onSidePage ?? false,
+    onBack: () => _home.currentState?.back(),
+  );
+
+  /// The window's size, saved half a second after the last resize (rule 5a).
+  late final _windowSize = WindowSizeKeeper(
+    saved: parseWindowSize(widget.settings['window_size']),
+    geometry: AppWindow.geometry,
+    save: (w, h) => widget.core('settings.set', {'key': 'window_size', 'value': [w, h]}),
+  );
+
+  @override
+  void didChangeMetrics() => _windowSize.resized();
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _esc.attach();
     if (widget.relook case final every?) _relook = Timer.periodic(every, (_) => _reloadLook());
     HardwareKeyboard.instance.addHandler(_f12);
     _titlebar();
@@ -86,6 +108,8 @@ class _ManagerAppState extends State<ManagerApp> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _esc.detach();
+    _windowSize.dispose();
     _relook?.cancel();
     _lookCooling?.cancel();
     HardwareKeyboard.instance.removeHandler(_f12);
@@ -197,13 +221,14 @@ class _ManagerAppState extends State<ManagerApp> with WidgetsBindingObserver {
       title: tr('Maprisma Manager'),
       navigatorKey: _navigator,
       scaffoldMessengerKey: _messenger,
-      builder: (context, child) => RepaintBoundary(key: windowShot, child: child),
+      navigatorObservers: [_esc],
+      builder: (context, child) => RepaintBoundary(key: windowShot, child: _esc.wrap(child!)),
       locale: Locale(currentLanguage),
       supportedLocales: [for (final code in languageNames.keys) Locale(code)],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       debugShowCheckedModeBanner: false,
       theme: appTheme(MediaQuery.platformBrightnessOf(context), look['colors'] as Map? ?? {}, radius),
-      home: ManagerHome(page: widget.page, core: widget.core, jobs: jobs, onRestart: widget.onRestart, checkOnStart: widget.checkOnStart, onLanguageChanged: _loadSettings, languageSetting: languageSetting,
+      home: ManagerHome(key: _home, page: widget.page, core: widget.core, jobs: jobs, onRestart: widget.onRestart, checkOnStart: widget.checkOnStart, onLanguageChanged: _loadSettings, languageSetting: languageSetting,
           cornersSetting: cornersSetting, screenshotKey: screenshotKey, onSettingsChanged: _loadSettings),
     );
   }

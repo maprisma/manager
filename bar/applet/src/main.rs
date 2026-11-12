@@ -1,6 +1,6 @@
-// Maprisma Manager for COSMIC: its icon in the panel. A click opens Maprisma Manager, brings it
-// to the front, or hides it when it is the window in front (it may be installing something, so
-// it is hidden, not closed).
+// Maprisma Manager for COSMIC: its icon in the panel. A click opens Maprisma Manager when it is
+// closed or hidden and hides it when it is shown, in front or not (it may be installing
+// something, so it is hidden, not closed).
 //
 // That is the app's own: `maprisma-manager --toggle` (single instance).
 

@@ -17,6 +17,7 @@ import 'jobs_model.dart';
 import 'remove_dialog.dart';
 import 'settings_widgets.dart' show pageTitleStyle;
 import 'theme.dart';
+import 'window.dart';
 
 /// The Maprisma apps in one filterable list, as Maprisma Launcher's Plugins page lists Omarchy's
 /// plugins: sections by bar state, a ⋮ menu per app (also on right-click), update marks with the
@@ -583,7 +584,7 @@ class AppsPageState extends State<AppsPage> {
         Navigator.of(context).maybePop();
         return KeyEventResult.handled;
       }
-      // Esc: the filter first, then the log sheet.
+      // Esc: the filter first, then the log sheet, then the window.
       if (filter.text.isNotEmpty) {
         filter.clear();
         setState(() => query = '');
@@ -594,7 +595,13 @@ class AppsPageState extends State<AppsPage> {
         setState(() => sheet = false);
         return KeyEventResult.handled;
       }
-      return KeyEventResult.ignored;
+      // Then the window hides (rule 5a; as --toggle: running jobs go on). From the empty filter
+      // too, as in Maprisma Launcher: the filter has the keyboard whenever the list is shown.
+      if (filterFocus.hasPrimaryFocus) {
+        unawaited(AppWindow.hide());
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.ignored; // esc_close.dart hides the window
     }
     if (k == LogicalKeyboardKey.f5 || (k == LogicalKeyboardKey.keyR && HardwareKeyboard.instance.isControlPressed)) {
       unawaited(checkUpdates(force: true));
