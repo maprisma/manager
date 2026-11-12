@@ -59,12 +59,21 @@ class _DisplaysState extends State<_Displays> with RoutePage {
 
   static String scale(num s) => '${(s * 100).round()} %';
 
-  /// Changes [output] and asks whether to keep it; no answer in time goes back.
+  /// Changes [output] and asks at once whether to keep it. The core goes back by itself when it
+  /// isn't kept in time, also when this page is gone meanwhile; Revert goes back now.
   Future<void> change(String output, Map<String, dynamic> values) async {
-    final ok = await act('displays.set', {'output': output, ...values});
+    final ok = await act('displays.set', {'output': output, ...values}, reload: false);
     if (!ok || !mounted) return;
     final keep = await showDialog<bool>(context: context, barrierDismissible: false, builder: (_) => _KeepDialog(seconds: widget.keepSeconds));
-    if (keep != true) await act('displays.undo', const {});
+    if (keep == true) {
+      await act('displays.keep', const {});
+    } else if (keep == false) {
+      await act('displays.undo', const {});
+    } else {
+      // the time ran out: the core is going back by itself
+      await Future<void>.delayed(const Duration(milliseconds: 800));
+      if (mounted) await load();
+    }
   }
 
   Widget _monitor(Map m, List<Map> all, Map d) {
@@ -193,7 +202,7 @@ class _KeepDialogState extends State<_KeepDialog> {
       if (!mounted) return;
       if (--left <= 0) {
         t.cancel();
-        Navigator.pop(context, false);
+        Navigator.pop(context);
       } else {
         setState(() {});
       }

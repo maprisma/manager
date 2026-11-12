@@ -771,13 +771,15 @@ final List<AppEntry> builtinCatalog = [
           InstalledPath('{bin}/maprisma-manager-core', PathKind.link, target: '{lib}/maprisma-manager/bin/maprisma-manager-core'),
           InstalledPath('{apps}/com.maprisma.Manager.desktop', PathKind.file),
           InstalledPath('{icons}/com.maprisma.Manager.svg', PathKind.file),
+          // installed also without the bar icon (a no-cargo build): it is the bar icon's picture
+          InstalledPath('{icons}/${_c}Manager-symbolic.svg', PathKind.file),
           // The bar icon (bar/: Rust; the build leaves it out without cargo).
           InstalledPath('{lib}/maprisma-manager/bin/maprisma-manager-applet', PathKind.executable, note: 'the COSMIC applet', part: 'bar icon'),
           InstalledPath('{lib}/maprisma-manager/bin/maprisma-manager-tray', PathKind.executable, note: 'the tray (KDE, Maprisma Shell)', part: 'bar icon'),
           InstalledPath('{bin}/maprisma-manager-applet', PathKind.link, target: '{lib}/maprisma-manager/bin/maprisma-manager-applet', part: 'bar icon'),
           InstalledPath('{bin}/maprisma-manager-tray', PathKind.link, target: '{lib}/maprisma-manager/bin/maprisma-manager-tray', part: 'bar icon'),
           InstalledPath('{apps}/${_c}Manager.desktop', PathKind.file, note: 'the COSMIC applet', part: 'bar icon'),
-          InstalledPath('{icons}/${_c}Manager-symbolic.svg', PathKind.file, part: 'bar icon'),
+
           InstalledPath('{autostart}/com.maprisma.Manager.Tray.desktop', PathKind.file, note: 'the tray', part: 'bar icon'),
         ],
       ),

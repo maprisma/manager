@@ -1,12 +1,15 @@
 import 'translations.dart';
+import 'dart:convert';
 import 'dart:io';
+
+import 'private_files.dart' show PrivateFolder;
 
 import 'context.dart';
 
 /// The Network & Wireless page on Hyprland (COSMIC Settings' Wi-Fi, Wired and VPN): the Wi-Fi
 /// switch, known and visible networks (connect, disconnect, forget), wired and VPN connections
-/// (connect, disconnect). Through `nmcli` (NetworkManager); a Wi-Fi password never goes on a
-/// command line (a private passwd-file instead). WPA-Enterprise and editing are left to
+/// (connect, disconnect). Through `nmcli` (NetworkManager); a Wi-Fi password goes only through
+/// a private passwd-file (never a command line, never nmcli's editor and its history). WPA-Enterprise and editing are left to
 /// Maprisma WLAN Monitor or nm-connection-editor.
 final class NetworkService {
   NetworkService(this.ctx);
@@ -150,40 +153,40 @@ final class NetworkService {
     if (password != null && (password is! String || password.length < 8 || password.length > 63 || password.contains('\n'))) {
       throw RouteError('bad_params', tr('The password needs 8 to 63 characters'));
     }
+    // nmcli trims what it reads from a passwd-file: such a password would be sent shortened.
+    if (password is String && password.trim() != password) {
+      throw RouteError('bad_params', tr('A password that starts or ends with a space can\'t be set here: use Maprisma WLAN Monitor or nmcli'));
+    }
     if (password == null) {
       await _nmcli(['device', 'wifi', 'connect', ssid]);
       return {'ssid': ssid};
     }
-    final add = await ctx.runner.run(['nmcli', '-t', '-f', 'connection.uuid', 'connection', 'add', 'type', 'wifi', 'con-name', ssid, 'ssid', ssid, 'wifi-sec.key-mgmt', 'wpa-psk'], timeout: const Duration(seconds: 20));
+    // The key is saved by NetworkManager (psk-flags 0) when it comes from nmcli's passwd-file:
+    // never on a command line, never in nmcli's editor history (~/.cache/nmcli-history).
+    final add = await ctx.runner.run(['nmcli', '-t', '-f', 'connection.uuid', 'connection', 'add', 'type', 'wifi', 'con-name', ssid, 'ssid', ssid, 'wifi-sec.key-mgmt', 'wpa-psk', 'wifi-sec.psk-flags', '0'], timeout: const Duration(seconds: 20));
     if (!add.ok) throw RouteError('failed', _why(add.stderr, add.code));
     final uuid = RegExp(r'[0-9a-fA-F]{8}-[0-9a-fA-F-]{27}').firstMatch(add.stdout)?.group(0);
     if (uuid == null) throw RouteError('failed', tr('NetworkManager made no connection'));
+    // A folder only this user can enter (0700, in the runtime folder: memory, not disk), the
+    // file only this user can read (0600, never through a link).
+    final runtime = ctx.environment['XDG_RUNTIME_DIR'];
+    final base = runtime != null && runtime.startsWith('/') && Directory(runtime).existsSync() ? runtime : Directory.systemTemp.path;
+    final dir = Directory('$base/maprisma-manager-wifi-$pid-${DateTime.now().microsecondsSinceEpoch}');
     try {
-      // The key goes in through nmcli's editor on stdin: never on a command line.
-      await _edit(uuid, ['set 802-11-wireless-security.psk $password', 'save persistent', 'quit']);
-      await _nmcli(['connection', 'up', 'uuid', uuid], timeout: const Duration(seconds: 60));
+      final folder = PrivateFolder.open(dir.path);
+      try {
+        folder.writeNew('secrets', utf8.encode('802-11-wireless-security.psk:$password\n'));
+      } finally {
+        folder.close();
+      }
+      await _nmcli(['connection', 'up', 'uuid', uuid, 'passwd-file', '${dir.path}/secrets'], timeout: const Duration(seconds: 60));
     } on RouteError {
       // A wrong password leaves no half connection behind.
       await ctx.runner.run(['nmcli', 'connection', 'delete', 'uuid', uuid], timeout: const Duration(seconds: 15));
       rethrow;
+    } finally {
+      if (dir.existsSync()) dir.deleteSync(recursive: true);
     }
     return {'ssid': ssid, 'uuid': uuid};
-  }
-
-  /// `nmcli connection edit uuid <uuid>` with [commands] on stdin.
-  Future<void> _edit(String uuid, List<String> commands) async {
-    final exe = ctx.runner.which('nmcli')!;
-    final process = await Process.start(exe, ['connection', 'edit', 'uuid', uuid], environment: ctx.runner.environment, includeParentEnvironment: false);
-    process.stdin.writeln(commands.join('\n'));
-    await process.stdin.close();
-    final err = StringBuffer();
-    final errDone = process.stderr.transform(const SystemEncoding().decoder).forEach(err.write);
-    final outDone = process.stdout.drain<void>();
-    final code = await process.exitCode.timeout(const Duration(seconds: 20), onTimeout: () {
-      process.kill();
-      return -1;
-    });
-    await Future.wait([errDone, outDone]).timeout(const Duration(seconds: 2), onTimeout: () => const []);
-    if (code != 0) throw RouteError('failed', _why('$err', code));
   }
 }

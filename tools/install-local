@@ -77,7 +77,8 @@ integrate() {
     # shellcheck disable=SC2086
     [[ -n $ids ]] && { signal_ids TERM $ids; sleep 0.3; }
     if [[ ${XDG_CURRENT_DESKTOP:-} =~ (KDE|Hyprland) ]] && ! grep -qx 'Hidden=true' "$autostart/com.maprisma.Manager.Tray.desktop"; then
-      setsid -f "$bin/maprisma-manager-tray" >/dev/null 2>&1 < /dev/null || true
+      # 9>&-: the install/self-update lock stays with us (the long-running tray would hold it).
+      setsid -f "$bin/maprisma-manager-tray" >/dev/null 2>&1 < /dev/null 9>&- || true
     fi
   fi
   command -v gtk-update-icon-cache >/dev/null && gtk-update-icon-cache -f -t "$data/icons/hicolor" >/dev/null 2>&1 || true

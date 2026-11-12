@@ -37,14 +37,25 @@ void main() {
     expect([for (final c in r['vpn'] as List) c['name']], ['Work']);
   });
 
-  test('connect with a password: the key only on stdin, never in an argument', () async {
+  test('connect with a password: the key only in a private passwd-file (no argument, no editor), gone after', () async {
     final core = w.core(desktop: 'Hyprland');
     final r = await core.call('network.connect', {'ssid': 'Neighbour', 'password': 'secret-pass-123'});
     expect(r['uuid'], uuidNew);
     final calls = log('nmcli.log');
-    expect(calls.where((l) => !l.startsWith('stdin:')).any((l) => l.contains('secret-pass-123')), isFalse);
-    expect(calls, contains('stdin: set 802-11-wireless-security.psk secret-pass-123'));
-    expect(calls, contains('connection up uuid $uuidNew'));
+    expect(calls.where((l) => !l.startsWith('passwd-file:')).any((l) => l.contains('secret-pass-123')), isFalse);
+    expect(calls, contains('passwd-file: 802-11-wireless-security.psk:secret-pass-123'));
+    expect(calls, contains('passwd-dir-mode: 700'));
+    expect(calls.any((l) => l.contains('connection edit')), isFalse);
+    expect(calls.firstWhere((l) => l.contains('connection add')), endsWith('wifi-sec.key-mgmt wpa-psk wifi-sec.psk-flags 0'));
+    final file = calls.firstWhere((l) => l.startsWith('connection up uuid $uuidNew passwd-file ')).split(' ').last;
+    expect(File(file).existsSync(), isFalse);
+    expect(Directory(p.dirname(file)).existsSync(), isFalse);
+  });
+
+  test('a password with a space at its start or end is refused (nmcli would trim it)', () async {
+    final core = w.core(desktop: 'Hyprland');
+    await expectLater(core.call('network.connect', {'ssid': 'Neighbour', 'password': 'abcdefgh '}), throwsA(isA<RouteError>().having((e) => e.code, 'code', 'bad_params')));
+    expect(log('nmcli.log').any((l) => l.contains('connection add')), isFalse);
   });
 
   test('a refused password removes the new connection again', () async {

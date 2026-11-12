@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:maprisma_manager_core/maprisma_manager_core.dart' show tr, trf;
 
-import 'backend.dart' show ServiceError;
 import 'core_call.dart';
 import 'desktop_page.dart';
 import 'settings_widgets.dart';
@@ -41,10 +40,7 @@ class _BluetoothState extends State<_Bluetooth> with RoutePage {
     if (scanning) return;
     setState(() => scanning = true);
     try {
-      final r = await core('bluetooth.scan', {'seconds': 8});
-      if (mounted) setState(() => data = r);
-    } on ServiceError catch (e) {
-      tellOn(this, failure(e));
+      await loadFrom('bluetooth.scan', {'seconds': 8});
     } finally {
       if (mounted) setState(() => scanning = false);
     }

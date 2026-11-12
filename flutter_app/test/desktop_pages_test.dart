@@ -149,7 +149,7 @@ void main() {
     await tester.pump();
     await tester.tap(find.byKey(const ValueKey('wifi-connect')));
     await settle(tester);
-    expect(log('nmcli.log'), contains('stdin: set 802-11-wireless-security.psk secret-pass-123'));
+    expect(log('nmcli.log'), contains('passwd-file: 802-11-wireless-security.psk:secret-pass-123'));
     expect(tester.takeException(), isNull);
   });
 

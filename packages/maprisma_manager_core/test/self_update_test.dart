@@ -40,8 +40,12 @@ echo "$*" >> "$HOME/.mm-test/core-calls"
 CORE
 chmod 755 "$stage/bundle/bin/maprisma-manager-core"
 [[ -e $ctl/no-core ]] && rm "$stage/bundle/bin/maprisma-manager-core"
-# the bar icon (bar/, Rust): a COSMIC applet and a tray that end at once
-for b in maprisma-manager-applet maprisma-manager-tray; do printf '#!/bin/sh\nexit 0\n' > "$stage/bundle/bin/$b"; chmod 755 "$stage/bundle/bin/$b"; done
+# the bar icon (bar/, Rust): a COSMIC applet that ends at once and a tray that notes its open
+# files (a lock it holds would block every later install); none without cargo (no-bar)
+printf '#!/bin/sh\nexit 0\n' > "$stage/bundle/bin/maprisma-manager-applet"
+printf '#!/bin/sh\nls -l /proc/$$/fd > "$HOME/.mm-test/tray-fds"\n' > "$stage/bundle/bin/maprisma-manager-tray"
+chmod 755 "$stage/bundle/bin/maprisma-manager-applet" "$stage/bundle/bin/maprisma-manager-tray"
+[[ -e $ctl/no-bar ]] && rm "$stage/bundle/bin/maprisma-manager-applet" "$stage/bundle/bin/maprisma-manager-tray"
 cp "$here/tools/real-install-local" "$stage/tools/install-local"
 [[ -e $ctl/bad-integrate ]] && printf '#!/bin/sh\n[ "$1" = --integrate ] && exit 1\nexit 0\n' > "$stage/tools/install-local"
 cp "$here/tools/self-update" "$stage/tools/self-update"
@@ -92,9 +96,9 @@ void main() {
 
   tearDown(() => w.dispose());
 
-  CoreService core() {
+  CoreService core({String desktop = 'COSMIC'}) {
     final c = CoreService(
-      environment: w.env(extra: {'PATH': '${w.fakeBin}:$sysbin', 'MAPRISMA_FLUTTER': p.join(w.fakeBin, 'flutter')}),
+      environment: w.env(desktop: desktop, extra: {'PATH': '${w.fakeBin}:$sysbin', 'MAPRISMA_FLUTTER': p.join(w.fakeBin, 'flutter')}),
       uid: 1000,
     )..followPanel = (_) async => {'panel': null, 'note': 'test'};
     c.jobs
@@ -147,6 +151,30 @@ void main() {
     expect(m['support']['install'], isTrue);
     expect(m['support']['remove'], isFalse);
     expect(m['icon']['file'], p.join(w.paths.icons, 'com.maprisma.Manager.svg'));
+  });
+
+  test('without cargo (no bar binaries): the self-update succeeds, the Manager is partly installed (no bar icon)', () async {
+    File(p.join(ctl, 'no-bar')).createSync();
+    final c = core();
+    final job = await run(c, 'install');
+    expect(job['state'], 'succeeded', reason: File(job['log'] as String).readAsStringSync());
+    expect(File(job['log'] as String).readAsStringSync(), contains('partly installed: no bar icon'));
+    final m = appOf(await c.call('apps.list'), 'manager');
+    expect(m['state'], 'partial');
+    // the bar icon's picture is there anyway (the main part)
+    expect(File(p.join(w.paths.icons, 'io.github.ubruckhaus.CosmicMaprismaManager-symbolic.svg')).existsSync(), isTrue);
+  });
+
+  test('on Hyprland the new tray is started without the self-update lock open', () async {
+    final c = core(desktop: 'Hyprland');
+    final job = await run(c, 'install');
+    expect(job['state'], 'succeeded', reason: File(job['log'] as String).readAsStringSync());
+    final fds = File(p.join(ctl, 'tray-fds'));
+    for (var i = 0; i < 40 && !fds.existsSync(); i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
+    expect(fds.existsSync(), isTrue, reason: 'the tray was not started');
+    expect(fds.readAsStringSync(), isNot(contains('self-update/lock')));
   });
 
   test('with a Manager window: the job ends, the helper waits for it to quit, swaps, starts the new one, which is ready', () async {

@@ -1015,5 +1015,6 @@
   "the system information": "la información del sistema",
   "unknown keyboard layout": "distribución de teclado desconocida",
   "xdg-mime is missing (xdg-utils)": "falta xdg-mime (xdg-utils)",
-  "{0} is paired": "{0} está emparejado"
+  "{0} is paired": "{0} está emparejado",
+  "A password that starts or ends with a space can't be set here: use Maprisma WLAN Monitor or nmcli": "Aquí no se puede usar una contraseña que empiece o termine con un espacio: usa Maprisma WLAN Monitor o nmcli"
 }

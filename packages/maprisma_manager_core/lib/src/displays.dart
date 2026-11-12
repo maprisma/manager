@@ -1,4 +1,5 @@
 import 'translations.dart';
+import 'dart:async';
 
 import 'context.dart';
 import 'hypr_config.dart';
@@ -6,15 +7,21 @@ import 'hypr_config.dart';
 /// The Displays page on Hyprland (COSMIC Settings' Displays without the arrangement canvas and
 /// Night Light): per monitor on/off, resolution with refresh rate, scale, orientation, variable
 /// refresh rate, position and mirroring. Read with `hyprctl monitors all`, written to
-/// hypr-manager.lua (HyprConfig). The previous values are kept so the page can undo a change
-/// that left the screen unusable (COSMIC's "Keep changes?").
+/// hypr-manager.lua (HyprConfig). Every change goes back by itself after [keepFor] unless it is
+/// kept (`displays.keep`, COSMIC's "Keep changes?"): here in the core, so a closed or slow page
+/// can't leave a mode the screen can't show. Further changes before that go back to the values
+/// before the first one.
 final class DisplaysService {
   DisplaysService(this.ctx) : hypr = HyprConfig(ctx);
   final Ctx ctx;
   final HyprConfig hypr;
 
-  /// The monitors' stored values before the last change (null: nothing to undo).
+  /// The monitors' stored values before the changes not kept yet (null: nothing to undo).
   Map<String, dynamic>? _undo;
+
+  /// How long a change waits to be kept.
+  Duration keepFor = const Duration(seconds: 15);
+  Timer? _revert;
 
   static const scales = [1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0];
   static const positions = ['auto', 'auto-right', 'auto-left', 'auto-up', 'auto-down', 'auto-center-right', 'auto-center-left'];
@@ -46,6 +53,7 @@ final class DisplaysService {
       'scales': scales,
       'positions': positions,
       'canUndo': _undo != null,
+      'pending': _revert != null,
     };
   }
 
@@ -91,7 +99,10 @@ final class DisplaysService {
     }
     if (change.isEmpty) throw RouteError('bad_params', tr('nothing to change'));
     final state = hypr.read();
-    _undo = {for (final e in (state['monitors'] as Map).entries) e.key as String: Map<String, dynamic>.from(e.value as Map)};
+    // A change on top of one not kept yet goes back to where the first one started.
+    if (_revert == null || _undo == null) {
+      _undo = {for (final e in (state['monitors'] as Map).entries) e.key as String: Map<String, dynamic>.from(e.value as Map)};
+    }
     final monitors = state['monitors'] as Map<String, dynamic>;
     // A monitor's line always carries its mode and position: Hyprland needs both.
     final entry = Map<String, dynamic>.from((monitors[output] as Map?) ?? {'mode': mon['mode'], 'position': mon['position'], 'scale': mon['scale']});
@@ -103,12 +114,37 @@ final class DisplaysService {
       }
     }
     monitors[output as String] = entry;
-    return {...await hypr.write(state), 'canUndo': true};
+    final written = await hypr.write(state);
+    _revert?.cancel();
+    _revert = Timer(keepFor, () => unawaited(_goBack()));
+    return {...written, 'canUndo': true, 'revertIn': keepFor.inSeconds};
+  }
+
+  /// The change was not kept in time.
+  Future<void> _goBack() async {
+    _revert = null;
+    if (_undo == null) return;
+    try {
+      await undo();
+    } on Object {
+      // nothing more to do here: the page shows the state as it is
+    }
+  }
+
+  /// `displays.keep`: the changes stay (and can't be undone any more).
+  Map<String, dynamic> keep() {
+    final had = _revert != null;
+    _revert?.cancel();
+    _revert = null;
+    _undo = null;
+    return {'kept': had};
   }
 
   /// `displays.undo`: the monitors as before the last change.
   Future<Map<String, dynamic>> undo() async {
     hypr.need();
+    _revert?.cancel();
+    _revert = null;
     final before = _undo;
     if (before == null) throw RouteError('unavailable', tr('Nothing to undo'));
     final state = hypr.read();

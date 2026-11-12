@@ -40,9 +40,30 @@ void main() {
     expect(RegExp('hypr-manager').allMatches(user()).length, 1);
     expect(reloads(), 2);
     expect((await core.call('displays.get'))['canUndo'], isTrue);
+    // neither change was kept: undo goes back to before the first one
     await core.call('displays.undo');
-    expect(lua(), contains('scale = 2.0'));
-    expect(lua(), contains('mode = "3840x2160@60.00"'));
+    expect(lua(), isNot(contains('HDMI-A-1')));
+    expect((await core.call('displays.get'))['pending'], isFalse);
+  });
+
+  test('a change goes back by itself unless kept; a second one goes back to before the first', () async {
+    final core = w.core(desktop: 'Hyprland');
+    core.displays.keepFor = const Duration(milliseconds: 300);
+    final r = await core.call('displays.set', {'output': 'HDMI-A-1', 'scale': 1.5});
+    expect(r['revertIn'], 0);
+    await core.call('displays.set', {'output': 'HDMI-A-1', 'scale': 1.25});
+    expect(lua(), contains('scale = 1.25'));
+    expect((await core.call('displays.get'))['pending'], isTrue);
+    await Future<void>.delayed(const Duration(milliseconds: 700));
+    // back to before the first change: no line for HDMI-A-1 any more
+    expect(lua(), isNot(contains('HDMI-A-1')));
+    expect((await core.call('displays.get'))['pending'], isFalse);
+    // kept: it stays
+    await core.call('displays.set', {'output': 'HDMI-A-1', 'scale': 1.5});
+    expect((await core.call('displays.keep'))['kept'], isTrue);
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+    expect(lua(), contains('scale = 1.5'));
+    expect((await core.call('displays.get'))['canUndo'], isFalse);
   });
 
   test('displays.set refuses unknown modes, scales, outputs and switching off the last display', () async {

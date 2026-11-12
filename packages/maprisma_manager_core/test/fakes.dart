@@ -93,8 +93,12 @@ case "\$*" in
   "-t -f IN-USE,SSID,SECURITY,SIGNAL device wifi list --rescan no"|"-t -f IN-USE,SSID,SECURITY,SIGNAL device wifi list --rescan yes")
     printf '*:Home\\\\:Net:WPA2:70\\n :Home\\\\:Net:WPA3:40\\n :Cafe::55\\n ::WPA2:30\\n :Neighbour:WPA2:80\\n' ;;
   "-t -f connection.uuid connection add"*) echo "connection.uuid:$uuidNew" ;;
-  "connection edit uuid "*) while IFS= read -r l; do echo "stdin: \$l" >> "\$HOME/nmcli.log"; done ;;
-  "connection up uuid "*) if [ -f "\$HOME/fail-up" ]; then echo "Error: Secrets were required, but not provided." >&2; exit 4; fi ;;
+  "connection up uuid "*)
+    case "\$5" in passwd-file)
+      while IFS= read -r l; do echo "passwd-file: \$l" >> "\$HOME/nmcli.log"; done < "\$6"
+      echo "passwd-dir-mode: \$(/usr/bin/stat -c %a "\$(/usr/bin/dirname "\$6")")" >> "\$HOME/nmcli.log" ;;
+    esac
+    if [ -f "\$HOME/fail-up" ]; then echo "Error: Secrets were required, but not provided." >&2; exit 4; fi ;;
 esac
 exit 0''');
 }

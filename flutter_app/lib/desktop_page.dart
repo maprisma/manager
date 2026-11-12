@@ -201,10 +201,14 @@ mixin RoutePage<T extends StatefulWidget> on State<T> {
     unawaited(load());
   }
 
-  Future<void> load() async {
+  Future<void> load() => loadFrom(getRoute, getParams);
+
+  /// The page's data from [route] (a scan, say): only the newest load or scan is shown, so a slow
+  /// scan can't put back what a later change replaced.
+  Future<void> loadFrom(String route, Map<String, dynamic> params) async {
     final mine = ++_loads;
     try {
-      final r = await core(getRoute, getParams);
+      final r = await core(route, params);
       if (mounted && mine == _loads) {
         setState(() {
           data = r;
@@ -212,7 +216,13 @@ mixin RoutePage<T extends StatefulWidget> on State<T> {
         });
       }
     } on ServiceError catch (e) {
-      if (mounted && mine == _loads) setState(() => error = failure(e));
+      if (!mounted || mine != _loads) return;
+      // With the page shown, the values stay and the failure is said; else it is the page.
+      if (data != null) {
+        tellOn(this, failure(e));
+      } else {
+        setState(() => error = failure(e));
+      }
     }
   }
 

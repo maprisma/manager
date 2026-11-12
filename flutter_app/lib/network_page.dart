@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:maprisma_manager_core/maprisma_manager_core.dart' show tr, trf;
 
-import 'backend.dart' show ServiceError;
 import 'core_call.dart';
 import 'desktop_page.dart';
 import 'settings_widgets.dart';
@@ -42,10 +41,7 @@ class _NetworkState extends State<_Network> with RoutePage {
     if (scanning) return;
     setState(() => scanning = true);
     try {
-      final r = await core('network.get', {'rescan': true});
-      if (mounted) setState(() => data = r);
-    } on ServiceError catch (e) {
-      tellOn(this, failure(e));
+      await loadFrom('network.get', {'rescan': true});
     } finally {
       if (mounted) setState(() => scanning = false);
     }

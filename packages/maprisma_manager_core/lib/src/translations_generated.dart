@@ -1017,7 +1017,8 @@ const catalogs = <String, Map<String, String>>{
     "the system information": "the system information",
     "unknown keyboard layout": "unknown keyboard layout",
     "xdg-mime is missing (xdg-utils)": "xdg-mime is missing (xdg-utils)",
-    "{0} is paired": "{0} is paired"
+    "{0} is paired": "{0} is paired",
+    "A password that starts or ends with a space can't be set here: use Maprisma WLAN Monitor or nmcli": "A password that starts or ends with a space can't be set here: use Maprisma WLAN Monitor or nmcli"
   },
   "de": {
     "Waiting": "Wartet",
@@ -2036,7 +2037,8 @@ const catalogs = <String, Map<String, String>>{
     "the system information": "die Systeminformationen",
     "unknown keyboard layout": "unbekannte Tastaturbelegung",
     "xdg-mime is missing (xdg-utils)": "xdg-mime fehlt (xdg-utils)",
-    "{0} is paired": "{0} ist gekoppelt"
+    "{0} is paired": "{0} ist gekoppelt",
+    "A password that starts or ends with a space can't be set here: use Maprisma WLAN Monitor or nmcli": "Ein Passwort, das mit einem Leerzeichen beginnt oder endet, lässt sich hier nicht setzen: Nutze Maprisma WLAN Monitor oder nmcli"
   },
   "fr": {
     "Waiting": "En attente",
@@ -3055,7 +3057,8 @@ const catalogs = <String, Map<String, String>>{
     "the system information": "les informations système",
     "unknown keyboard layout": "disposition de clavier inconnue",
     "xdg-mime is missing (xdg-utils)": "xdg-mime est manquant (xdg-utils)",
-    "{0} is paired": "{0} est associé"
+    "{0} is paired": "{0} est associé",
+    "A password that starts or ends with a space can't be set here: use Maprisma WLAN Monitor or nmcli": "Un mot de passe qui commence ou se termine par une espace ne peut pas être défini ici : utilisez Maprisma WLAN Monitor ou nmcli"
   },
   "es": {
     "Waiting": "En espera",
@@ -4074,7 +4077,8 @@ const catalogs = <String, Map<String, String>>{
     "the system information": "la información del sistema",
     "unknown keyboard layout": "distribución de teclado desconocida",
     "xdg-mime is missing (xdg-utils)": "falta xdg-mime (xdg-utils)",
-    "{0} is paired": "{0} está emparejado"
+    "{0} is paired": "{0} está emparejado",
+    "A password that starts or ends with a space can't be set here: use Maprisma WLAN Monitor or nmcli": "Aquí no se puede usar una contraseña que empiece o termine con un espacio: usa Maprisma WLAN Monitor o nmcli"
   },
   "it": {
     "Waiting": "In attesa",
@@ -5093,7 +5097,8 @@ const catalogs = <String, Map<String, String>>{
     "the system information": "le informazioni di sistema",
     "unknown keyboard layout": "disposizione tastiera sconosciuta",
     "xdg-mime is missing (xdg-utils)": "xdg-mime mancante (xdg-utils)",
-    "{0} is paired": "{0} è associato"
+    "{0} is paired": "{0} è associato",
+    "A password that starts or ends with a space can't be set here: use Maprisma WLAN Monitor or nmcli": "Qui non si può impostare una password che inizia o finisce con uno spazio: usa Maprisma WLAN Monitor o nmcli"
   },
   "pt": {
     "Waiting": "Em espera",
@@ -6112,7 +6117,8 @@ const catalogs = <String, Map<String, String>>{
     "the system information": "as informações do sistema",
     "unknown keyboard layout": "layout de teclado desconhecido",
     "xdg-mime is missing (xdg-utils)": "xdg-mime está ausente (xdg-utils)",
-    "{0} is paired": "{0} está pareado"
+    "{0} is paired": "{0} está pareado",
+    "A password that starts or ends with a space can't be set here: use Maprisma WLAN Monitor or nmcli": "Uma senha que começa ou termina com espaço não pode ser definida aqui: use o Maprisma WLAN Monitor ou o nmcli"
   },
   "nl": {
     "Waiting": "Wachten",
@@ -7131,7 +7137,8 @@ const catalogs = <String, Map<String, String>>{
     "the system information": "de systeeminformatie",
     "unknown keyboard layout": "onbekende toetsenbordindeling",
     "xdg-mime is missing (xdg-utils)": "xdg-mime ontbreekt (xdg-utils)",
-    "{0} is paired": "{0} is gekoppeld"
+    "{0} is paired": "{0} is gekoppeld",
+    "A password that starts or ends with a space can't be set here: use Maprisma WLAN Monitor or nmcli": "Een wachtwoord dat met een spatie begint of eindigt kan hier niet worden ingesteld: gebruik Maprisma WLAN Monitor of nmcli"
   },
   "pl": {
     "Waiting": "Oczekiwanie",
@@ -8150,6 +8157,7 @@ const catalogs = <String, Map<String, String>>{
     "the system information": "informacje o systemie",
     "unknown keyboard layout": "nieznany układ klawiatury",
     "xdg-mime is missing (xdg-utils)": "brak xdg-mime (xdg-utils)",
-    "{0} is paired": "Sparowano z {0}"
+    "{0} is paired": "Sparowano z {0}",
+    "A password that starts or ends with a space can't be set here: use Maprisma WLAN Monitor or nmcli": "Hasła zaczynającego się lub kończącego spacją nie można tu ustawić: użyj Maprisma WLAN Monitor lub nmcli"
   }
 };
