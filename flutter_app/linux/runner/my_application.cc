@@ -68,9 +68,12 @@ static FlValue* window_geometry(GtkWindow* window) {
   gtk_window_get_size(window, &width, &height);
   GdkWindow* gdk_window = gtk_widget_get_window(GTK_WIDGET(window));
   GdkWindowState state = gdk_window != nullptr ? gdk_window_get_state(gdk_window) : (GdkWindowState)0;
-  gboolean free = gtk_widget_get_visible(GTK_WIDGET(window)) &&
-                  (state & (GDK_WINDOW_STATE_MAXIMIZED | GDK_WINDOW_STATE_FULLSCREEN |
-                            GDK_WINDOW_STATE_TILED)) == 0;
+  // Hyprland reports every window as maximised and tiled, floating ones too: there only full
+  // screen means the size isn't the user's (the maprisma-app rule).
+  const gchar* hypr = g_getenv("HYPRLAND_INSTANCE_SIGNATURE");
+  GdkWindowState busy = (GdkWindowState)(GDK_WINDOW_STATE_FULLSCREEN |
+      ((hypr != nullptr && hypr[0] != '\0') ? 0 : (GDK_WINDOW_STATE_MAXIMIZED | GDK_WINDOW_STATE_TILED)));
+  gboolean free = gtk_widget_get_visible(GTK_WIDGET(window)) && (state & busy) == 0;
   FlValue* map = fl_value_new_map();
   fl_value_set_string_take(map, "width", fl_value_new_int(width));
   fl_value_set_string_take(map, "height", fl_value_new_int(height));
