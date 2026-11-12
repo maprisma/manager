@@ -8,7 +8,8 @@ import 'power_page.dart' show idleLabel;
 import 'settings_widgets.dart';
 
 /// Notifications: Maprisma Notifier's settings (do not disturb with its schedule, how long the
-/// history is kept, the unread count, muted and hidden apps, Clear history) on every desktop;
+/// history is kept, the unread count, crash reports and their AI helper, muted and hidden apps,
+/// Clear history) on every desktop;
 /// on Hyprland also Maprisma Shell's popups (position, how long, how many); on COSMIC and KDE a
 /// link to the desktop's own notification settings (`notifications.*`, `native.open`).
 class NotificationsPage extends StatefulWidget {
@@ -196,6 +197,38 @@ class NotificationsPageState extends State<NotificationsPage> with RoutePage {
     );
   }
 
+  /// Crash reports: the switch, and which AI helper "Check with AI" opens (when one is installed).
+  Widget _crashes(Map s, List helpers) {
+    final off = working || s['error'] != null;
+    final ids = [for (final h in helpers) '${(h as Map)['id']}'];
+    // a chosen helper that isn't installed works as Automatic
+    final chosen = ids.contains(s['ai_helper']) ? s['ai_helper'] as String : 'auto';
+    return SettingsSection(
+      title: tr('Crashes'),
+      children: [
+        SettingsToggle(
+          key: const ValueKey('notifications-crashes'),
+          title: tr('Report app crashes'),
+          description: tr('A notification when one of your programs crashes, with its details.'),
+          value: s['notify_crashes'] != false,
+          onChanged: off ? null : (v) => _set({'notify_crashes': v}),
+        ),
+        if (helpers.isNotEmpty)
+          SettingsChoice<String>(
+            key: const ValueKey('notifications-ai-helper'),
+            title: tr('AI helper'),
+            description: tr('Check with AI on a crash opens it in a terminal.'),
+            value: chosen,
+            choices: [
+              ('auto', trf('Automatic ({0})', [(helpers.first as Map)['name']])),
+              for (final h in helpers) ('${(h as Map)['id']}', '${h['name']}'),
+            ],
+            onChanged: off || s['notify_crashes'] == false ? null : (v) => _set({'ai_helper': v}),
+          ),
+      ],
+    );
+  }
+
   Widget _apps(Map s, Map history) {
     final muted = (s['muted_apps'] as List).cast<String>();
     final hidden = (s['hidden_apps'] as List).cast<String>();
@@ -298,7 +331,7 @@ class NotificationsPageState extends State<NotificationsPage> with RoutePage {
       title: tr('Notifications'),
       actions: reloadActions(),
       children: [
-        if (d['installed'] != true) _install() else ...[_dnd(d, s), _history(s, history), _apps(s, history)],
+        if (d['installed'] != true) _install() else ...[_dnd(d, s), _history(s, history), _crashes(s, d['ai_helpers'] is List ? d['ai_helpers'] as List : const []), _apps(s, history)],
         if (d['shell'] is Map) _popups(d['shell'] as Map),
         if (d['native'] is Map) _native(d['native'] as Map),
       ],

@@ -60,5 +60,11 @@
   "{0} is too big": "{0} ist zu groß",
   "{0} keeps changing; try again": "{0} ändert sich ständig; bitte erneut versuchen",
   "{0} notifications": "{0} Benachrichtigungen",
-  "{0} notifications kept": "{0} Benachrichtigungen gespeichert"
+  "{0} notifications kept": "{0} Benachrichtigungen gespeichert",
+  "Crashes": "Abstürze",
+  "Report app crashes": "Programmabstürze melden",
+  "A notification when one of your programs crashes, with its details.": "Eine Benachrichtigung, wenn eines deiner Programme abstürzt, mit den Details.",
+  "AI helper": "KI-Helfer",
+  "Check with AI on a crash opens it in a terminal.": "„Mit KI prüfen“ bei einem Absturz öffnet ihn in einem Terminal.",
+  "Automatic ({0})": "Automatisch ({0})"
 }

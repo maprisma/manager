@@ -60,5 +60,11 @@
   "{0} is too big": "{0} is too big",
   "{0} keeps changing; try again": "{0} keeps changing; try again",
   "{0} notifications": "{0} notifications",
-  "{0} notifications kept": "{0} notifications kept"
+  "{0} notifications kept": "{0} notifications kept",
+  "Crashes": "Crashes",
+  "Report app crashes": "Report app crashes",
+  "A notification when one of your programs crashes, with its details.": "A notification when one of your programs crashes, with its details.",
+  "AI helper": "AI helper",
+  "Check with AI on a crash opens it in a terminal.": "Check with AI on a crash opens it in a terminal.",
+  "Automatic ({0})": "Automatic ({0})"
 }

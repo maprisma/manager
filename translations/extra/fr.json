@@ -60,5 +60,11 @@
   "{0} is too big": "{0} est trop gros",
   "{0} keeps changing; try again": "{0} change sans cesse ; réessayez",
   "{0} notifications": "{0} notifications",
-  "{0} notifications kept": "{0} notifications conservées"
+  "{0} notifications kept": "{0} notifications conservées",
+  "Crashes": "Plantages",
+  "Report app crashes": "Signaler les plantages d'applications",
+  "A notification when one of your programs crashes, with its details.": "Une notification quand l'un de vos programmes plante, avec ses détails.",
+  "AI helper": "Assistant IA",
+  "Check with AI on a crash opens it in a terminal.": "« Vérifier avec l'IA » sur un plantage l'ouvre dans un terminal.",
+  "Automatic ({0})": "Automatique ({0})"
 }

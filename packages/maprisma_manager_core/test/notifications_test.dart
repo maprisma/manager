@@ -56,9 +56,12 @@ void main() {
       'history_max': 500,
       'history_days': 7,
       'show_count': true,
+      'notify_crashes': true,
+      'ai_helper': 'auto',
       'muted_apps': <String>[],
       'hidden_apps': <String>[],
     });
+    expect(r['ai_helpers'], isEmpty);
     expect(r['history'], {'file': historyFile(), 'exists': false, 'count': 0, 'apps': <String>[]});
     expect(r['shell'], {'file': shellFile(), 'exists': false, 'dnd': false, 'position': 'top-right', 'timeout': 5, 'max': 5});
     expect(r['desktop_dnd'], {'where': 'shell', 'on': false});
@@ -85,6 +88,8 @@ void main() {
       'show_count': 1,
       'muted_apps': ['Firefox', 3, ''],
       'hidden_apps': 'x',
+      'notify_crashes': 'no',
+      'ai_helper': '../x',
     }));
     final s = (await w.core(clock: noon).call('notifications.get'))['settings'] as Map;
     expect(s['dnd'], isFalse);
@@ -94,6 +99,93 @@ void main() {
     expect(s['show_count'], isTrue);
     expect(s['muted_apps'], ['Firefox']);
     expect(s['hidden_apps'], isEmpty);
+    expect(s['notify_crashes'], isTrue);
+    expect(s['ai_helper'], 'auto');
+  });
+
+  test('crash reports and the AI helper: set, read back, bad values refused', () async {
+    final core = w.core();
+    final r = await core.call('notifications.set', {'notify_crashes': false, 'ai_helper': 'cursor-agent'});
+    expect(stored(settingsFile()), {'notify_crashes': false, 'ai_helper': 'cursor-agent'});
+    expect((r['settings'] as Map)['notify_crashes'], isFalse);
+    expect((r['settings'] as Map)['ai_helper'], 'cursor-agent');
+    await core.call('notifications.set', {'ai_helper': 'auto'});
+    expect(stored(settingsFile())['ai_helper'], 'auto');
+    for (final bad in [
+      {'notify_crashes': 1},
+      {'ai_helper': '../x'},
+      {'ai_helper': '-x'},
+      {'ai_helper': ''},
+      {'ai_helper': 3},
+    ]) {
+      await expectLater(core.call('notifications.set', bad), refused('bad_params'), reason: '$bad');
+    }
+  });
+
+  test('AI helpers: the newer catalog, only task helpers that are installed (PATH, ~/.npm-global/bin, mise)', () async {
+    void exe(String path, [String body = '']) {
+      w.writeFile(path, '#!/bin/sh\n$body');
+      Process.runSync('chmod', ['755', path]);
+    }
+
+    String helper(String id, {Object? task = const {'argv': ['{cmd}', '{prompt}']}, String? name}) => jsonEncode({
+      'id': id,
+      'name': ?name,
+      'command': id,
+      'ask': null,
+      'task': task is Map ? {'argv': [for (final a in task['argv'] as List) a == '{cmd}' ? id : a]} : task,
+    });
+    String catalog(int version, List<String> helpers) => '{"version": $version, "helpers": [${helpers.join(', ')}]}';
+    final own = p.join(w.home, '.local/share/maprisma-notifier/helpers.json');
+    final system = p.join(w.root, 'usr/lib/maprisma/data/helpers.json');
+    w.writeFile(own, catalog(1, [
+      helper('claude', name: 'Claude Code'),
+      helper('noask', task: null),
+      helper('codex', name: 'Codex'),
+      helper('bad', task: {'argv': ['{cmd}']}),
+      helper('pi'),
+      helper('missing'),
+      '"garbage"',
+    ]));
+    exe(p.join(w.fakeBin, 'claude'));
+    exe(p.join(w.fakeBin, 'noask'));
+    exe(p.join(w.fakeBin, 'bad'));
+    exe(p.join(w.home, '.npm-global/bin/codex'));
+    final pi = p.join(w.dir, 'mise-installs/pi');
+    exe(pi);
+    exe(p.join(w.fakeBin, 'mise'), '[ "\$1" = which ] && [ "\$2" = pi ] && echo $pi && exit 0\nexit 1\n');
+    List<Object?> ids(Map r) => [for (final h in r['ai_helpers'] as List) (h as Map)['id']];
+    var r = await w.core().call('notifications.get');
+    expect(ids(r), ['claude', 'codex', 'pi']);
+    expect((r['ai_helpers'] as List).first, {'id': 'claude', 'name': 'Claude Code'});
+    // Maprisma's catalog when it is at least as new.
+    w.writeFile(system, catalog(1, [helper('pi'), helper('claude')]));
+    r = await w.core().call('notifications.get');
+    expect(ids(r), ['pi', 'claude']);
+    w.writeFile(system, catalog(0, [helper('pi')]));
+    r = await w.core().call('notifications.get');
+    expect(ids(r), ['claude', 'codex', 'pi']);
+    w.writeFile(system, '{broken');
+    r = await w.core().call('notifications.get');
+    expect(ids(r), ['claude', 'codex', 'pi']);
+  });
+
+  test('the helpers catalog parser skips broken entries', () {
+    expect(NotificationsService.parseHelpers('[]'), isNull);
+    expect(NotificationsService.parseHelpers('{"version": "1", "helpers": []}'), isNull);
+    final c = NotificationsService.parseHelpers(jsonEncode({
+      'version': 4,
+      'helpers': [
+        {'id': 'a', 'command': 'a', 'task': {'argv': ['a', '--p={prompt}']}},
+        {'id': 'a', 'command': 'b', 'task': {'argv': ['b', '{prompt}']}},
+        {'id': '../x', 'command': 'x', 'task': {'argv': ['x', '{prompt}']}},
+        {'id': 'y', 'command': '/bin/y', 'task': {'argv': ['y', '{prompt}']}},
+        {'id': 'z', 'command': 'z', 'task': {'argv': ['{prompt}']}},
+        {'id': 'n', 'command': 'n', 'task': {'argv': ['n', 1, '{prompt}']}},
+      ],
+    }))!;
+    expect(c.version, 4);
+    expect([for (final h in c.helpers) (h.id, h.name, h.command)], [('a', 'a', 'a')]);
   });
 
   test('the schedule: a window crossing midnight, a window within the day, from == to', () {

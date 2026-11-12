@@ -60,5 +60,11 @@
   "{0} is too big": "{0} is te groot",
   "{0} keeps changing; try again": "{0} blijft veranderen; probeer het opnieuw",
   "{0} notifications": "{0} meldingen",
-  "{0} notifications kept": "{0} meldingen bewaard"
+  "{0} notifications kept": "{0} meldingen bewaard",
+  "Crashes": "Crashes",
+  "Report app crashes": "App-crashes melden",
+  "A notification when one of your programs crashes, with its details.": "Een melding wanneer een van je programma's crasht, met de details.",
+  "AI helper": "AI-helper",
+  "Check with AI on a crash opens it in a terminal.": "‘Controleren met AI’ bij een crash opent hem in een terminal.",
+  "Automatic ({0})": "Automatisch ({0})"
 }

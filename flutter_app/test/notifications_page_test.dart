@@ -25,9 +25,15 @@ Map<String, dynamic> _answer({String desktop = 'hyprland', bool installed = true
     'history_max': 500,
     'history_days': 7,
     'show_count': true,
+    'notify_crashes': true,
+    'ai_helper': 'auto',
     'muted_apps': ['Slack'],
     'hidden_apps': ['Spam'],
   },
+  'ai_helpers': [
+    {'id': 'claude', 'name': 'Claude Code'},
+    {'id': 'codex', 'name': 'Codex'},
+  ],
   'history': {'file': '/h', 'exists': true, 'count': 12, 'apps': ['Firefox', 'Slack']},
   'shell': desktop == 'hyprland' ? {'file': '/home/u/.config/maprisma-shell/shell.json', 'exists': true, 'dnd': false, 'position': 'top-right', 'timeout': 5, 'max': 5} : null,
   'desktop_dnd': switch (desktop) {
@@ -121,6 +127,26 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('notifications-clear-confirm')));
     await tester.pumpAndSettle();
     expect(calls.where((c) => c.$1 == 'notifications.clear_history'), hasLength(1));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('crash reports: the switch and the AI helper (only when one is installed)', (tester) async {
+    final calls = await open(tester, _answer());
+    expect(find.text('Report app crashes'), findsOneWidget);
+    expect(find.text('Automatic (Claude Code)'), findsOneWidget);
+    await tester.ensureVisible(find.byKey(const ValueKey('notifications-crashes')));
+    await tester.tap(find.byKey(const ValueKey('notifications-crashes')));
+    await tester.pumpAndSettle();
+    expect(calls.where((c) => c.$1 == 'notifications.set').last.$2, {'notify_crashes': false});
+    await choose<String>(tester, 'notifications-ai-helper', 'Codex');
+    expect(calls.where((c) => c.$1 == 'notifications.set').last.$2, {'ai_helper': 'codex'});
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('crash reports without an AI helper: no helper choice', (tester) async {
+    await open(tester, {..._answer(desktop: 'kde'), 'ai_helpers': <Object>[]});
+    expect(find.text('Report app crashes'), findsOneWidget);
+    expect(find.byKey(const ValueKey('notifications-ai-helper')), findsNothing);
     expect(tester.takeException(), isNull);
   });
 

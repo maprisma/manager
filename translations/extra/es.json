@@ -60,5 +60,11 @@
   "{0} is too big": "{0} es demasiado grande",
   "{0} keeps changing; try again": "{0} cambia sin parar; inténtalo de nuevo",
   "{0} notifications": "{0} notificaciones",
-  "{0} notifications kept": "{0} notificaciones guardadas"
+  "{0} notifications kept": "{0} notificaciones guardadas",
+  "Crashes": "Bloqueos",
+  "Report app crashes": "Avisar de bloqueos de aplicaciones",
+  "A notification when one of your programs crashes, with its details.": "Una notificación cuando uno de tus programas se bloquea, con sus detalles.",
+  "AI helper": "Asistente de IA",
+  "Check with AI on a crash opens it in a terminal.": "«Revisar con IA» en un bloqueo lo abre en un terminal.",
+  "Automatic ({0})": "Automático ({0})"
 }

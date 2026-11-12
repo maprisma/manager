@@ -1069,7 +1069,13 @@ const catalogs = <String, Map<String, String>>{
     "{0} is too big": "{0} is too big",
     "{0} keeps changing; try again": "{0} keeps changing; try again",
     "{0} notifications": "{0} notifications",
-    "{0} notifications kept": "{0} notifications kept"
+    "{0} notifications kept": "{0} notifications kept",
+    "Crashes": "Crashes",
+    "Report app crashes": "Report app crashes",
+    "A notification when one of your programs crashes, with its details.": "A notification when one of your programs crashes, with its details.",
+    "AI helper": "AI helper",
+    "Check with AI on a crash opens it in a terminal.": "Check with AI on a crash opens it in a terminal.",
+    "Automatic ({0})": "Automatic ({0})"
   },
   "de": {
     "Waiting": "Wartet",
@@ -2140,7 +2146,13 @@ const catalogs = <String, Map<String, String>>{
     "{0} is too big": "{0} ist zu groß",
     "{0} keeps changing; try again": "{0} ändert sich ständig; bitte erneut versuchen",
     "{0} notifications": "{0} Benachrichtigungen",
-    "{0} notifications kept": "{0} Benachrichtigungen gespeichert"
+    "{0} notifications kept": "{0} Benachrichtigungen gespeichert",
+    "Crashes": "Abstürze",
+    "Report app crashes": "Programmabstürze melden",
+    "A notification when one of your programs crashes, with its details.": "Eine Benachrichtigung, wenn eines deiner Programme abstürzt, mit den Details.",
+    "AI helper": "KI-Helfer",
+    "Check with AI on a crash opens it in a terminal.": "„Mit KI prüfen“ bei einem Absturz öffnet ihn in einem Terminal.",
+    "Automatic ({0})": "Automatisch ({0})"
   },
   "fr": {
     "Waiting": "En attente",
@@ -3211,7 +3223,13 @@ const catalogs = <String, Map<String, String>>{
     "{0} is too big": "{0} est trop gros",
     "{0} keeps changing; try again": "{0} change sans cesse ; réessayez",
     "{0} notifications": "{0} notifications",
-    "{0} notifications kept": "{0} notifications conservées"
+    "{0} notifications kept": "{0} notifications conservées",
+    "Crashes": "Plantages",
+    "Report app crashes": "Signaler les plantages d'applications",
+    "A notification when one of your programs crashes, with its details.": "Une notification quand l'un de vos programmes plante, avec ses détails.",
+    "AI helper": "Assistant IA",
+    "Check with AI on a crash opens it in a terminal.": "« Vérifier avec l'IA » sur un plantage l'ouvre dans un terminal.",
+    "Automatic ({0})": "Automatique ({0})"
   },
   "es": {
     "Waiting": "En espera",
@@ -4282,7 +4300,13 @@ const catalogs = <String, Map<String, String>>{
     "{0} is too big": "{0} es demasiado grande",
     "{0} keeps changing; try again": "{0} cambia sin parar; inténtalo de nuevo",
     "{0} notifications": "{0} notificaciones",
-    "{0} notifications kept": "{0} notificaciones guardadas"
+    "{0} notifications kept": "{0} notificaciones guardadas",
+    "Crashes": "Bloqueos",
+    "Report app crashes": "Avisar de bloqueos de aplicaciones",
+    "A notification when one of your programs crashes, with its details.": "Una notificación cuando uno de tus programas se bloquea, con sus detalles.",
+    "AI helper": "Asistente de IA",
+    "Check with AI on a crash opens it in a terminal.": "«Revisar con IA» en un bloqueo lo abre en un terminal.",
+    "Automatic ({0})": "Automático ({0})"
   },
   "it": {
     "Waiting": "In attesa",
@@ -5353,7 +5377,13 @@ const catalogs = <String, Map<String, String>>{
     "{0} is too big": "{0} è troppo grande",
     "{0} keeps changing; try again": "{0} continua a cambiare; riprova",
     "{0} notifications": "{0} notifiche",
-    "{0} notifications kept": "{0} notifiche conservate"
+    "{0} notifications kept": "{0} notifiche conservate",
+    "Crashes": "Arresti anomali",
+    "Report app crashes": "Segnala gli arresti anomali delle app",
+    "A notification when one of your programs crashes, with its details.": "Una notifica quando uno dei tuoi programmi si arresta, con i dettagli.",
+    "AI helper": "Assistente IA",
+    "Check with AI on a crash opens it in a terminal.": "«Verifica con l'IA» su un arresto anomalo lo apre in un terminale.",
+    "Automatic ({0})": "Automatico ({0})"
   },
   "pt": {
     "Waiting": "Em espera",
@@ -6424,7 +6454,13 @@ const catalogs = <String, Map<String, String>>{
     "{0} is too big": "{0} é demasiado grande",
     "{0} keeps changing; try again": "{0} está sempre a mudar; tente de novo",
     "{0} notifications": "{0} notificações",
-    "{0} notifications kept": "{0} notificações guardadas"
+    "{0} notifications kept": "{0} notificações guardadas",
+    "Crashes": "Falhas",
+    "Report app crashes": "Avisar falhas de aplicações",
+    "A notification when one of your programs crashes, with its details.": "Uma notificação quando um dos teus programas falha, com os detalhes.",
+    "AI helper": "Assistente de IA",
+    "Check with AI on a crash opens it in a terminal.": "«Verificar com IA» numa falha abre-o num terminal.",
+    "Automatic ({0})": "Automático ({0})"
   },
   "nl": {
     "Waiting": "Wachten",
@@ -7495,7 +7531,13 @@ const catalogs = <String, Map<String, String>>{
     "{0} is too big": "{0} is te groot",
     "{0} keeps changing; try again": "{0} blijft veranderen; probeer het opnieuw",
     "{0} notifications": "{0} meldingen",
-    "{0} notifications kept": "{0} meldingen bewaard"
+    "{0} notifications kept": "{0} meldingen bewaard",
+    "Crashes": "Crashes",
+    "Report app crashes": "App-crashes melden",
+    "A notification when one of your programs crashes, with its details.": "Een melding wanneer een van je programma's crasht, met de details.",
+    "AI helper": "AI-helper",
+    "Check with AI on a crash opens it in a terminal.": "‘Controleren met AI’ bij een crash opent hem in een terminal.",
+    "Automatic ({0})": "Automatisch ({0})"
   },
   "pl": {
     "Waiting": "Oczekiwanie",
@@ -8566,6 +8608,12 @@ const catalogs = <String, Map<String, String>>{
     "{0} is too big": "{0} jest za duży",
     "{0} keeps changing; try again": "{0} ciągle się zmienia; spróbuj ponownie",
     "{0} notifications": "{0} powiadomień",
-    "{0} notifications kept": "Zachowano {0} powiadomień"
+    "{0} notifications kept": "Zachowano {0} powiadomień",
+    "Crashes": "Awarie",
+    "Report app crashes": "Zgłaszaj awarie aplikacji",
+    "A notification when one of your programs crashes, with its details.": "Powiadomienie, gdy któryś z twoich programów ulegnie awarii, ze szczegółami.",
+    "AI helper": "Asystent AI",
+    "Check with AI on a crash opens it in a terminal.": "„Sprawdź z AI” przy awarii otwiera go w terminalu.",
+    "Automatic ({0})": "Automatycznie ({0})"
   }
 };
