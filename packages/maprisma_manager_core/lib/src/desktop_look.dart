@@ -13,7 +13,7 @@ Map<String, dynamic> desktopLook(Ctx ctx) {
   final colors = switch (ctx.desktop) {
     DesktopId.cosmic => _cosmicColors(ctx),
     DesktopId.kde => _kdeColors(ctx),
-    DesktopId.hyprland => _caelestiaColors(ctx),
+    DesktopId.hyprland => _shellColors(ctx),
     DesktopId.other => <String, String>{},
   };
   final bg = colors['background'];
@@ -30,12 +30,13 @@ Map<String, dynamic> desktopLook(Ctx ctx) {
   };
 }
 
-/// Caelestia's colour scheme (XDG_STATE_HOME/caelestia/scheme.json, Material names, hex
-/// without '#'), as Maprisma Playground reads it; empty without Caelestia.
-Map<String, String> _caelestiaColors(Ctx ctx) {
+/// Maprisma Shell's colour scheme (XDG_STATE_HOME/maprisma-shell/scheme.json, written by
+/// Maprisma Theme; Material names, hex without '#'), as Maprisma Playground reads it; empty
+/// without it.
+Map<String, String> _shellColors(Ctx ctx) {
   final stateHome = ctx.environment['XDG_STATE_HOME'];
   final state = stateHome != null && p.isAbsolute(stateHome) ? stateHome : p.join(ctx.paths.home, '.local', 'state');
-  final text = _read(p.join(state, 'caelestia', 'scheme.json'), 256 * 1024);
+  final text = _read(p.join(state, 'maprisma-shell', 'scheme.json'), 256 * 1024);
   if (text == null) return {};
   Object? data;
   try {

@@ -294,7 +294,7 @@ void main() {
 
   test('desktop.look on Hyprland follows Caelestia\'s scheme, else no colours', () async {
     expect((await w.core(desktop: 'Hyprland').call('desktop.look'))['colors'], isEmpty);
-    w.writeFile(p.join(w.paths.home, '.local/state/caelestia/scheme.json'),
+    w.writeFile(p.join(w.paths.home, '.local/state/maprisma-shell/scheme.json'),
         '{"colours": {"primary": "89B4FA", "surface": "1e1e2e", "onSurface": "cdd6f4", "green": "bad"}}');
     final look = await w.core(desktop: 'Hyprland').call('desktop.look');
     expect(look['desktop'], 'hyprland');

@@ -8,7 +8,7 @@ void main() {
     expect(catalog, hasLength(16));
     final ids = {for (final a in catalog) a.id};
     expect(ids, hasLength(16));
-    expect(ids, containsAll(['maprisma', 'control', 'launcher', 'theme', 'playground', 'bluetooth', 'home', 'hue', 'llm', 'wlan', 'narrator', 'video', 'tiling', 'icons', 'bar', 'manager']));
+    expect(ids, containsAll(['maprisma', 'control', 'launcher', 'theme', 'playground', 'bluetooth', 'home', 'hue', 'llm', 'wlan', 'narrator', 'video', 'tiling', 'icons', 'shell', 'manager']));
     for (final a in catalog) {
       for (final c in a.components) {
         expect(c.paths.where((p) => p.key), hasLength(1), reason: '${a.id}/${c.id}');
@@ -71,7 +71,7 @@ void main() {
     expect(findApp('narrator')!.bar.kdeId, 'com.maprisma.Narrator.Tray');
     expect(findApp('theme')!.bar.kdeId, 'maprisma-theme');
     expect(findApp('launcher')!.bar.kdeKind, KdeBarKind.widgetEntry);
-    for (final id in ['maprisma', 'tiling', 'icons', 'bar', 'manager']) {
+    for (final id in ['maprisma', 'tiling', 'icons', 'shell', 'manager']) {
       expect(findApp(id)!.bar.none, isTrue, reason: id);
     }
   });
@@ -92,22 +92,22 @@ void main() {
     }
   });
 
-  test('Maprisma Bar: Hyprland only; its qs instance is matched by config, not every Quickshell', () {
-    final bar = findApp('bar')!;
+  test('Maprisma Shell: Hyprland only; its qs instance is matched by config, not every Quickshell', () {
+    final bar = findApp('shell')!;
     expect(bar.desktops, {DesktopId.hyprland});
-    expect(bar.inputs.single.github, 'maprisma/bar');
+    expect(bar.inputs.single.github, 'maprisma/shell');
     final m = bar.processes.single;
-    const dir = '/h/.config/quickshell/maprisma-bar';
+    const dir = '/h/.config/quickshell/maprisma-shell';
     ProcInfo proc(String exe, List<String> argv) => ProcInfo(1, 1000, exe, argv, 1);
     quickshellConfigRoot = '/h/.config/quickshell';
     addTearDown(() => quickshellConfigRoot = null);
-    expect(processMatches(m, dir, proc('/usr/bin/quickshell', ['qs', '-c', 'maprisma-bar', '-n', '-d'])), isTrue);
-    expect(processMatches(m, dir, proc('/usr/bin/quickshell', ['quickshell', '--config=maprisma-bar'])), isTrue);
+    expect(processMatches(m, dir, proc('/usr/bin/quickshell', ['qs', '-c', 'maprisma-shell', '-n', '-d'])), isTrue);
+    expect(processMatches(m, dir, proc('/usr/bin/quickshell', ['quickshell', '--config=maprisma-shell'])), isTrue);
     expect(processMatches(m, dir, proc('/usr/bin/quickshell', ['qs', '-p', '$dir/shell.qml'])), isTrue);
     expect(processMatches(m, dir, proc('/usr/bin/quickshell', ['qs', '-c', 'caelestia', '-n', '-d'])), isFalse);
-    expect(processMatches(m, dir, proc('/usr/bin/nvim', ['nvim', '-c', 'maprisma-bar'])), isFalse);
-    expect(processMatches(m, dir, proc('/usr/bin/quickshell', ['qs', '-p', '/elsewhere/maprisma-bar/shell.qml'])), isFalse);
-    // a temp HOME's bar folder never claims the user's running `qs -c maprisma-bar`
-    expect(processMatches(m, '/tmp/x/.config/quickshell/maprisma-bar', proc('/usr/bin/quickshell', ['qs', '-c', 'maprisma-bar'])), isFalse);
+    expect(processMatches(m, dir, proc('/usr/bin/nvim', ['nvim', '-c', 'maprisma-shell'])), isFalse);
+    expect(processMatches(m, dir, proc('/usr/bin/quickshell', ['qs', '-p', '/elsewhere/maprisma-shell/shell.qml'])), isFalse);
+    // a temp HOME's bar folder never claims the user's running `qs -c maprisma-shell`
+    expect(processMatches(m, '/tmp/x/.config/quickshell/maprisma-shell', proc('/usr/bin/quickshell', ['qs', '-c', 'maprisma-shell'])), isFalse);
   });
 }

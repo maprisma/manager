@@ -8,8 +8,8 @@ import 'bar_cosmic.dart';
 import 'catalog_model.dart';
 import 'paths.dart';
 
-/// Maprisma Bar (Hyprland, a Quickshell bar; its README "## bar.json"):
-/// `~/.config/maprisma-bar/bar.json` =
+/// Maprisma Shell's bar (Hyprland, Quickshell; its README "## bar.json"):
+/// `~/.config/maprisma-shell/bar.json` =
 /// `{version: 1, background, left: [...], center: [...], right: [...], hidden: [...]}`.
 /// An entry is a widget id (`launcher`, `workspaces`, `clock`, …), `tray` (every tray icon
 /// without a place of its own) or `tray:<StatusNotifierItem id>`. The bar watches the file;
@@ -17,7 +17,7 @@ import 'paths.dart';
 final class MaprismaBarFile {
   MaprismaBarFile._(this.path, this.raw, this.layout, this.hidden, this.error);
 
-  static String file(Paths paths) => p.join(paths.config, 'maprisma-bar', 'bar.json');
+  static String file(Paths paths) => p.join(paths.config, 'maprisma-shell', 'bar.json');
 
   /// The bar's defaults (README), used when there is no file yet.
   static Map<String, dynamic> get defaults => {

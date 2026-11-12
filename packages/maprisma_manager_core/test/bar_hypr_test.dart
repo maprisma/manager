@@ -13,7 +13,7 @@ void main() {
   tearDown(() => w.dispose());
 
   CoreService hypr() => w.core(desktop: 'Hyprland');
-  String barFile() => p.join(w.home, '.config/maprisma-bar/bar.json');
+  String barFile() => p.join(w.home, '.config/maprisma-shell/bar.json');
   Map<String, dynamic> stored() => jsonDecode(File(barFile()).readAsStringSync()) as Map<String, dynamic>;
   void bar(Map<String, dynamic> v) => w.writeFile(barFile(), jsonEncode(v));
   String autostart(String app) => w.paths.expand(findApp(app)!.bar.kdeAutostart!);
@@ -179,7 +179,7 @@ void main() {
   });
 
   test('desktop.look follows Caelestia\'s scheme', () async {
-    w.writeFile(p.join(w.home, '.local/state/caelestia/scheme.json'), '{"colours": {"primary": "89B4FA", "surface": "1e1e2e", "onSurface": "cdd6f4"}}');
+    w.writeFile(p.join(w.home, '.local/state/maprisma-shell/scheme.json'), '{"colours": {"primary": "89B4FA", "surface": "1e1e2e", "onSurface": "cdd6f4"}}');
     final look = await hypr().call('desktop.look');
     expect(look['desktop'], 'hyprland');
     expect(look['colors'], {'accent': '#89b4fa', 'background': '#1e1e2e', 'foreground': '#cdd6f4'});

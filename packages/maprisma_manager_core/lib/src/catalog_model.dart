@@ -4,7 +4,7 @@ library;
 enum DesktopId { cosmic, kde, hyprland, other }
 
 /// Desktops whose Maprisma icons are tray icons (StatusNotifierItems started from autostart
-/// files): KDE Plasma and Hyprland (Maprisma Bar).
+/// files): KDE Plasma and Hyprland (Maprisma Shell's bar).
 bool traysDesktop(DesktopId d) => d == DesktopId.kde || d == DesktopId.hyprland;
 
 enum PathKind { file, executable, dir, link }
