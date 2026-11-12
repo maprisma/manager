@@ -180,8 +180,8 @@ final class NetworkService {
         folder.close();
       }
       await _nmcli(['connection', 'up', 'uuid', uuid, 'passwd-file', '${dir.path}/secrets'], timeout: const Duration(seconds: 60));
-    } on RouteError {
-      // A wrong password leaves no half connection behind.
+    } on Object {
+      // A wrong password (or a secret file that couldn't be written) leaves no half connection.
       await ctx.runner.run(['nmcli', 'connection', 'delete', 'uuid', uuid], timeout: const Duration(seconds: 15));
       rethrow;
     } finally {

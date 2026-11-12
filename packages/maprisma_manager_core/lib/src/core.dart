@@ -183,7 +183,7 @@ final class CoreService {
       'displays.get': (_) => displays.get(),
       'displays.set': (params) => displays.set(params),
       'displays.undo': (_) => displays.undo(),
-      'displays.keep': (_) async => displays.keep(),
+      'displays.keep': (_) => displays.keep(),
       'input.get': (_) => input.get(),
       'input.set': (params) => input.set(params),
       // Network & Wireless and Bluetooth on Hyprland (nmcli, bluetoothctl).

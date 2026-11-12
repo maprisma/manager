@@ -66,6 +66,22 @@ void main() {
     expect((await core.call('displays.get'))['canUndo'], isFalse);
   });
 
+  test('two changes sent together go back to the original; a keep after the countdown says it is too late', () async {
+    // a slow reload, as Hyprland's can be
+    File(p.join(w.fakeBin, 'hyprctl')).renameSync(p.join(w.home, 'hyprctl-real'));
+    w.fake('hyprctl', 'case "\$1" in reload) /usr/bin/sleep 0.3; echo ok ;; *) exec "\$HOME/hyprctl-real" "\$@" ;; esac');
+    final core = w.core(desktop: 'Hyprland');
+    core.displays.keepFor = const Duration(milliseconds: 400);
+    await Future.wait([
+      core.call('displays.set', {'output': 'HDMI-A-1', 'scale': 1.5}),
+      core.call('displays.set', {'output': 'HDMI-A-1', 'scale': 1.25}),
+    ]);
+    expect(lua(), contains('scale = 1.25'));
+    await Future<void>.delayed(const Duration(milliseconds: 1200));
+    expect(lua(), isNot(contains('HDMI-A-1')));
+    expect((await core.call('displays.keep'))['kept'], isFalse);
+  });
+
   test('displays.set refuses unknown modes, scales, outputs and switching off the last display', () async {
     final core = w.core(desktop: 'Hyprland');
     for (final bad in [

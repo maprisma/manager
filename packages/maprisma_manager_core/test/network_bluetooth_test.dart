@@ -52,6 +52,16 @@ void main() {
     expect(Directory(p.dirname(file)).existsSync(), isFalse);
   });
 
+  test('a secret file that can\'t be written also removes the new connection', () async {
+    final runtime = Directory(p.join(w.dir, 'run'))..createSync();
+    Process.runSync('chmod', ['500', runtime.path]);
+    addTearDown(() => Process.runSync('chmod', ['700', runtime.path]));
+    final core = w.core(desktop: 'Hyprland', extra: {'XDG_RUNTIME_DIR': runtime.path});
+    await expectLater(core.call('network.connect', {'ssid': 'Neighbour', 'password': 'secret-pass-123'}), throwsA(anything));
+    expect(log('nmcli.log'), contains('connection delete uuid $uuidNew'));
+    expect(log('nmcli.log').any((l) => l.contains('connection up')), isFalse);
+  });
+
   test('a password with a space at its start or end is refused (nmcli would trim it)', () async {
     final core = w.core(desktop: 'Hyprland');
     await expectLater(core.call('network.connect', {'ssid': 'Neighbour', 'password': 'abcdefgh '}), throwsA(isA<RouteError>().having((e) => e.code, 'code', 'bad_params')));

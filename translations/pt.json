@@ -1016,5 +1016,6 @@
   "unknown keyboard layout": "layout de teclado desconhecido",
   "xdg-mime is missing (xdg-utils)": "xdg-mime está ausente (xdg-utils)",
   "{0} is paired": "{0} está pareado",
-  "A password that starts or ends with a space can't be set here: use Maprisma WLAN Monitor or nmcli": "Uma senha que começa ou termina com espaço não pode ser definida aqui: use o Maprisma WLAN Monitor ou o nmcli"
+  "A password that starts or ends with a space can't be set here: use Maprisma WLAN Monitor or nmcli": "Uma senha que começa ou termina com espaço não pode ser definida aqui: use o Maprisma WLAN Monitor ou o nmcli",
+  "Too late: the previous display settings are back": "Tarde demais: as configurações de tela anteriores foram restauradas"
 }

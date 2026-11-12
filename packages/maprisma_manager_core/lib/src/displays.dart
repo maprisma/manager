@@ -23,6 +23,18 @@ final class DisplaysService {
   Duration keepFor = const Duration(seconds: 15);
   Timer? _revert;
 
+  /// A change was made and is neither kept nor undone yet.
+  bool _unkept = false;
+
+  /// Changes, keeps, undos and the timer's undo run one after the other (a write awaits
+  /// `hyprctl reload`, and the window may send the next request meanwhile).
+  Future<void> _queue = Future<void>.value();
+  Future<T> _serial<T>(Future<T> Function() f) {
+    final run = _queue.then((_) => f());
+    _queue = run.then((_) {}, onError: (_) {});
+    return run;
+  }
+
   static const scales = [1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0];
   static const positions = ['auto', 'auto-right', 'auto-left', 'auto-up', 'auto-down', 'auto-center-right', 'auto-center-left'];
 
@@ -53,12 +65,14 @@ final class DisplaysService {
       'scales': scales,
       'positions': positions,
       'canUndo': _undo != null,
-      'pending': _revert != null,
+      'pending': _unkept,
     };
   }
 
   /// `displays.set` {output, and any of: disabled, mode, scale, transform, vrr, position, mirror}.
-  Future<Map<String, dynamic>> set(Map<String, dynamic> params) async {
+  Future<Map<String, dynamic>> set(Map<String, dynamic> params) => _serial(() => _set(params));
+
+  Future<Map<String, dynamic>> _set(Map<String, dynamic> params) async {
     hypr.need();
     final output = params['output'];
     final now = (await get())['monitors'] as List;
@@ -100,9 +114,12 @@ final class DisplaysService {
     if (change.isEmpty) throw RouteError('bad_params', tr('nothing to change'));
     final state = hypr.read();
     // A change on top of one not kept yet goes back to where the first one started.
-    if (_revert == null || _undo == null) {
+    if (!_unkept || _undo == null) {
       _undo = {for (final e in (state['monitors'] as Map).entries) e.key as String: Map<String, dynamic>.from(e.value as Map)};
     }
+    _unkept = true;
+    _revert?.cancel();
+    _revert = null;
     final monitors = state['monitors'] as Map<String, dynamic>;
     // A monitor's line always carries its mode and position: Hyprland needs both.
     final entry = Map<String, dynamic>.from((monitors[output] as Map?) ?? {'mode': mon['mode'], 'position': mon['position'], 'scale': mon['scale']});
@@ -114,35 +131,41 @@ final class DisplaysService {
       }
     }
     monitors[output as String] = entry;
+    // The countdown starts when the change is on screen (after the reload).
     final written = await hypr.write(state);
-    _revert?.cancel();
-    _revert = Timer(keepFor, () => unawaited(_goBack()));
+    _revert = Timer(keepFor, () => unawaited(_serial(_goBack)));
     return {...written, 'canUndo': true, 'revertIn': keepFor.inSeconds};
   }
 
-  /// The change was not kept in time.
+  /// The change was not kept in time (in the queue: never in the middle of another change).
   Future<void> _goBack() async {
     _revert = null;
-    if (_undo == null) return;
+    if (!_unkept || _undo == null) return;
     try {
-      await undo();
+      await _undoNow();
     } on Object {
       // nothing more to do here: the page shows the state as it is
     }
   }
 
-  /// `displays.keep`: the changes stay (and can't be undone any more).
-  Map<String, dynamic> keep() {
-    final had = _revert != null;
+  /// `displays.keep`: the changes stay (and can't be undone any more); `kept: false` when they
+  /// had gone back already.
+  Future<Map<String, dynamic>> keep() => _serial(() async {
+    final had = _unkept;
     _revert?.cancel();
     _revert = null;
+    _unkept = false;
     _undo = null;
     return {'kept': had};
-  }
+  });
 
-  /// `displays.undo`: the monitors as before the last change.
-  Future<Map<String, dynamic>> undo() async {
+  /// `displays.undo`: the monitors as before the changes not kept yet.
+  Future<Map<String, dynamic>> undo() => _serial(() {
     hypr.need();
+    return _undoNow();
+  });
+
+  Future<Map<String, dynamic>> _undoNow() async {
     _revert?.cancel();
     _revert = null;
     final before = _undo;
@@ -150,6 +173,7 @@ final class DisplaysService {
     final state = hypr.read();
     state['monitors'] = before;
     _undo = null;
+    _unkept = false;
     return await hypr.write(state);
   }
 }

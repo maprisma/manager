@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:maprisma_manager_core/maprisma_manager_core.dart' show tr, trf;
 
+import 'backend.dart' show ServiceError;
 import 'core_call.dart';
 import 'desktop_page.dart';
 import 'settings_widgets.dart';
@@ -64,9 +65,17 @@ class _DisplaysState extends State<_Displays> with RoutePage {
   Future<void> change(String output, Map<String, dynamic> values) async {
     final ok = await act('displays.set', {'output': output, ...values}, reload: false);
     if (!ok || !mounted) return;
-    final keep = await showDialog<bool>(context: context, barrierDismissible: false, builder: (_) => _KeepDialog(seconds: widget.keepSeconds));
+    // The dialog ends a second before the core goes back, so a Keep in time is never too late.
+    final keep = await showDialog<bool>(context: context, barrierDismissible: false, builder: (_) => _KeepDialog(seconds: widget.keepSeconds - 1));
+    if (!mounted) return; // the core goes back by itself
     if (keep == true) {
-      await act('displays.keep', const {});
+      try {
+        final r = await core('displays.keep');
+        if (r['kept'] != true) tellOn(this, tr('Too late: the previous display settings are back'));
+      } on ServiceError catch (e) {
+        tellOn(this, failure(e));
+      }
+      if (mounted) await load();
     } else if (keep == false) {
       await act('displays.undo', const {});
     } else {
