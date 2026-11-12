@@ -200,6 +200,16 @@ General:
   `maprisma-launcher` and `clock`).
 - **Git:** no remote.
 
+## bar: maprisma-bar (Maprisma Bar, Hyprland)
+
+- **Files:** the Quickshell config `~/.config/quickshell/maprisma-bar/` (install.sh runs the
+  qml6 layout tests, copies to `maprisma-bar.new`, swaps it in and restarts the bar).
+- **Data:** `~/.config/maprisma-bar/bar.json` (layout, hidden icons, background; the Manager's
+  Hyprland bar backend writes it too).
+- **Processes:** `qs -c maprisma-bar -n -d` (matched by its config, not every Quickshell).
+- **Login start:** not made by install.sh; `qs -c maprisma-bar -n -d` in Caelestia's hypr-user.lua.
+- **Git:** origin maprisma/bar.
+
 ## COSMIC panel files (this machine)
 
 `~/.config/cosmic/com.system76.CosmicPanel.Panel/v1/plugins_wings` holds the left and right lists:

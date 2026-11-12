@@ -103,7 +103,44 @@ bool processMatches(ProcessMatch m, String path, ProcInfo proc) {
       if (!p.isAbsolute(arg)) return false;
       final n = p.normalize(arg);
       return m.kind == MatchKind.script ? p.equals(n, path) : p.isWithin(path, n);
+    case MatchKind.quickshellConfig:
+      final prog = p.basename(proc.exe ?? (proc.argv.isEmpty ? '' : proc.argv.first));
+      if (prog != 'quickshell' && prog != 'qs') return false;
+      final args = proc.argv.skip(1).toList();
+      for (var i = 0; i < args.length; i++) {
+        final a = args[i];
+        String? flag, value;
+        final eq = a.indexOf('=');
+        if (a.startsWith('--') && eq > 0) {
+          flag = a.substring(0, eq);
+          value = a.substring(eq + 1);
+        } else if (a == '-c' || a == '--config' || a == '-p' || a == '--path') {
+          flag = a;
+          value = i + 1 < args.length ? args[i + 1] : null;
+        }
+        if (value == null) continue;
+        if (flag == '-c' || flag == '--config') {
+          // A name means <the user's config>/quickshell/<name>: only the real folder matches
+          // (a test's temp HOME never claims the user's running bar).
+          if (p.equals(path, p.join(quickshellConfigRoot ?? _realQuickshellRoot(), value))) return true;
+        } else if (flag == '-p' || flag == '--path') {
+          if (!p.isAbsolute(value)) continue;
+          final n = p.normalize(value);
+          if (p.equals(n, path) || p.equals(n, p.join(path, 'shell.qml'))) return true;
+        }
+      }
+      return false;
   }
+}
+
+/// Where `qs -c <name>` looks: tests set it, otherwise the real XDG_CONFIG_HOME/quickshell.
+String? quickshellConfigRoot;
+
+String _realQuickshellRoot() {
+  final env = Platform.environment;
+  final xdg = env['XDG_CONFIG_HOME'];
+  final config = xdg != null && p.isAbsolute(xdg) ? xdg : p.join(env['HOME'] ?? '/', '.config');
+  return p.join(config, 'quickshell');
 }
 
 final _interpreter = RegExp(r'^(python[0-9.]*|bash|sh|dash|zsh)$');

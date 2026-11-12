@@ -122,6 +122,11 @@ enum MatchKind {
 
   /// An argv element after argv[0], normalized, is inside this folder.
   scriptUnder,
+
+  /// A Quickshell instance (exe `quickshell`, also started as `qs`) running the config in this
+  /// folder: `-c <folder name>` / `--config <folder name>`, or `-p` / `--path` naming the folder
+  /// or its shell.qml.
+  quickshellConfig,
 }
 
 final class ProcessMatch {

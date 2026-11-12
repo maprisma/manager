@@ -1,4 +1,4 @@
-/// The 15 apps the Manager knows, as data. Every path was read from the repo's own install
+/// The 16 apps the Manager knows, as data. Every path was read from the repo's own install
 /// script (2026-11-09); docs/inventory.md is the human version of this file.
 ///
 /// Templates: `{bin}` = $HOME/.local/bin, `{lib}` = $HOME/.local/lib, `{data}` = XDG_DATA_HOME,
@@ -13,6 +13,7 @@ export 'catalog_model.dart';
 
 const _cosmic = {DesktopId.cosmic};
 const _kde = {DesktopId.kde};
+const _hyprland = {DesktopId.hyprland};
 const _c = 'io.github.ubruckhaus.CosmicMaprisma';
 
 const _gtkIconCache = Prerequisite('gtk-update-icon-cache', optional: true);
@@ -689,6 +690,41 @@ final List<AppEntry> builtinCatalog = [
     removeRecipe: RemoveRecipe.plasmaIcons,
     supportNote: 'remove takes its widgets out of the panels and switches away from its generated Plasma style first',
     note: 'It is the bar for the others on KDE.',
+  ),
+
+  // --- Hyprland: Maprisma Bar --------------------------------------------------------------
+  const AppEntry(
+    id: 'bar',
+    name: 'Maprisma Bar (Hyprland)',
+    kind: 'Quickshell config',
+    desktops: _hyprland,
+    inputs: [Input('maprisma-bar', github: 'maprisma/bar')],
+    components: [
+      Component(
+        id: 'main',
+        name: 'Maprisma Bar',
+        repo: 'maprisma-bar',
+        install: ['./install.sh'],
+        desktops: _hyprland,
+        stopsOwnProcesses: true,
+        prerequisites: [Prerequisite('qs'), Prerequisite('qml6', note: 'runs the layout tests before installing')],
+        note: 'install.sh runs the tests, copies the config to <dest>.new, swaps it in and restarts the bar. '
+            'It does not add the login start (`qs -c maprisma-bar -n -d` in hypr-user.lua).',
+        trees: [TreeRoot('{config}/quickshell/maprisma-bar', staged: true, note: 'the Quickshell config, copied to maprisma-bar.new, then renamed')],
+        paths: [
+          InstalledPath('{config}/quickshell/maprisma-bar/shell.qml', PathKind.file, key: true),
+          InstalledPath('{config}/quickshell/maprisma-bar/Bar.qml', PathKind.file),
+          InstalledPath('{config}/quickshell/maprisma-bar/Slot.qml', PathKind.file),
+          InstalledPath('{config}/quickshell/maprisma-bar/BarModel.js', PathKind.file),
+          InstalledPath('{config}/quickshell/maprisma-bar/services/Settings.qml', PathKind.file),
+          InstalledPath('{config}/quickshell/maprisma-bar/widgets/TrayIcon.qml', PathKind.file),
+        ],
+      ),
+    ],
+    data: [DataPath('{config}/maprisma-bar', note: 'bar.json: the layout, hidden icons and background (the Manager writes it too)')],
+    processes: [ProcessMatch(MatchKind.quickshellConfig, '{config}/quickshell/maprisma-bar', note: 'qs -c maprisma-bar')],
+    supportNote: 'the bar of the Hyprland/Caelestia session; the Maprisma icons are placed in it from the Bar page',
+    note: 'It is the bar for the others on Hyprland.',
   ),
 
   // --- the Manager itself ------------------------------------------------------------------

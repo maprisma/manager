@@ -223,6 +223,7 @@ exit 1''');
         'maprisma-video-translator': null,
         'maprisma-kwin-scripts': 'maprisma/maprisma-kwin-scripts',
         'maprisma-panel': null,
+        'maprisma-bar': 'maprisma/bar',
         'maprisma-manager': null,
       });
       expect(findApp('launcher')!.release!.asset('0.1.4'), 'maprisma-launcher-0.1.4-x86_64.tar.gz');
