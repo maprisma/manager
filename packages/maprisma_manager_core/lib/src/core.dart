@@ -5,12 +5,16 @@ import 'translations.dart';
 
 import 'ai_update.dart';
 import 'bar.dart';
+import 'bluetooth.dart';
 import 'catalog.dart';
 import 'context.dart';
 import 'desktop_look.dart';
 import 'discovery.dart';
+import 'displays.dart';
 import 'icons.dart';
+import 'input.dart';
 import 'jobs.dart';
+import 'network.dart';
 import 'native.dart';
 import 'paths.dart';
 import 'power.dart';
@@ -19,6 +23,7 @@ import 'protocol.dart';
 import 'removal.dart';
 import 'sources.dart';
 import 'run.dart';
+import 'sound.dart';
 import 'status.dart';
 
 const coreVersion = '0.3.1';
@@ -89,6 +94,8 @@ final class CoreService {
           'screenshot_key' => value is bool,
           // Let AI do the updates (off by default) and its helper (null: the first ready one).
           'ai_updates' => value is bool,
+          // Sound › Amplification: volumes up to 150 %.
+          'sound_amplify' => value is bool,
           'ai_helper' => value == null || (value is String && RegExp(r'^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,160}$').hasMatch(value)),
           _ => false,
         };
@@ -162,6 +169,33 @@ final class CoreService {
       // COSMIC's and KDE's own settings app for a page (native.dart).
       'native.get': (params) async => native.get(params),
       'native.open': (params) => native.open(params),
+      // The Sound page on Hyprland (sound.dart, pactl).
+      'sound.get': (_) => sound.get(),
+      'sound.volume': (params) => sound.volume(params),
+      'sound.mute': (params) => sound.mute(params),
+      'sound.default': (params) => sound.setDefault(params),
+      'sound.stream': (params) => sound.stream(params),
+      'sound.profile': (params) => sound.profile(params),
+      // Displays and Input devices on Hyprland (hypr-manager.lua, hypr_config.dart).
+      'displays.get': (_) => displays.get(),
+      'displays.set': (params) => displays.set(params),
+      'displays.undo': (_) => displays.undo(),
+      'input.get': (_) => input.get(),
+      'input.set': (params) => input.set(params),
+      // Network & Wireless and Bluetooth on Hyprland (nmcli, bluetoothctl).
+      'network.get': (params) => network.get(params),
+      'network.wifi': (params) => network.wifi(params),
+      'network.up': (params) => network.up(params),
+      'network.down': (params) => network.down(params),
+      'network.forget': (params) => network.forget(params),
+      'network.connect': (params) => network.connect(params),
+      'bluetooth.get': (_) => bluetooth.get(),
+      'bluetooth.power': (params) => bluetooth.power(params),
+      'bluetooth.scan': (params) => bluetooth.scan(params),
+      'bluetooth.connect': (params) => bluetooth.device('connect', params),
+      'bluetooth.disconnect': (params) => bluetooth.device('disconnect', params),
+      'bluetooth.forget': (params) => bluetooth.device('forget', params),
+      'bluetooth.pair': (params) => bluetooth.device('pair', params),
       'apps.open': (params) async {
         final app = findApp(_app(params))!;
         final cmd = app.open;
@@ -204,6 +238,18 @@ final class CoreService {
 
   /// The desktop's own settings app (native.*).
   late final NativeSettings native = NativeSettings(ctx, jobs.startDetached);
+
+  /// The Displays and Input devices pages (displays.*, input.*); one service each for the
+  /// whole session (Displays keeps what to undo).
+  late final DisplaysService displays = DisplaysService(ctx);
+  late final InputService input = InputService(ctx);
+
+  /// The Network & Wireless and Bluetooth pages (network.*, bluetooth.*).
+  late final NetworkService network = NetworkService(ctx);
+  late final BluetoothService bluetooth = BluetoothService(ctx);
+
+  /// The Sound page (sound.*).
+  late final SoundService sound = SoundService(ctx);
 
   /// The Power page (power.*).
   late final PowerService power = PowerService(ctx, jobs.startDetached);

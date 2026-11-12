@@ -181,3 +181,71 @@ class AppearancePage extends StatelessWidget {
     );
   }
 }
+
+/// A page that shows one route's answer and changes things through others: [load] keeps only
+/// the newest answer, [act] keeps the page busy until it shows the values as they are after the
+/// change, and nothing touches the page once it is gone.
+mixin RoutePage<T extends StatefulWidget> on State<T> {
+  CoreCall get core;
+  String get getRoute;
+  Map<String, dynamic> get getParams => const {};
+
+  Map<String, dynamic>? data;
+  String? error;
+  bool working = false;
+  int _loads = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(load());
+  }
+
+  Future<void> load() async {
+    final mine = ++_loads;
+    try {
+      final r = await core(getRoute, getParams);
+      if (mounted && mine == _loads) {
+        setState(() {
+          data = r;
+          error = null;
+        });
+      }
+    } on ServiceError catch (e) {
+      if (mounted && mine == _loads) setState(() => error = failure(e));
+    }
+  }
+
+  /// [route] with [params]; false when it was refused (the snack bar says why).
+  Future<bool> act(String route, Map<String, dynamic> params, {bool reload = true}) async {
+    if (working) return false;
+    setState(() => working = true);
+    var ok = true;
+    try {
+      try {
+        await core(route, params);
+      } on ServiceError catch (e) {
+        ok = false;
+        tellOn(this, failure(e));
+      }
+      if (reload && mounted) await load();
+    } finally {
+      if (mounted) setState(() => working = false);
+    }
+    return ok;
+  }
+
+  /// The page's busy spinner and Reload, for the title.
+  List<Widget> reloadActions() => [
+    if (working) const Padding(padding: EdgeInsets.only(right: 8), child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))),
+    IconButton(tooltip: tr('Reload'), onPressed: load, icon: const Icon(Icons.refresh)),
+  ];
+
+  /// While nothing is loaded: the spinner or the error.
+  List<Widget> loadingOrError(BuildContext context) => [
+    if (error != null)
+      Text(error!, style: TextStyle(color: Theme.of(context).colorScheme.error))
+    else
+      const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator())),
+  ];
+}

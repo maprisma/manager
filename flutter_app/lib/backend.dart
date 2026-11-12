@@ -86,6 +86,9 @@ final class Backend {
       switch (method) {
         'git.fetch' || 'github.refresh' => const Duration(minutes: 3),
         'icons.set' || 'icons.reset' || 'bar.place' || 'bar.move' || 'bar.remove' => const Duration(minutes: 2),
+        // Pairing, Wi-Fi connects and polkit password dialogs take their time.
+        'bluetooth.pair' || 'bluetooth.scan' || 'network.connect' || 'network.up' => const Duration(minutes: 3),
+        'time.set_ntp' || 'time.set_timezone' || 'locale.set' => const Duration(minutes: 3),
         _ => Duration(seconds: 90),
       },
       onTimeout: () {
