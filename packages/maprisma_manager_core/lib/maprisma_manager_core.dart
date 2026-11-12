@@ -21,6 +21,7 @@ export 'src/icons.dart';
 export 'src/sources.dart';
 export 'src/jobs.dart';
 export 'src/ownership.dart';
+export 'src/native.dart';
 export 'src/paths.dart';
 export 'src/power.dart';
 export 'src/procs.dart';

@@ -11,6 +11,7 @@ import 'desktop_look.dart';
 import 'discovery.dart';
 import 'icons.dart';
 import 'jobs.dart';
+import 'native.dart';
 import 'paths.dart';
 import 'power.dart';
 import 'procs.dart';
@@ -158,6 +159,9 @@ final class CoreService {
       'power.set_idle': (params) => power.setIdle(params),
       'power.set_profile': (params) => power.setProfile(params),
       'power.open_native': (_) => power.openNative(),
+      // COSMIC's and KDE's own settings app for a page (native.dart).
+      'native.get': (params) async => native.get(params),
+      'native.open': (params) => native.open(params),
       'apps.open': (params) async {
         final app = findApp(_app(params))!;
         final cmd = app.open;
@@ -197,6 +201,9 @@ final class CoreService {
 
   /// Let AI do the updates (ai.*).
   late final AiUpdater ai = AiUpdater(ctx, jobs, fetch: () => _fetch(const {}));
+
+  /// The desktop's own settings app (native.*).
+  late final NativeSettings native = NativeSettings(ctx, jobs.startDetached);
 
   /// The Power page (power.*).
   late final PowerService power = PowerService(ctx, jobs.startDetached);

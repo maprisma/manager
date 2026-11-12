@@ -197,3 +197,68 @@ class SettingsChoice<T> extends StatelessWidget {
     ),
   );
 }
+
+/// A slider row (COSMIC: the value's label at the slider's right). [onChangeEnd] saves; while
+/// dragging only the shown value moves.
+class SettingsSlider extends StatefulWidget {
+  const SettingsSlider({
+    super.key,
+    required this.title,
+    this.description,
+    required this.value,
+    required this.min,
+    required this.max,
+    this.divisions,
+    required this.label,
+    required this.onChangeEnd,
+    this.leading,
+  });
+  final String title;
+  final String? description;
+  final double value, min, max;
+  final int? divisions;
+  final String Function(double value) label;
+  final ValueChanged<double>? onChangeEnd;
+
+  /// A button left of the slider (mute).
+  final Widget? leading;
+  @override
+  State<SettingsSlider> createState() => _SettingsSliderState();
+}
+
+class _SettingsSliderState extends State<SettingsSlider> {
+  double? _dragging;
+
+  @override
+  Widget build(BuildContext context) {
+    final v = (_dragging ?? widget.value).clamp(widget.min, widget.max);
+    return SettingsItem(
+      title: widget.title,
+      description: widget.description,
+      trailing: SizedBox(
+        width: 260,
+        child: Row(
+          children: [
+            ?widget.leading,
+            Expanded(
+              child: Slider(
+                value: v,
+                min: widget.min,
+                max: widget.max,
+                divisions: widget.divisions,
+                onChanged: widget.onChangeEnd == null ? null : (x) => setState(() => _dragging = x),
+                onChangeEnd: widget.onChangeEnd == null
+                    ? null
+                    : (x) {
+                        widget.onChangeEnd!(x);
+                        setState(() => _dragging = null);
+                      },
+              ),
+            ),
+            SizedBox(width: 48, child: Text(widget.label(v), textAlign: TextAlign.end)),
+          ],
+        ),
+      ),
+    );
+  }
+}

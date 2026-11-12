@@ -9,12 +9,14 @@ import 'apps_page.dart';
 import 'bar_editor.dart';
 import 'core_call.dart';
 import 'jobs_model.dart';
+import 'desktop_page.dart';
+import 'pages.dart';
 import 'power_page.dart';
 import 'settings_page.dart';
 import 'theme.dart';
 
 /// The window's pages, in the sidebar's order.
-enum Section { apps, bar, power, settings }
+enum Section { apps, network, bluetooth, appearance, bar, displays, sound, power, input, applications, time, about, settings }
 
 /// The window as COSMIC Settings lays it out: a sidebar of pages left (icon and name, the open
 /// one highlighted), the page right. Below [condensedBelow] the sidebar hides behind a toggle
@@ -61,15 +63,33 @@ class ManagerHomeState extends State<ManagerHome> {
 
   static IconData icon(Section s, {bool on = false}) => switch (s) {
     Section.apps => on ? Icons.apps : Icons.apps_outlined,
+    Section.network => on ? Icons.wifi : Icons.wifi_outlined,
+    Section.bluetooth => on ? Icons.bluetooth : Icons.bluetooth_outlined,
+    Section.appearance => on ? Icons.palette : Icons.palette_outlined,
     Section.bar => on ? Icons.view_week : Icons.view_week_outlined,
+    Section.displays => on ? Icons.monitor : Icons.monitor_outlined,
+    Section.sound => on ? Icons.volume_up : Icons.volume_up_outlined,
     Section.power => on ? Icons.power_settings_new : Icons.power_settings_new_outlined,
+    Section.input => on ? Icons.keyboard : Icons.keyboard_outlined,
+    Section.applications => on ? Icons.grid_view : Icons.grid_view_outlined,
+    Section.time => on ? Icons.schedule : Icons.schedule_outlined,
+    Section.about => on ? Icons.info : Icons.info_outlined,
     Section.settings => on ? Icons.settings : Icons.settings_outlined,
   };
 
   static String name(Section s) => switch (s) {
     Section.apps => tr('Apps'),
+    Section.network => tr('Network & Wireless'),
+    Section.bluetooth => tr('Bluetooth'),
+    Section.appearance => tr('Appearance'),
     Section.bar => tr('Bar'),
+    Section.displays => tr('Displays'),
+    Section.sound => tr('Sound'),
     Section.power => tr('Power'),
+    Section.input => tr('Input devices'),
+    Section.applications => tr('Applications'),
+    Section.time => tr('Time & Language'),
+    Section.about => tr('About'),
     Section.settings => tr('Settings'),
   };
 
@@ -90,7 +110,10 @@ class ManagerHomeState extends State<ManagerHome> {
     // Only while no dialog or menu is above the window.
     if (ModalRoute.of(context)?.isCurrent == false) return false;
     final k = event.logicalKey;
-    final digits = [LogicalKeyboardKey.digit1, LogicalKeyboardKey.digit2, LogicalKeyboardKey.digit3, LogicalKeyboardKey.digit4];
+    final digits = [
+      LogicalKeyboardKey.digit1, LogicalKeyboardKey.digit2, LogicalKeyboardKey.digit3, LogicalKeyboardKey.digit4, LogicalKeyboardKey.digit5,
+      LogicalKeyboardKey.digit6, LogicalKeyboardKey.digit7, LogicalKeyboardKey.digit8, LogicalKeyboardKey.digit9,
+    ];
     final i = digits.indexOf(k);
     if (i >= 0 && i < sections.length) {
       open(sections[i]);
@@ -129,6 +152,20 @@ class ManagerHomeState extends State<ManagerHome> {
     Section.apps => const SizedBox.shrink(),
     Section.bar => BarEditorPage(key: const ValueKey('bar-page'), core: widget.core, apps: appsKey.currentState?.apps ?? const [], embedded: true, onLeave: () => open(Section.apps)),
     Section.power => PowerPage(key: const ValueKey('power-page'), core: widget.core),
+    Section.appearance => AppearancePage(
+      key: const ValueKey('appearance-page'),
+      core: widget.core,
+      theme: appsKey.currentState?.apps.where((a) => a['id'] == 'theme').firstOrNull,
+      onShowApps: () => open(Section.apps),
+    ),
+    Section.network => NetworkPage(key: const ValueKey('network-page'), core: widget.core),
+    Section.bluetooth => BluetoothPage(key: const ValueKey('bluetooth-page'), core: widget.core),
+    Section.sound => SoundPage(key: const ValueKey('sound-page'), core: widget.core),
+    Section.displays => DisplaysPage(key: const ValueKey('displays-page'), core: widget.core),
+    Section.input => InputPage(key: const ValueKey('input-page'), core: widget.core),
+    Section.applications => ApplicationsPage(key: const ValueKey('applications-page'), core: widget.core),
+    Section.time => TimePage(key: const ValueKey('time-page'), core: widget.core),
+    Section.about => AboutPage(key: const ValueKey('about-page'), core: widget.core),
     Section.settings => ManagerSettingsPage(
       key: const ValueKey('settings-page'),
       core: widget.core,
@@ -247,14 +284,26 @@ class Sidebar extends StatelessWidget {
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(color: scheme.surfaceContainer, borderRadius: BorderRadius.circular(radius.control)),
       child: FocusTraversalGroup(
+        // The pages scroll in a low window; Settings stays at the bottom.
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            for (final s in sections)
-              Padding(
-                padding: const EdgeInsets.only(bottom: Sidebar.gap),
-                child: _Entry(section: s, on: s == selected, onTap: () => onSelected(s), radius: min(radius.radius, 16)),
+            Expanded(
+              child: ListView(
+                children: [
+                  for (final s in sections)
+                    if (s != Section.settings)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: Sidebar.gap),
+                        child: _Entry(section: s, on: s == selected, onTap: () => onSelected(s), radius: min(radius.radius, 16)),
+                      ),
+                ],
               ),
+            ),
+            if (sections.contains(Section.settings)) ...[
+              Divider(height: 9, color: scheme.outlineVariant.withValues(alpha: .6)),
+              _Entry(section: Section.settings, on: selected == Section.settings, onTap: () => onSelected(Section.settings), radius: min(radius.radius, 16)),
+            ],
           ],
         ),
       ),
