@@ -128,6 +128,9 @@ class _AnimationsCardState extends State<AnimationsCard> with RoutePage {
     if (unavailable) return const SizedBox.shrink();
     final d = data;
     if (d == null) {
+      // Nothing until the first answer: on COSMIC and KDE that answer is "unavailable", and a
+      // loading card would flash up before it.
+      if (error == null) return const SizedBox.shrink(key: ValueKey('anim-pending'));
       return SettingsSection(title: tr('Animations (Hyprland)'), children: [Padding(padding: const EdgeInsets.all(12), child: Column(children: loadingOrError(context)))]);
     }
     final writable = d['writable'] == true;

@@ -119,10 +119,14 @@ String? _read(String path, int max) {
 
 // --- COSMIC ----------------------------------------------------------------------------
 
+/// The user's config, else the system's defaults; in each the newest schema first (COSMIC 1.x
+/// keeps its themes in `v2` and leaves `v1` empty or stale; the Mode is still `v1`).
 String? _cosmicConfig(Ctx ctx, String component, String key) {
   for (final base in [p.join(ctx.paths.config, 'cosmic'), p.join(ctx.paths.root, 'usr/share/cosmic')]) {
-    final text = _read(p.join(base, component, 'v1', key), 256 * 1024);
-    if (text != null) return text;
+    for (final version in const ['v2', 'v1']) {
+      final text = _read(p.join(base, component, version, key), 256 * 1024);
+      if (text != null) return text;
+    }
   }
   return null;
 }
@@ -191,9 +195,13 @@ String? ronField(String text, String key) {
   return null;
 }
 
-/// A RON colour `(red: 0.1, green: …, blue: …)` as #rrggbb, or null.
+/// A RON colour `(red: 0.1, green: …, blue: …)` (schema v1) or `"#RRGGBBAA"` (v2) as #rrggbb, or
+/// null.
 String? ronColor(String? value) {
   if (value == null) return null;
+  // COSMIC 1.x (schema v2) writes colours as "#RRGGBBAA" strings.
+  final hexString = RegExp(r'^"?#([0-9a-fA-F]{6})(?:[0-9a-fA-F]{2})?"?$').firstMatch(value.trim());
+  if (hexString != null) return '#${hexString[1]!.toLowerCase()}';
   int? part(String name) {
     final m = RegExp('$name:\\s*([0-9.eE+-]+)').firstMatch(value);
     final v = m == null ? null : double.tryParse(m[1]!);

@@ -22,8 +22,8 @@ final class RouteError implements Exception {
 
 /// COSMIC / KDE / other from XDG_CURRENT_DESKTOP; MAPRISMA_MANAGER_DESKTOP overrides it.
 /// Without XDG_CURRENT_DESKTOP (a service or launcher with a short environment) the session's
-/// other marks count: XDG_SESSION_DESKTOP, DESKTOP_SESSION, then HYPRLAND_INSTANCE_SIGNATURE and
-/// KDE_FULL_SESSION.
+/// other marks count: XDG_SESSION_DESKTOP, DESKTOP_SESSION, then a live Hyprland (see
+/// [hyprlandSocketLive]) and KDE_FULL_SESSION.
 DesktopId detectDesktop(Map<String, String> env) {
   final forced = parseDesktop(env['MAPRISMA_MANAGER_DESKTOP']);
   if (forced != null) return forced;
@@ -39,11 +39,20 @@ DesktopId detectDesktop(Map<String, String> env) {
   if (current.trim().isNotEmpty) return named(current) ?? DesktopId.other;
   return named(env['XDG_SESSION_DESKTOP']) ??
       named(env['DESKTOP_SESSION']) ??
-      ((env['HYPRLAND_INSTANCE_SIGNATURE'] ?? '').isNotEmpty
+      (hyprlandSocketLive(env)
           ? DesktopId.hyprland
           : env['KDE_FULL_SESSION'] == 'true'
               ? DesktopId.kde
               : DesktopId.other);
+}
+
+/// HYPRLAND_INSTANCE_SIGNATURE names a Hyprland whose socket is there
+/// (`$XDG_RUNTIME_DIR/hypr/<signature>/.socket.sock`). The variable alone proves nothing: after a
+/// Hyprland session it stays in the systemd user environment, so COSMIC and KDE apps see it too.
+bool hyprlandSocketLive(Map<String, String> env) {
+  final signature = env['HYPRLAND_INSTANCE_SIGNATURE'] ?? '', runtime = env['XDG_RUNTIME_DIR'] ?? '';
+  if (signature.isEmpty || signature.contains('/') || signature.startsWith('.') || !runtime.startsWith('/')) return false;
+  return FileSystemEntity.typeSync(p.join(runtime, 'hypr', signature, '.socket.sock')) != FileSystemEntityType.notFound;
 }
 
 DesktopId? parseDesktop(String? v) => switch (v?.toLowerCase()) {

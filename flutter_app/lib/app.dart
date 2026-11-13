@@ -76,6 +76,8 @@ class _ManagerAppState extends State<ManagerApp> with WidgetsBindingObserver {
     saved: parseWindowSize(widget.settings['window_size']),
     geometry: AppWindow.geometry,
     save: (w, h) => widget.core('settings.set', {'key': 'window_size', 'value': [w, h]}),
+    // Maprisma Tiling on KDE sizes the window without GTK knowing (window_size.dart)
+    tiled: () => tiledByMaprismaTiling('com.maprisma.Settings'),
   );
 
   @override

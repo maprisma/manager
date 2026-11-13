@@ -413,6 +413,24 @@ void main() {
     expect((await w.core(desktop: 'X').call('desktop.look'))['colors'], isEmpty);
   });
 
+  test('desktop.look on COSMIC 1.x: the theme in v2 (v1 empty), the user\'s before the system\'s', () async {
+    final cosmic = p.join(w.paths.config, 'cosmic');
+    Directory(p.join(cosmic, 'com.system76.CosmicTheme.Dark/v1')).createSync(recursive: true); // empty, as COSMIC 1.0 leaves it
+    w.writeFile(p.join(cosmic, 'com.system76.CosmicTheme.Mode/v1/is_dark'), 'true');
+    final v2 = p.join(cosmic, 'com.system76.CosmicTheme.Dark/v2');
+    w.writeFile(p.join(v2, 'accent'), '(\n    base: "#FF0000FF",\n    on: "#000000FF",\n)'); // v2: hex strings
+    w.writeFile(p.join(v2, 'corner_radii'), '(\n    radius_s: (4.0, 4.0, 4.0, 4.0),\n)');
+    // the system's defaults (both versions) only where the user has nothing
+    final system = p.join(w.root, 'usr/share/cosmic/com.system76.CosmicTheme.Dark');
+    w.writeFile(p.join(system, 'v1/accent'), '(\n    base: (red: 0.0, green: 1.0, blue: 0.0, alpha: 1.0),\n)');
+    w.writeFile(p.join(system, 'v2/background'), '(\n    base: "#333333FF",\n    component: (\n        base: "#2D3649FF",\n        on: "#000000FF",\n    ),\n    on: "#FFFFFFFF",\n)');
+    final look = await core().call('desktop.look');
+    expect(look['colors']['accent'], '#ff0000');
+    expect(look['colors']['background'], '#333333');
+    expect(look['colors']['foreground'], '#ffffff', reason: 'the top level on, not the component\'s');
+    expect(look['rounding'], 4);
+  });
+
   test('desktop.look on Hyprland follows Caelestia\'s scheme, else no colours', () async {
     expect((await w.core(desktop: 'Hyprland').call('desktop.look'))['colors'], isEmpty);
     w.writeFile(p.join(w.paths.home, '.local/state/maprisma-shell/scheme.json'),

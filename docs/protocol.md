@@ -38,8 +38,8 @@ an unfinished job of a Manager that is gone as `interrupted` in its state file.
 | Variable | Meaning |
 | --- | --- |
 | `HOME`, `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_STATE_HOME`, `XDG_CACHE_HOME` | Every path (relative XDG values are ignored, as the spec says). Binaries are always `$HOME/.local/bin`. |
-| `XDG_CURRENT_DESKTOP` | `COSMIC` → cosmic, `KDE` → kde, anything else → other. |
-| `MAPRISMA_MANAGER_DESKTOP` | Overrides the desktop (`cosmic`, `kde`, `other`). |
+| `XDG_CURRENT_DESKTOP` | `COSMIC` → cosmic, `KDE` → kde, `Hyprland` → hyprland, anything else → other. Unset: the session's name, then a Hyprland whose socket exists (`HYPRLAND_INSTANCE_SIGNATURE` alone is not enough), then `KDE_FULL_SESSION`. |
+| `MAPRISMA_MANAGER_DESKTOP` | Overrides the desktop (`cosmic`, `kde`, `hyprland`, `other`). |
 | `MAPRISMA_PROJECTS` | The projects folder (the repos). |
 | `MAPRISMA_FLUTTER` | Flutter: the executable or its folder. |
 | `MAPRISMA_MANAGER_ROOT`, `MAPRISMA_MANAGER_PROC` | Tests only: the system root for `/usr`, `/etc` and the `/proc` to read. |
@@ -95,7 +95,7 @@ is missing. `links.open` opens a `https://github.com/…` page with `xdg-open` (
 
 ### `apps.list` `{desktop?}`
 
-Everything the list page needs, for every catalog app. `desktop` shows it as another desktop would.
+Everything the list page needs, for every catalog app. `desktop` (`cosmic`, `kde`, `hyprland`, `other`) shows it as that desktop would.
 
 ```
 {desktop, projectsDir, projectsSource, flutter, flutterSource, apps: [App], discovered: Discovered}

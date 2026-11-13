@@ -31,7 +31,17 @@ void main() {
       expect(detectDesktop({'DESKTOP_SESSION': '/usr/share/wayland-sessions/plasmawayland'}), DesktopId.kde);
       expect(detectDesktop({'XDG_SESSION_DESKTOP': 'COSMIC'}), DesktopId.cosmic);
       expect(detectDesktop({'DESKTOP_SESSION': 'hyprland'}), DesktopId.hyprland);
-      expect(detectDesktop({'HYPRLAND_INSTANCE_SIGNATURE': 'abc'}), DesktopId.hyprland);
+      // the signature counts only with its socket (a stale one stays in systemd's environment)
+      expect(detectDesktop({'HYPRLAND_INSTANCE_SIGNATURE': 'abc'}), DesktopId.other);
+      final runtime = Directory.systemTemp.createTempSync('hypr-rt');
+      addTearDown(() => runtime.deleteSync(recursive: true));
+      final live = {'HYPRLAND_INSTANCE_SIGNATURE': 'abc', 'XDG_RUNTIME_DIR': runtime.path};
+      expect(detectDesktop(live), DesktopId.other);
+      File(p.join(runtime.path, 'hypr', 'abc', '.socket.sock')).createSync(recursive: true);
+      expect(detectDesktop(live), DesktopId.hyprland);
+      expect(detectDesktop({...live, 'HYPRLAND_INSTANCE_SIGNATURE': '../abc'}), DesktopId.other);
+      // a named desktop wins over a live one too
+      expect(detectDesktop({...live, 'XDG_CURRENT_DESKTOP': 'KDE'}), DesktopId.kde);
       expect(detectDesktop({'KDE_FULL_SESSION': 'true'}), DesktopId.kde);
       expect(detectDesktop({'XDG_SESSION_DESKTOP': 'gnome'}), DesktopId.other);
       // a named XDG_CURRENT_DESKTOP wins over the rest
@@ -42,6 +52,9 @@ void main() {
       final r = await w.core().call('apps.list', {'desktop': 'kde'});
       expect(r['desktop'], 'kde');
       expect(appOf(r, 'tiling')['supportedHere'], isTrue);
+      // every desktop the core knows, Hyprland too
+      expect((await w.core().call('apps.list', {'desktop': 'hyprland'}))['desktop'], 'hyprland');
+      expect((await w.core().call('apps.get', {'id': 'tiling', 'desktop': 'hyprland'}))['desktop'], 'hyprland');
       await expectLater(w.core().call('apps.list', {'desktop': 'mac'}), throwsA(isA<RouteError>()));
     });
   });
