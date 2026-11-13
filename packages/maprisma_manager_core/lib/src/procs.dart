@@ -36,14 +36,27 @@ int? _uidOf(File status) {
   return null;
 }
 
+/// The pids under [procRoot]. Listing /proc fails now and then with "Directory listing failed"
+/// (ENOENT) when a process ends while it is read: the listing is taken again then (a few times;
+/// what ends meanwhile isn't wanted anyway).
+List<int> procPids(String procRoot, {List<FileSystemEntity> Function(Directory dir)? lister}) {
+  final root = Directory(procRoot);
+  if (!root.existsSync()) return const [];
+  final list = lister ?? (Directory d) => d.listSync(followLinks: false);
+  for (var attempt = 1;; attempt++) {
+    try {
+      return [for (final e in list(root)) ?int.tryParse(p.basename(e.path))];
+    } on FileSystemException {
+      if (attempt >= 5 || !root.existsSync()) rethrow;
+    }
+  }
+}
+
 /// The processes of [uid] (all readable ones when null).
 List<ProcInfo> listProcesses(String procRoot, {int? uid}) {
   final out = <ProcInfo>[];
-  final Directory root = Directory(procRoot);
-  if (!root.existsSync()) return out;
-  for (final entry in root.listSync(followLinks: false)) {
-    final pid = int.tryParse(p.basename(entry.path));
-    if (pid == null) continue;
+  for (final pid in procPids(procRoot)) {
+    final entry = Directory(p.join(procRoot, '$pid'));
     final owner = _uidOf(File(p.join(entry.path, 'status')));
     if (uid != null && owner != uid) continue;
     String? exe;

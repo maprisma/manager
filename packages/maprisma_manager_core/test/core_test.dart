@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -87,6 +88,30 @@ void main() {
       expect(appOf(r, 'wlan')['running'], 3);
       final kde = await w.core(desktop: 'KDE').call('apps.list');
       expect(appOf(kde, 'wlan')['bar']['running'], isTrue);
+    });
+
+    test('a process that ends while /proc is listed: the listing is taken again, not an error', () async {
+      w.process(40, exe: '/usr/bin/true');
+      var calls = 0;
+      List<FileSystemEntity> flaky(Directory d) {
+        if (++calls == 1) throw PathNotFoundException(p.join(d.path, '999'), const OSError('No such file or directory', 2), 'Directory listing failed');
+        return d.listSync(followLinks: false);
+      }
+
+      expect(procPids(w.proc, lister: flaky), contains(40));
+      expect(calls, 2);
+      // one that keeps failing still says so
+      expect(() => procPids(w.proc, lister: (_) => throw const FileSystemException('broken')), throwsA(isA<FileSystemException>()));
+      // the real /proc while processes come and go (it failed about one listing in a hundred)
+      final churn = await Process.start('/bin/sh', ['-c', r'i=0; while [ $i -lt 400 ]; do /bin/true & /bin/true & wait; i=$((i+1)); done']);
+      var done = false;
+      unawaited(churn.exitCode.then((_) => done = true));
+      for (var i = 0; i < 300 && !done; i++) {
+        listProcesses('/proc', uid: currentUid());
+        groupMembers(1 << 30);
+        await Future<void>.delayed(Duration.zero);
+      }
+      await churn.exitCode;
     });
 
     test('a file named after the script (an editor) is not the helper', () {

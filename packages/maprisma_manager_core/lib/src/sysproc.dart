@@ -57,11 +57,7 @@ bool sameProcess(int pid, int? start, {String procRoot = '/proc'}) {
 /// started with setsid): a reused number of an unrelated group doesn't count.
 List<ProcStat> groupMembers(int pgid, {String procRoot = '/proc'}) {
   final out = <ProcStat>[];
-  final dir = Directory(procRoot);
-  if (!dir.existsSync()) return out;
-  for (final e in dir.listSync(followLinks: false)) {
-    final n = int.tryParse(p.basename(e.path));
-    if (n == null) continue;
+  for (final n in procPids(procRoot)) {
     final st = procStat(n, procRoot: procRoot);
     if (st != null && !st.zombie && st.pgrp == pgid && st.session == pgid) out.add(st);
   }

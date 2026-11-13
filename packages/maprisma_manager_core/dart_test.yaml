@@ -1,0 +1,5 @@
+# The job tests run real scripts and scan the real /proc (~600 processes, four synchronous
+# reads each). With dart test's default concurrency (half the cores) the suites slow each
+# other down so much that one scan took seconds, and "install: phases, …" in jobs_test.dart
+# ran past its 30 s timeout. Four at a time is faster overall and keeps a scan near 30 ms.
+concurrency: 4
