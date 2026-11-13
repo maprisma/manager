@@ -220,6 +220,7 @@ exit 1''');
         'maprisma-llm-monitor': 'maprisma/llm-monitor',
         'maprisma-wlan-monitor': 'maprisma/wlan-monitor',
         'maprisma-notifier': 'maprisma/notifier',
+        'maprisma-dictation': 'maprisma/dictation',
         'maprisma-narrator': 'maprisma/narrator',
         'maprisma-video-translator': null,
         'maprisma-kwin-scripts': 'maprisma/maprisma-kwin-scripts',
