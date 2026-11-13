@@ -486,12 +486,16 @@ final List<AppEntry> builtinCatalog = [
     moreProcesses: const [ProcessMatch(MatchKind.exe, '{bin}/maprisma-notifier-recorder', note: 'the recorder, when it runs on its own')],
   ),
 
-  // The voice service for every Maprisma app (speech to text on the session bus); no bar
-  // icon, its settings are the Manager's Voice page (voice.dart).
+  // The voice service for every Maprisma app (speech to text on the session bus) and the
+  // dictation overlay; its settings are the Manager's Voice page (voice.dart). The bar icon
+  // toggles the overlay (`maprisma-dictation --toggle`): a COSMIC applet and, like the Notifier,
+  // an SNI tray on KDE and Hyprland.
   const AppEntry(
     id: 'dictation',
     name: 'Maprisma Dictation',
     kind: 'rust',
+    appIcon: 'com.maprisma.Dictation',
+    open: ['{bin}/maprisma-dictation', '--toggle'],
     desktops: {DesktopId.cosmic, DesktopId.kde, DesktopId.hyprland},
     inputs: [Input('maprisma-dictation', github: 'maprisma/dictation')],
     components: [
@@ -500,22 +504,51 @@ final List<AppEntry> builtinCatalog = [
         name: 'Maprisma Dictation',
         repo: 'maprisma-dictation',
         install: ['./install.sh'],
-        prerequisites: [Prerequisite('cargo'), Prerequisite('pw-record', optional: true, note: 'the recorder; parecord or arecord work too')],
+        prerequisites: [Prerequisite('cargo'), Prerequisite('pw-record', optional: true, note: 'the recorder; parecord or arecord work too'), _gtkIconCache],
         note: 'The local engine (whisper.cpp\'s whisper-server) is built separately, see its README.',
         paths: [
           InstalledPath('{bin}/maprisma-voice', PathKind.executable, key: true),
           InstalledPath('{units}/maprisma-voice.service', PathKind.file),
           InstalledPath('{data}/dbus-1/services/com.maprisma.Voice1.service', PathKind.file, note: 'D-Bus activation'),
+          InstalledPath('{bin}/maprisma-dictation', PathKind.executable, note: 'the overlay'),
+          InstalledPath('{apps}/com.maprisma.Dictation.desktop', PathKind.file),
+          InstalledPath('{icons}/com.maprisma.Dictation.svg', PathKind.file),
+          InstalledPath('{icons}/com.maprisma.Dictation-symbolic.svg', PathKind.file),
+          InstalledPath('{bin}/maprisma-dictation-applet', PathKind.executable, note: 'the COSMIC panel applet'),
+          InstalledPath('{bin}/maprisma-dictation-tray', PathKind.executable, note: 'the tray (KDE, Hyprland)'),
+          InstalledPath('{apps}/${_c}Dictation.desktop', PathKind.file),
+          InstalledPath('{autostart}/${_c}Dictation.Tray.desktop', PathKind.file, note: 'OnlyShowIn=KDE;Hyprland'),
+          InstalledPath('{icons}/${_c}Dictation-symbolic.svg', PathKind.file),
+          InstalledPath('{icons}/${_c}Dictation-open-symbolic.svg', PathKind.file),
+          InstalledPath('{icons}/${_c}Dictation-listening-symbolic.svg', PathKind.file),
+          InstalledPath('{icons}/${_c}Dictation-speaking-symbolic.svg', PathKind.file),
         ],
       ),
     ],
     data: [
       DataPath('{config}/maprisma-voice', note: 'settings.json'),
       DataPath('{data}/maprisma-voice', note: 'models/ (downloaded Whisper models) and whisper.cpp/ (the local engine, built by hand)'),
+      DataPath('{config}/maprisma-dictation', note: 'settings.json of the overlay'),
+      DataPath('{state}/maprisma-dictation', note: 'actions.jsonl: the overlay\'s action log'),
     ],
     units: [UnitRef('maprisma-voice.service', note: 'started through D-Bus activation')],
-    processes: [ProcessMatch(MatchKind.exe, '{bin}/maprisma-voice', note: 'the daemon (and whisper-server as its child)')],
-    note: 'No bar icon; its settings are on the Voice page.',
+    processes: [
+      ProcessMatch(MatchKind.exe, '{bin}/maprisma-voice', note: 'the daemon (and whisper-server as its child)'),
+      ProcessMatch(MatchKind.exe, '{bin}/maprisma-dictation', note: 'the overlay, while it is open'),
+      ProcessMatch(MatchKind.exe, '{bin}/maprisma-dictation-applet'),
+      ProcessMatch(MatchKind.exe, '{bin}/maprisma-dictation-tray'),
+    ],
+    bar: BarIcon(
+      cosmicApplet: '${_c}Dictation',
+      cosmicAppletExe: '{bin}/maprisma-dictation-applet',
+      kdeId: 'maprisma-dictation',
+      kdeAutostart: '{autostart}/${_c}Dictation.Tray.desktop',
+      kdeTrayExe: '{bin}/maprisma-dictation-tray',
+      iconName: '${_c}Dictation-symbolic',
+      iconNote: 'shows the state with its own variants (-open, -listening, -speaking): a changed icon replaces only the idle one',
+    ),
+    postSteps: ['gtk-update-icon-cache'],
+    note: 'Its settings are on the Voice page; the bar icon opens and closes the dictation overlay.',
   ),
 
   // --- narrator ----------------------------------------------------------------------------

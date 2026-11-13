@@ -694,7 +694,8 @@ AI* uses the shared helper.
 
 The **Voice** page (sidebar after AI, `--page voice`): Maprisma Dictation's voice service
 `maprisma-voice` (catalog id `dictation`, repo `maprisma/dictation`, installed by its
-`install.sh`; no bar icon). The Manager talks to it only through its command line
+`install.sh`; its bar icon, a COSMIC applet and a tray on KDE and Hyprland, toggles the
+dictation overlay `maprisma-dictation --toggle`). The Manager talks to it only through its command line
 (`lib/src/voice.dart`): `~/.local/bin/maprisma-voice`, else the one on PATH, run with an argv
 list (never a shell), at most 256 KB of output and a time limit (10 s; a download 2 h, a try its
 length + 90 s). The service checks every value, so the rules live in one place

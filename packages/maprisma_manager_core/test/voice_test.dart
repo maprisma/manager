@@ -93,15 +93,33 @@ void main() {
     fail('$kind did not end');
   }
 
-  test('the catalog entry: Maprisma Dictation, no bar icon, install.sh', () {
+  test('the catalog entry: Maprisma Dictation, its bar icon, install.sh', () {
     final a = findApp('dictation')!;
     expect(a.name, 'Maprisma Dictation');
     expect(a.inputs.single.repo, 'maprisma-dictation');
     expect(a.inputs.single.github, 'maprisma/dictation');
     expect(a.components.single.install, ['./install.sh']);
     expect(a.components.single.paths.where((x) => x.key).single.path, '{bin}/maprisma-voice');
-    expect(a.bar.cosmicApplet, isNull);
-    expect(a.bar.kdeId, isNull);
+    expect(a.open, ['{bin}/maprisma-dictation', '--toggle']);
+    // The bar icon toggles the overlay: a COSMIC applet, the SNI tray on KDE and Hyprland.
+    expect(a.bar.cosmicApplet, 'io.github.ubruckhaus.CosmicMaprismaDictation');
+    expect(a.bar.cosmicAppletExe, '{bin}/maprisma-dictation-applet');
+    expect(a.bar.kdeId, 'maprisma-dictation');
+    expect(a.bar.kdeKind, KdeBarKind.tray);
+    expect(a.bar.kdeAutostart, '{autostart}/io.github.ubruckhaus.CosmicMaprismaDictation.Tray.desktop');
+    expect(a.bar.kdeTrayExe, '{bin}/maprisma-dictation-tray');
+    expect(a.bar.iconName, 'io.github.ubruckhaus.CosmicMaprismaDictation-symbolic');
+    expect(hyprBarId(a), 'tray:maprisma-dictation');
+    final paths = a.components.single.paths.map((x) => x.path);
+    expect(paths, containsAll([
+      '{bin}/maprisma-dictation',
+      '{bin}/maprisma-dictation-applet',
+      '{bin}/maprisma-dictation-tray',
+      '{apps}/io.github.ubruckhaus.CosmicMaprismaDictation.desktop',
+      '{autostart}/io.github.ubruckhaus.CosmicMaprismaDictation.Tray.desktop',
+      '{icons}/io.github.ubruckhaus.CosmicMaprismaDictation-symbolic.svg',
+    ]));
+    expect(a.processes.map((m) => m.path), containsAll(['{bin}/maprisma-voice', '{bin}/maprisma-dictation', '{bin}/maprisma-dictation-applet', '{bin}/maprisma-dictation-tray']));
     expect(a.units.single.name, 'maprisma-voice.service');
   });
 
