@@ -54,6 +54,28 @@ final class SoundService {
     if (ctx.runner.which('pactl') == null) throw RouteError('unavailable', tr('pactl is missing (PipeWire\'s pulse server tools)'));
   }
 
+  /// The inputs that are microphones: a sink's monitor is none.
+  static List<Map> microphonesOf(List<Map> sources) => [
+    for (final s in sources)
+      if ((s['monitor_source'] == null || '${s['monitor_source']}'.isEmpty) && !'${s['name']}'.endsWith('.monitor')) s,
+  ];
+
+  /// The microphones ({name, description}) and the default input, for the Voice page; empty
+  /// without pactl or when it fails.
+  Future<Map<String, dynamic>> microphones() async {
+    if (ctx.runner.which('pactl') == null) return {'default': null, 'sources': const []};
+    try {
+      final info = await _json(['info']) as Map;
+      final sources = (await _json(['list', 'sources']) as List).cast<Map>();
+      return {
+        'default': info['default_source_name'],
+        'sources': [for (final s in microphonesOf(sources)) {'name': s['name'], 'description': s['description'] ?? s['name']}],
+      };
+    } on Object {
+      return {'default': null, 'sources': const []};
+    }
+  }
+
   /// `sound.get`.
   Future<Map<String, dynamic>> get() async {
     _need();
@@ -72,8 +94,7 @@ final class SoundService {
       'default_sink': info['default_sink_name'],
       'default_source': info['default_source_name'],
       'sinks': [for (final s in sinks) device(s)],
-      // A sink's monitor is no microphone.
-      'sources': [for (final s in sources) if (s['monitor_source'] == null || '${s['monitor_source']}'.isEmpty) device(s)],
+      'sources': [for (final s in microphonesOf(sources)) device(s)],
       'streams': [
         for (final s in streams)
           {

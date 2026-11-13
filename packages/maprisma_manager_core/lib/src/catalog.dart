@@ -486,6 +486,38 @@ final List<AppEntry> builtinCatalog = [
     moreProcesses: const [ProcessMatch(MatchKind.exe, '{bin}/maprisma-notifier-recorder', note: 'the recorder, when it runs on its own')],
   ),
 
+  // The voice service for every Maprisma app (speech to text on the session bus); no bar
+  // icon, its settings are the Manager's Voice page (voice.dart).
+  const AppEntry(
+    id: 'dictation',
+    name: 'Maprisma Dictation',
+    kind: 'rust',
+    desktops: {DesktopId.cosmic, DesktopId.kde, DesktopId.hyprland},
+    inputs: [Input('maprisma-dictation', github: 'maprisma/dictation')],
+    components: [
+      Component(
+        id: 'main',
+        name: 'Maprisma Dictation',
+        repo: 'maprisma-dictation',
+        install: ['./install.sh'],
+        prerequisites: [Prerequisite('cargo'), Prerequisite('pw-record', optional: true, note: 'the recorder; parecord or arecord work too')],
+        note: 'The local engine (whisper.cpp\'s whisper-server) is built separately, see its README.',
+        paths: [
+          InstalledPath('{bin}/maprisma-voice', PathKind.executable, key: true),
+          InstalledPath('{units}/maprisma-voice.service', PathKind.file),
+          InstalledPath('{data}/dbus-1/services/com.maprisma.Voice1.service', PathKind.file, note: 'D-Bus activation'),
+        ],
+      ),
+    ],
+    data: [
+      DataPath('{config}/maprisma-voice', note: 'settings.json'),
+      DataPath('{data}/maprisma-voice', note: 'models/ (downloaded Whisper models) and whisper.cpp/ (the local engine, built by hand)'),
+    ],
+    units: [UnitRef('maprisma-voice.service', note: 'started through D-Bus activation')],
+    processes: [ProcessMatch(MatchKind.exe, '{bin}/maprisma-voice', note: 'the daemon (and whisper-server as its child)')],
+    note: 'No bar icon; its settings are on the Voice page.',
+  ),
+
   // --- narrator ----------------------------------------------------------------------------
   const AppEntry(
     id: 'narrator',

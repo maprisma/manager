@@ -45,3 +45,4 @@ export 'src/status.dart';
 export 'src/time_lang.dart';
 export 'src/sysproc.dart';
 export 'src/translations.dart';
+export 'src/voice.dart';

@@ -29,6 +29,7 @@ import 'run.dart';
 import 'sound.dart';
 import 'status.dart';
 import 'time_lang.dart';
+import 'voice.dart';
 
 const coreVersion = '0.3.1';
 
@@ -190,6 +191,15 @@ final class CoreService {
       'notifications.set': (params) => notifications.set(params),
       'notifications.set_shell': (params) => notifications.setShell(params),
       'notifications.clear_history': (_) => notifications.clearHistory(),
+      // The Voice page: Maprisma Dictation's voice service through its CLI (voice.dart).
+      'voice.get': (_) => voice.get(),
+      'voice.set': (params) => voice.set(params),
+      'voice.unset': (params) => voice.unset(params),
+      'voice.download': (params) async => voice.download(params),
+      'voice.remove': (params) => voice.remove(params),
+      'voice.try': (params) async => voice.tryIt(params),
+      'voice.tasks': (_) async => voice.tasks(),
+      'voice.cancel': (params) => voice.cancel(params),
       // Displays and Input devices on Hyprland (hypr-manager.lua, hypr_config.dart).
       'displays.get': (_) => displays.get(),
       'displays.set': (params) => displays.set(params),
@@ -289,6 +299,9 @@ final class CoreService {
 
   /// The Notifications page (notifications.*).
   late final NotificationsService notifications = NotificationsService(ctx, native);
+
+  /// The Voice page (voice.*).
+  late final VoiceService voice = VoiceService(ctx, sound);
 
   /// The Power page (power.*).
   late final PowerService power = PowerService(ctx, jobs.startDetached);
