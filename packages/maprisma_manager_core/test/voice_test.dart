@@ -36,7 +36,7 @@ if a == ['models', '--json']:
 if a == ['get']:
     print(read('settings.json', '{}')); sys.exit(0)
 if a[:1] == ['set']:
-    if a[1] == 'language' and a[2] == '"xx"':
+    if a[1] in ('language', 'wake_language') and a[2] == '"xx"':
         sys.stderr.write('language: not a Whisper language code\n'); sys.exit(2)
     sys.exit(0)
 if a[:1] == ['unset']:
@@ -64,6 +64,14 @@ if a[:2] == ['model', 'remove']:
         if os.path.exists(path):
             os.remove(path)
     sys.exit(0)
+if a[:2] == ['wake', 'test']:
+    if os.path.exists(os.path.join(d, 'wake_nobus')):
+        sys.stderr.write('The voice service is not running. (no bus)\n'); sys.exit(4)
+    while os.path.exists(os.path.join(d, 'slow')) and not os.path.exists(os.path.join(d, 'go')):
+        time.sleep(0.05)
+    w = json.loads(read('wake.json', '{}'))
+    print(json.dumps(w))
+    sys.exit(0 if w.get('matched') else (3 if not w.get('speech') else 1))
 if a[:1] == ['dictate']:
     sys.stderr.write('Listening for ' + a[2] + ' s…\n'); sys.stderr.flush()
     if os.path.exists(os.path.join(d, 'nospeech')):
@@ -159,6 +167,7 @@ void main() {
     expect([for (final s in (r['microphones'] as Map)['sources'] as List) s['name']], ['mic']);
     await expectLater(w.core().call('voice.set', {'key': 'enabled', 'value': false}), refused('not_installed'));
     await expectLater(w.core().call('voice.try', {}), refused('not_installed'));
+    await expectLater(w.core().call('voice.wake_test', {}), refused('not_installed'));
   });
 
   test('installed: status, models, settings and microphones in one answer', () async {
@@ -174,7 +183,7 @@ void main() {
     expect((r['models'] as Map)['active'], 'ggml-base.bin');
     expect(r['settings'], {'language': 'de'});
     expect((r['microphones'] as Map)['default'], isNotNull);
-    expect(r['tasks'], {'download': null, 'dictate': null});
+    expect(r['tasks'], {'download': null, 'dictate': null, 'wake': null});
     expect(calls(), containsAll([
       ['status', '--json'],
       ['models', '--json'],
@@ -372,6 +381,123 @@ void main() {
     await expectLater(core.call('voice.try', {}), refused('unavailable'));
     expect(calls().where((c) => c[0] == 'dictate'), isEmpty);
     expect((await core.call('voice.tasks'))['dictate'], isNull);
+  });
+
+  test('the wake phrase settings: checked like the service, then passed as JSON', () async {
+    installFake();
+    final core = w.core();
+    await core.call('voice.set', {'key': 'wake_enabled', 'value': true});
+    await core.call('voice.set', {'key': 'wake_phrase', 'value': 'Hallo Rechner'});
+    await core.call('voice.set', {'key': 'wake_phrase', 'value': "Hey, Linux! Ça va?"});
+    await core.call('voice.set', {'key': 'wake_language', 'value': 'de'});
+    await core.call('voice.set', {'key': 'wake_model', 'value': 'ggml-base.bin'});
+    await core.call('voice.set', {'key': 'wake_model', 'value': ''});
+    await core.call('voice.set', {'key': 'wake_sensitivity', 'value': 'loose'});
+    await core.call('voice.unset', {'key': 'wake_language'});
+    for (final bad in ['H', ' Hey Linux', 'Hey Linux ', 'Hey "Linux"', 'Hey; rm', '!!', 'a!', 'x' * 41, 'Hey\nLinux']) {
+      await expectLater(core.call('voice.set', {'key': 'wake_phrase', 'value': bad}), refused('bad_params'), reason: bad);
+    }
+    await expectLater(core.call('voice.set', {'key': 'wake_enabled', 'value': 'true'}), refused('bad_params'));
+    await expectLater(core.call('voice.set', {'key': 'wake_sensitivity', 'value': 'medium'}), refused('bad_params'));
+    await expectLater(core.call('voice.set', {'key': 'wake_language', 'value': 'Deutsch'}), refused('bad_params'));
+    await expectLater(core.call('voice.set', {'key': 'wake_model', 'value': '../x.bin'}), refused('bad_params'));
+    // the service has the last word
+    await expectLater(core.call('voice.set', {'key': 'wake_language', 'value': 'xx'}), refused('bad_params'));
+    expect(calls(), [
+      ['set', 'wake_enabled', 'true'],
+      ['set', 'wake_phrase', '"Hallo Rechner"'],
+      ['set', 'wake_phrase', jsonEncode("Hey, Linux! Ça va?")],
+      ['set', 'wake_language', '"de"'],
+      ['set', 'wake_model', '"ggml-base.bin"'],
+      ['set', 'wake_model', '""'],
+      ['set', 'wake_sensitivity', '"loose"'],
+      ['unset', 'wake_language'],
+      ['set', 'wake_language', '"xx"'],
+    ]);
+  });
+
+  test('validWakePhrase is the service\'s rule', () {
+    expect(VoiceService.validWakePhrase('Hey Linux'), isTrue);
+    expect(VoiceService.validWakePhrase('OK Computer-2'), isTrue);
+    expect(VoiceService.validWakePhrase('Grüß dich'), isTrue);
+    expect(VoiceService.validWakePhrase('ab'), isTrue);
+    expect(VoiceService.validWakePhrase('a.'), isFalse);
+    expect(VoiceService.validWakePhrase(''), isFalse);
+    expect(VoiceService.validWakePhrase('Hey  Linux'), isTrue);
+    expect(VoiceService.validWakePhrase('Hey_Linux'), isFalse);
+    expect(VoiceService.validWakePhrase('x' * 40), isTrue);
+    expect(VoiceService.validWakePhrase('x' * 41), isFalse);
+  });
+
+  test('voice.status: only the status, or why there is none', () async {
+    installFake();
+    final core = w.core();
+    expect(await core.call('voice.status'), {'status': null, 'status_error': 'The voice service is not running. (no bus)'});
+    answer('status.json', {..._status, 'wake_enabled': true, 'wake_active': true, 'wake_why_not': ''});
+    final r = await core.call('voice.status');
+    expect((r['status'] as Map)['wake_active'], isTrue);
+    expect(calls(), [['status', '--json'], ['status', '--json']]);
+  });
+
+  test('Try the phrase: wake test in the background, the answer as result', () async {
+    installFake();
+    answer('slow', '');
+    answer('wake.json', {'heard': 'Hey Linux, open Firefox.', 'matched': true, 'score': 0.93, 'needed': 0.75, 'rest': 'open Firefox', 'phrase': 'Hey Linux', 'model': 'ggml-base.bin', 'speech': true});
+    final core = w.core();
+    final started = await core.call('voice.wake_test', {'seconds': 8});
+    expect((started['task'] as Map)['state'], 'running');
+    expect((started['task'] as Map)['seconds'], 8);
+    await expectLater(core.call('voice.wake_test', {}), refused('busy'));
+    await expectLater(core.call('voice.try', {}), refused('busy'));
+    answer('go', '');
+    final t = await settle(core, 'wake');
+    expect(t['state'], 'succeeded');
+    expect((t['result'] as Map)['matched'], isTrue);
+    expect((t['result'] as Map)['rest'], 'open Firefox');
+    expect(calls().where((c) => c[0] == 'wake'), [['wake', 'test', '--seconds', '8', '--json']]);
+    // the default length is 8 s; 1–10 only
+    await core.call('voice.wake_test', {});
+    await settle(core, 'wake');
+    expect(calls().last, ['wake', 'test', '--seconds', '8', '--json']);
+    for (final bad in [0, 11, '8', 2.5]) {
+      await expectLater(core.call('voice.wake_test', {'seconds': bad}), refused('bad_params'));
+    }
+  });
+
+  test('Try the phrase: no match and no speech still give the answer; no service fails', () async {
+    installFake();
+    final core = w.core();
+    answer('wake.json', {'heard': 'Hallo Welt', 'matched': false, 'score': 0.41, 'needed': 0.75, 'rest': '', 'phrase': 'Hey Linux', 'model': 'ggml-base.bin', 'speech': true});
+    await core.call('voice.wake_test', {'seconds': 2});
+    var t = await settle(core, 'wake');
+    expect(t['state'], 'succeeded');
+    expect((t['result'] as Map)['matched'], isFalse);
+    answer('wake.json', {'heard': '', 'matched': false, 'score': 0.0, 'needed': 0.75, 'rest': '', 'phrase': 'Hey Linux', 'model': '', 'speech': false});
+    await core.call('voice.wake_test', {'seconds': 2});
+    t = await settle(core, 'wake');
+    expect(t['state'], 'succeeded');
+    expect((t['result'] as Map)['speech'], isFalse);
+    answer('wake_nobus', '');
+    await core.call('voice.wake_test', {'seconds': 2});
+    t = await settle(core, 'wake');
+    expect(t['state'], 'failed');
+    expect(t['message'], 'The voice service is not running. (no bus)');
+    expect(t['result'], isNull);
+  });
+
+  test('Try the phrase can be cancelled; a dictation try blocks it', () async {
+    installFake();
+    answer('status.json', _status);
+    answer('slow', '');
+    final core = w.core();
+    await core.call('voice.wake_test', {});
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    await core.call('voice.cancel', {'kind': 'wake'});
+    expect((await settle(core, 'wake'))['state'], 'cancelled');
+    await core.call('voice.try', {});
+    await expectLater(core.call('voice.wake_test', {}), refused('busy'));
+    await core.call('voice.cancel', {'kind': 'dictate'});
+    await settle(core, 'dictate');
   });
 
   test('microphones: no monitors; without pactl none', () async {

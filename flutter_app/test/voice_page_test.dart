@@ -1,7 +1,8 @@
 // The Voice page against fake core answers (voice.*): the status, the engine drop-down with
 // unavailable engines disabled, the settings it writes, a model download with progress and
 // Cancel, Remove, Use, Try it with partial and final text, and the note when Maprisma
-// Dictation is missing. `--page voice` opens it.
+// Dictation is missing; the wake phrase card (its settings, the live line, Try the phrase).
+// `--page voice` opens it.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:maprisma_manager/app.dart';
@@ -17,6 +18,15 @@ Map<String, dynamic> _status({bool ready = true, List<String> engines = const ['
   'enabled': true, 'ready': ready, 'why_not': ready ? '' : 'no_model', 'message': ready ? 'Ready' : 'No Whisper model is installed.',
   'engine': 'whisper', 'engine_setting': 'auto', 'engines': engines, 'model': 'ggml-large-v3-turbo-q5_0.bin',
   'language': 'auto', 'microphone': 'default', 'state': 'idle', 'version': '0.1.0', 'typed_by_engine': false,
+};
+
+Map<String, dynamic> _wakeStatus({required bool enabled, bool active = false, String? why}) => {
+  ..._status(),
+  'wake_enabled': enabled,
+  'wake_active': active,
+  'wake_phrase': 'Hey Linux',
+  'wake_why_not': why ?? (enabled ? '' : 'off'),
+  'wake_message': '',
 };
 
 Map<String, dynamic> _models() => {
@@ -59,8 +69,12 @@ class _Fake {
   _Fake(this.answer);
   Map<String, dynamic> answer;
   final calls = <(String, Map<String, dynamic>)>[];
-  Map<String, dynamic>? download, dictate;
-  int polls = 0;
+  Map<String, dynamic>? download, dictate, wake;
+  int polls = 0, wakePolls = 0;
+
+  /// What voice.wake_test ends with, and what voice.status answers.
+  Map<String, dynamic> wakeResult = {'heard': 'Hey Linux, open Firefox.', 'matched': true, 'score': 0.93, 'needed': 0.75, 'rest': 'open Firefox', 'phrase': 'Hey Linux', 'model': 'ggml-base.bin', 'speech': true};
+  Map<String, dynamic>? liveStatus;
 
   Future<Map<String, dynamic>> call(String method, [Map<String, dynamic> params = const {}]) async {
     calls.add((method, params));
@@ -72,7 +86,12 @@ class _Fake {
       case 'jobs.list':
         return {'jobs': <Object>[]};
       case 'voice.get':
-        return {...answer, 'tasks': {'download': download, 'dictate': dictate}};
+        return {...answer, 'tasks': {'download': download, 'dictate': dictate, 'wake': wake}};
+      case 'voice.status':
+        return {'status': liveStatus ?? answer['status'], 'status_error': null};
+      case 'voice.wake_test':
+        wake = {'kind': 'wake', 'state': 'running', 'seconds': params['seconds'], 'result': null};
+        return {'task': wake};
       case 'voice.download':
         download = {'kind': 'download', 'state': 'running', 'model': params['model'], 'progress': null};
         return {'task': download};
@@ -82,6 +101,7 @@ class _Fake {
       case 'voice.cancel':
         if (params['kind'] == 'download') download = {...?download, 'state': 'cancelled'};
         if (params['kind'] == 'dictate') dictate = {...?dictate, 'state': 'cancelled'};
+        if (params['kind'] == 'wake') wake = {...?wake, 'state': 'cancelled'};
         return {};
       case 'voice.tasks':
         polls++;
@@ -89,7 +109,8 @@ class _Fake {
         if (dictate?['state'] == 'running') {
           dictate = polls < 3 ? {...dictate!, 'partial': 'hallo'} : {...dictate!, 'state': 'succeeded', 'partial': 'hallo welt', 'text': 'Hallo Welt.'};
         }
-        return {'download': download, 'dictate': dictate};
+        if (wake?['state'] == 'running' && ++wakePolls >= 3) wake = {...wake!, 'state': 'succeeded', 'result': wakeResult};
+        return {'download': download, 'dictate': dictate, 'wake': wake};
       default:
         return {};
     }
@@ -272,6 +293,155 @@ void main() {
     expect(find.text('This engine types the text itself, into the window that has the focus, so it can\'t be tried here.'), findsOneWidget);
     expect(find.text('Dictation has to be ready first.'), findsNothing);
     expect(fake.of('voice.try'), isEmpty);
+  });
+
+  test('the wake line: every wake_why_not code in words', () {
+    final on = {'wake_enabled': true, 'wake_phrase': 'Hallo Rechner', 'wake_message': ''};
+    expect(VoicePageState.wakeLine({'wake_enabled': false, 'wake_why_not': 'off'}), ('off', 'Off: the microphone is not listening for the phrase.'));
+    expect(VoicePageState.wakeLine({...on, 'wake_why_not': '', 'wake_active': true}), ('on', 'Listening for “Hallo Rechner”'));
+    expect(VoicePageState.wakeLine({...on, 'wake_why_not': '', 'wake_active': false}).$1, 'paused');
+    expect(VoicePageState.wakeLine({...on, 'wake_why_not': 'disabled'}), ('paused', 'Not listening: Dictation is off.'));
+    expect(VoicePageState.wakeLine({...on, 'wake_why_not': 'busy'}), ('paused', 'Paused while a dictation runs.'));
+    expect(VoicePageState.wakeLine({...on, 'wake_why_not': 'speaking'}).$1, 'paused');
+    expect(VoicePageState.wakeLine({...on, 'wake_why_not': 'cooldown'}).$1, 'paused');
+    for (final code in ['no_whisper_server', 'no_model', 'no_recorder', 'recorder_failed', 'failed']) {
+      expect(VoicePageState.wakeLine({...on, 'wake_why_not': code}).$1, 'problem', reason: code);
+    }
+    expect(VoicePageState.wakeLine({...on, 'wake_why_not': 'failed', 'wake_message': 'boom'}).$2, 'The wake listener failed: boom');
+    // a code this page doesn't know yet: the service's own words
+    expect(VoicePageState.wakeLine({...on, 'wake_why_not': 'new_code', 'wake_message': 'Something new.'}), ('problem', 'Something new.'));
+  });
+
+  test('wake models: the smallest installed one, then the installed ones by their catalog name', () {
+    final m = _models();
+    expect(VoicePageState.wakeModelChoices(m, ''), [
+      ('', 'Smallest installed'),
+      ('ggml-base.bin', 'Whisper base'),
+      ('ggml-large-v3-turbo-q5_0.bin', 'Whisper large-v3-turbo'),
+      ('ggml-medium.bin', 'ggml-medium.bin'),
+    ]);
+    // a catalog id names its file; a model that is gone stays shown
+    expect(VoicePageState.wakeModelValue(m, 'base'), 'ggml-base.bin');
+    expect(VoicePageState.wakeModelChoices(m, 'ggml-tiny.bin').last, ('ggml-tiny.bin', 'ggml-tiny.bin'));
+  });
+
+  testWidgets('wake phrase off: the card, its note, and the settings it writes', (tester) async {
+    final fake = await open(tester, _get(status: _wakeStatus(enabled: false), settings: {'wake_language': 'de'}));
+    expect(find.text('Wake phrase'), findsOneWidget);
+    expect(find.textContaining('the microphone stays open'), findsWidgets);
+    expect(find.textContaining('nothing is stored or sent online'), findsOneWidget);
+    expect(find.text('Off: the microphone is not listening for the phrase.'), findsOneWidget);
+    expect(tester.widget<TextField>(find.byKey(const ValueKey('voice-wake-phrase'))).controller!.text, 'Hey Linux');
+    expect(find.descendant(of: find.byKey(const ValueKey('voice-wake-language')), matching: find.text('Deutsch')), findsOneWidget);
+    expect(find.descendant(of: find.byKey(const ValueKey('voice-wake-sensitivity')), matching: find.text('Normal')), findsOneWidget);
+    expect(find.descendant(of: find.byKey(const ValueKey('voice-wake-model')), matching: find.text('Smallest installed')), findsOneWidget);
+    // nothing is written by just opening the page
+    expect(fake.of('voice.set'), isEmpty);
+    await tapKey(tester, 'voice-wake-enabled');
+    await tester.pumpAndSettle();
+    await pick(tester, 'voice-wake-language', 'English');
+    await pick(tester, 'voice-wake-sensitivity', 'Loose');
+    await pick(tester, 'voice-wake-model', 'Whisper base');
+    expect(fake.of('voice.set'), [
+      {'key': 'wake_enabled', 'value': true},
+      {'key': 'wake_language', 'value': 'en'},
+      {'key': 'wake_sensitivity', 'value': 'loose'},
+      {'key': 'wake_model', 'value': 'ggml-base.bin'},
+    ]);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('the phrase is checked like the service and saved on Enter or when the field is left', (tester) async {
+    final fake = await open(tester, _get(status: _wakeStatus(enabled: false)));
+    final field = find.byKey(const ValueKey('voice-wake-phrase'));
+    await tester.ensureVisible(field);
+    await tester.pumpAndSettle();
+    await tester.enterText(field, 'Hey "Linux"');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+    expect(find.text('2–40 letters or digits; also spaces and , . ! ? \' -'), findsOneWidget);
+    expect(fake.of('voice.set'), isEmpty);
+    await tester.enterText(field, '  Hallo Rechner ');
+    await tester.pump();
+    expect(find.text('2–40 letters or digits; also spaces and , . ! ? \' -'), findsNothing);
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+    expect(fake.of('voice.set'), [{'key': 'wake_phrase', 'value': 'Hallo Rechner'}]);
+    // leaving the field saves too
+    await tester.tap(field);
+    await tester.enterText(field, 'OK Computer');
+    await tester.pump();
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pumpAndSettle();
+    expect(fake.of('voice.set').last, {'key': 'wake_phrase', 'value': 'OK Computer'});
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('wake phrase on: the line follows the service while the page is open', (tester) async {
+    final fake = await open(tester, _get(status: _wakeStatus(enabled: true, active: true)));
+    expect(find.text('Listening for “Hey Linux”'), findsOneWidget);
+    if (shotsDir != null) await saveShot(tester, 'page-voice-wake');
+    fake.liveStatus = _wakeStatus(enabled: true, why: 'busy');
+    await tester.pump(wakeStatusEvery);
+    await tester.pump();
+    expect(find.text('Paused while a dictation runs.'), findsOneWidget);
+    expect(fake.of('voice.status'), isNotEmpty);
+    fake.liveStatus = _wakeStatus(enabled: true, why: 'no_model');
+    await tester.pump(wakeStatusEvery);
+    await tester.pump();
+    expect(find.text('Not listening: no Whisper model is installed.'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Try the phrase: "say it now", then what was heard and the score; the others wait', (tester) async {
+    final fake = await open(tester, _get(status: _wakeStatus(enabled: false)));
+    await tapKey(tester, 'voice-wake-try');
+    await tester.pump();
+    expect(fake.of('voice.wake_test'), [{'seconds': 8}]);
+    expect(find.text('Say your phrase now…'), findsOneWidget);
+    expect(find.byKey(const ValueKey('voice-wake-stop')), findsOneWidget);
+    expect(find.byKey(const ValueKey('voice-wake-try')), findsNothing);
+    expect(tester.widget<FilledButton>(find.byKey(const ValueKey('voice-try'))).onPressed, isNull);
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 450));
+    }
+    await tester.pumpAndSettle();
+    expect(find.text('It matches. Heard: “Hey Linux, open Firefox.”'), findsOneWidget);
+    expect(find.text('Score 93 % (a match needs 75 %) · Request after it: open Firefox'), findsOneWidget);
+    expect(tester.widget<FilledButton>(find.byKey(const ValueKey('voice-wake-try'))).onPressed, isNotNull);
+    expect(tester.widget<FilledButton>(find.byKey(const ValueKey('voice-try'))).onPressed, isNotNull);
+    // no match, then nothing heard
+    fake.wakeResult = {'heard': 'Hallo Welt', 'matched': false, 'score': 0.41, 'needed': 0.75, 'rest': '', 'speech': true};
+    fake.wakePolls = 0;
+    await tapKey(tester, 'voice-wake-try');
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 450));
+    }
+    await tester.pumpAndSettle();
+    expect(find.text('No match. Heard: “Hallo Welt”'), findsOneWidget);
+    expect(find.text('Score 41 % (a match needs 75 %)'), findsOneWidget);
+    if (shotsDir != null) await saveShot(tester, 'page-voice-wake-try');
+    fake.wakeResult = {'heard': '', 'matched': false, 'score': 0.0, 'needed': 0.75, 'rest': '', 'speech': false};
+    fake.wakePolls = 0;
+    await tapKey(tester, 'voice-wake-try');
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(milliseconds: 450));
+    }
+    await tester.pumpAndSettle();
+    expect(find.text('Nothing was heard.'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Try the phrase can be cancelled', (tester) async {
+    final fake = await open(tester, _get(status: _wakeStatus(enabled: false)));
+    await tapKey(tester, 'voice-wake-try');
+    await tester.pump();
+    await tapKey(tester, 'voice-wake-stop');
+    await tester.pump(const Duration(milliseconds: 450));
+    await tester.pumpAndSettle();
+    expect(fake.of('voice.cancel'), [{'kind': 'wake'}]);
+    expect(find.descendant(of: find.byKey(const ValueKey('voice-wake-result')), matching: find.text('Cancelled')), findsOneWidget);
+    expect(find.byKey(const ValueKey('voice-wake-try')), findsOneWidget);
   });
 
   testWidgets('not installed: Install and the GitHub link', (tester) async {

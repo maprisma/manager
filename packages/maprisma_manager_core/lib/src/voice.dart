@@ -14,8 +14,9 @@ import 'sound.dart';
 /// through its command line (argv lists, never a shell; bounded output, time limits), so the
 /// service checks every value in one place: `status --json`, `models --json`, `get`,
 /// `set KEY VALUE` (VALUE as JSON), `unset KEY`, `model download|remove NAME` and
-/// `dictate --seconds N`. A download and a try run in the background, one of each at a time,
-/// and are polled with `voice.tasks`; `voice.cancel` ends them. The contract is
+/// `dictate --seconds N`, `wake test --seconds N --json`. A download, a try and a wake test run
+/// in the background, one of each at a time, and are polled with `voice.tasks`; `voice.cancel`
+/// ends them. The contract is
 /// maprisma-dictation's docs/protocol.md.
 final class VoiceService {
   VoiceService(this.ctx, this.sound);
@@ -28,7 +29,25 @@ final class VoiceService {
   static const engines = ['whisper', 'online', 'omarchy', 'voxtype', 'superwhisper'];
 
   /// The settings the page sets; the service checks the values.
-  static const keys = {'enabled', 'engine', 'model', 'language', 'microphone', 'unload_minutes', 'preload'};
+  static const keys = {
+    'enabled', 'engine', 'model', 'language', 'microphone', 'unload_minutes', 'preload', //
+    'wake_enabled', 'wake_phrase', 'wake_language', 'wake_model', 'wake_sensitivity',
+  };
+
+  /// How far what was heard may be from the wake phrase.
+  static const sensitivities = ['strict', 'normal', 'loose'];
+
+  static final _alnum = RegExp(r'[\p{L}\p{N}]', unicode: true);
+  static final _phraseChars = RegExp(r"^[\p{L}\p{N} ,.!?'-]*$", unicode: true);
+
+  /// The service's rule for `wake_phrase`: 2–40 characters, letters, digits, spaces and
+  /// `,.!?'-`, at least two letters or digits, no spaces at the ends.
+  static bool validWakePhrase(String phrase) {
+    final n = phrase.runes.length;
+    return n >= 2 && n <= 40 && phrase.trim() == phrase && _phraseChars.hasMatch(phrase) && _alnum.allMatches(phrase).length >= 2;
+  }
+
+  static final _language = RegExp(r'^(auto|[a-z]{2,3})$');
 
   /// At most this much of a command's stdout and stderr is kept.
   static const maxOutput = 256 * 1024;
@@ -146,14 +165,32 @@ final class VoiceService {
     };
   }
 
-  /// `voice.tasks`: {download, dictate}, each null before the first.
-  Map<String, dynamic> tasks() => {'download': _tasks['download']?.toJson(), 'dictate': _tasks['dictate']?.toJson()};
+  /// `voice.status`: only `status --json` (the page's live wake line), or why there is none.
+  Future<Map<String, dynamic>> status() async {
+    final exe = _need();
+    final (code, out, err) = await _run(exe, ['status', '--json']);
+    if (code != 0) return {'status': null, 'status_error': _firstLine(err, code)};
+    try {
+      final v = jsonDecode(out);
+      if (v is Map<String, dynamic>) return {'status': v, 'status_error': null};
+    } on FormatException {
+      // said below
+    }
+    return {'status': null, 'status_error': tr('the voice service gave no readable answer')};
+  }
+
+  /// `voice.tasks`: {download, dictate, wake}, each null before the first.
+  Map<String, dynamic> tasks() => {for (final k in const ['download', 'dictate', 'wake']) k: _tasks[k]?.toJson()};
 
   // --- settings ------------------------------------------------------------------------------
 
   static bool _valueOk(String key, Object? value) => switch (key) {
-    'enabled' || 'preload' => value is bool,
+    'enabled' || 'preload' || 'wake_enabled' => value is bool,
     'unload_minutes' => value is int && value >= 0 && value <= 1440,
+    'wake_phrase' => value is String && validWakePhrase(value),
+    'wake_language' => value is String && _language.hasMatch(value),
+    'wake_model' => value is String && (value.isEmpty || (_name.hasMatch(value) && !value.contains('..'))),
+    'wake_sensitivity' => value is String && sensitivities.contains(value),
     _ => value is String && value.length <= 200 && !value.contains('\n') && !value.contains('\x00'),
   };
 
@@ -257,21 +294,37 @@ final class VoiceService {
     final seconds = params['seconds'] ?? 5;
     if (seconds is! int || seconds < 1 || seconds > 30) throw RouteError('bad_params', 'seconds (1–30)');
     final exe = _need();
-    if (_running('dictate')) throw RouteError('busy', tr('a try is already running'));
+    if (_running('dictate') || _running('wake')) throw RouteError('busy', tr('a try is already running'));
     final status = await _json(exe, ['status', '--json']);
     if (status is! Map) throw RouteError('unavailable', tr('the voice service gave no readable answer'));
     if (status['typed_by_engine'] != false) throw RouteError('unavailable', tr('This engine types the text itself, into the window that has the focus, so it can\'t be tried here.'));
-    if (_running('dictate')) throw RouteError('busy', tr('a try is already running'));
+    if (_running('dictate') || _running('wake')) throw RouteError('busy', tr('a try is already running'));
     final task = _tasks['dictate'] = VoiceTask('dictate', ctx.clock(), seconds: seconds);
     unawaited(_follow(task, exe, ['dictate', '--seconds', '$seconds'], Duration(seconds: seconds + 90)));
     return {'task': task.toJson()};
   }
 
+  /// `voice.wake_test` {seconds?}: `wake test --seconds N --json` (1–10, default 8) in the
+  /// background: the service listens once for one stretch of speech and says what its wake
+  /// recogniser heard (`result`: heard, matched, score, needed, rest, phrase, model, speech).
+  /// Exit 0 matches, 1 no match, 3 no speech: all `succeeded` with the result; 4 (no service)
+  /// or no readable answer: `failed` with the service's last line. Nothing is started on a match.
+  Future<Map<String, dynamic>> wakeTest(Map<String, dynamic> params) async {
+    final seconds = params['seconds'] ?? 8;
+    if (seconds is! int || seconds < 1 || seconds > 10) throw RouteError('bad_params', 'seconds (1–10)');
+    final exe = _need();
+    if (_running('wake') || _running('dictate')) throw RouteError('busy', tr('a try is already running'));
+    final task = _tasks['wake'] = VoiceTask('wake', ctx.clock(), seconds: seconds);
+    // loading the recogniser's model may take a while the first time (the service allows 120 s)
+    unawaited(_follow(task, exe, ['wake', 'test', '--seconds', '$seconds', '--json'], Duration(seconds: seconds + 130)));
+    return {'task': task.toJson()};
+  }
+
   /// `voice.cancel` {kind}: ends a running download (the service's curl dies with it; this
-  /// download's leftover `.part` is removed) or try (the service cancels a session whose client left).
+  /// download's leftover `.part` is removed) or try (the service cancels a session whose client left), or a wake test.
   Future<Map<String, dynamic>> cancel(Map<String, dynamic> params) async {
     final kind = params['kind'];
-    if (kind != 'download' && kind != 'dictate') throw RouteError('bad_params', 'kind (download or dictate)');
+    if (kind != 'download' && kind != 'dictate' && kind != 'wake') throw RouteError('bad_params', 'kind (download, dictate or wake)');
     final task = _tasks[kind];
     if (task == null || task.state != 'running') throw RouteError('finished', tr('nothing is running'));
     task.cancelled = true;
@@ -342,6 +395,19 @@ final class VoiceService {
       task.finish('cancelled', ctx.clock());
     } else if (code == null) {
       task.finish('failed', ctx.clock(), message: tr('it took too long and was stopped'));
+    } else if (task.kind == 'wake') {
+      Object? answer;
+      try {
+        answer = jsonDecode(stdout.split('\n').last);
+      } on FormatException {
+        answer = null;
+      }
+      if ((code == 0 || code == 1 || code == 3) && answer is Map<String, dynamic>) {
+        task.result = answer;
+        task.finish('succeeded', ctx.clock());
+      } else {
+        task.finish('failed', ctx.clock(), message: said ?? trf('exit {0}', [code]));
+      }
     } else if (task.kind == 'download') {
       if (code == 0) {
         task.progress = 100;
@@ -362,7 +428,7 @@ final class VoiceService {
   }
 }
 
-/// A download or a try, as `voice.tasks` shows it.
+/// A download, a try or a wake test, as `voice.tasks` shows it.
 final class VoiceTask {
   VoiceTask(this.kind, this.started, {this.model, this.seconds});
   final String kind;
@@ -375,6 +441,9 @@ final class VoiceTask {
   String partial = '';
   String text = '';
   String? path, message;
+
+  /// A wake test's answer.
+  Map<String, dynamic>? result;
 
   /// A download's file name in the service's folder (from its catalog).
   String? file;
@@ -397,6 +466,7 @@ final class VoiceTask {
     if (ended != null) 'ended': ended!.toUtc().toIso8601String(),
     if (kind == 'download') 'progress': progress,
     if (kind == 'dictate') ...{'partial': partial, 'text': text},
+    if (kind == 'wake') 'result': result,
     'path': ?path,
     'message': ?message,
   };

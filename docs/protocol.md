@@ -698,7 +698,7 @@ The **Voice** page (sidebar after AI, `--page voice`): Maprisma Dictation's voic
 dictation overlay `maprisma-dictation --toggle`). The Manager talks to it only through its command line
 (`lib/src/voice.dart`): `~/.local/bin/maprisma-voice`, else the one on PATH, run with an argv
 list (never a shell), at most 256 KB of output and a time limit (10 s; a download 2 h, a try its
-length + 90 s). The service checks every value, so the rules live in one place
+length + 90 s, a wake test its length + 130 s). The service checks every value, so the rules live in one place
 (maprisma-dictation's `docs/protocol.md`, settings in `~/.config/maprisma-voice/settings.json`).
 
 - `voice.get` → `{installed, binary, install_url, status, status_error, models, settings, microphones, tasks}`:
@@ -707,9 +707,15 @@ length + 90 s). The service checks every value, so the rules live in one place
   `settings` is `get` (only the keys that are set), `microphones` is `{default, sources: [{name,
   description}]}` from `pactl -f json` (monitors left out; empty without pactl). Without the
   binary only `installed: false`, `install_url`, `microphones` and `tasks`.
+- `voice.status` → `{status, status_error}`: only `status --json` (the wake line's live
+  refresh, every 3 s while `wake_enabled` is on).
 - `voice.set` `{key, value}` → `maprisma-voice set KEY <value as JSON>`; `key` is one of
-  `enabled`, `engine`, `model`, `language`, `microphone`, `unload_minutes`, `preload` (booleans,
-  0–1440, strings up to 200 characters, else `bad_params`); the service's refusal (exit 2) is
+  `enabled`, `engine`, `model`, `language`, `microphone`, `unload_minutes`, `preload`,
+  `wake_enabled`, `wake_phrase`, `wake_language`, `wake_model`, `wake_sensitivity` (booleans,
+  0–1440, strings up to 200 characters; `wake_phrase` by the service's rule: 2–40 characters,
+  letters, digits, spaces and `,.!?'-`, at least two letters or digits, no spaces at the ends;
+  `wake_language` `auto` or a 2–3 letter code; `wake_model` empty or a model name;
+  `wake_sensitivity` `strict|normal|loose`; else `bad_params`); the service's refusal (exit 2) is
   `bad_params` with its message, another failure `failed`; `not_installed` without the binary.
 - `voice.unset` `{key}` → `unset KEY` (back to the default; Model › Automatic).
 - `voice.download` `{model}` → `{task}`: `model download NAME` in the background (a catalog id;
@@ -720,10 +726,16 @@ length + 90 s). The service checks every value, so the rules live in one place
 - `voice.try` `{seconds?}` → `{task}`: `dictate --seconds N` (1–30, default 5) in the
   background; stderr lines `… text` are the partial text, stdout the final text; exit 3 (no
   speech) and other failures end it `failed` with the service's last line. One try at a time.
-- `voice.tasks` → `{download, dictate}`, each null before the first, else `{kind, state:
+- `voice.wake_test` `{seconds?}` → `{task}`: `wake test --seconds N --json` (1–10, default 8) in
+  the background: the service listens once with the wake recogniser; nothing is started on a
+  match. Exit 0 (match), 1 (no match) and 3 (no speech) end it `succeeded` with `result`
+  `{heard, matched, score, needed, rest, phrase, model, speech}`; 4 (no service) or no readable
+  answer `failed` with the service's last line. Refused (`busy`) while a try or another wake
+  test runs (and a try while a wake test runs): one microphone test at a time.
+- `voice.tasks` → `{download, dictate, wake}`, each null before the first, else `{kind, state:
   running|succeeded|failed|cancelled, model?, seconds?, started, ended?, progress (download),
-  partial and text (dictate), path?, message?}`; the page polls it while one runs.
-- `voice.cancel` `{kind}` (`download` or `dictate`) → SIGTERM to the command (the service's curl
+  partial and text (dictate), result (wake), path?, message?}`; the page polls it while one runs.
+- `voice.cancel` `{kind}` (`download`, `dictate` or `wake`) → SIGTERM to the command (the service's curl
   dies with it and a leftover `.part` is removed with `model remove`; a try's session is
   cancelled by the service when its client leaves); `finished` when nothing runs.
 
@@ -731,7 +743,14 @@ The page: Status (ready or the service's reason, engine and model in use; when i
 Install through the Apps page's job and the GitHub link), Dictation (on/off, Engine: Automatic and
 the five engines, those the service can't use disabled with why; Language: Automatic, the eight
 languages, another Whisper code; Microphone: Default and the PipeWire inputs; Free GPU memory
-after: never/5/10/30/60 minutes; Load the model at start), Models (Automatic, the catalog with
+after: never/5/10/30/60 minutes; Load the model at start), Wake phrase (on/off with the note that
+the microphone stays open while it listens and only short stretches are turned into text
+locally; the phrase, checked like the service and saved on Enter or when the field is left;
+Language of the phrase: Automatic and the eight languages; Sensitivity strict/normal/loose;
+Model: Smallest installed and the installed models; a live line from `wake_why_not` — listening
+for the phrase, paused (dictation off, a session, an answer read aloud, just heard) or why not;
+Try the phrase: 8 s, "Say your phrase now…", then what was heard, match or not and the score,
+Cancel while it listens), Models (Automatic, the catalog with
 Download/progress/Cancel, Use, Remove after asking, other installed models with Use only) and
 Try it (5 s, the partial and the final text, shown only).
 
