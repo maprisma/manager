@@ -161,28 +161,7 @@ class VoicePageState extends State<VoicePage> with RoutePage {
   Future<void> _set(String key, Object value) => act('voice.set', {'key': key, 'value': value});
 
   Future<void> _otherLanguage() async {
-    final controller = TextEditingController();
-    final code = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(tr('Other language')),
-        content: SizedBox(
-          width: 360,
-          child: TextField(
-            key: const ValueKey('voice-language-code'),
-            controller: controller,
-            autofocus: true,
-            decoration: InputDecoration(labelText: tr('Whisper language code'), hintText: 'sv, ja, uk …'),
-            onSubmitted: (v) => Navigator.pop(context, v.trim()),
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('Cancel'))),
-          FilledButton(key: const ValueKey('voice-language-ok'), onPressed: () => Navigator.pop(context, controller.text.trim()), child: Text(tr('Use'))),
-        ],
-      ),
-    );
-    controller.dispose();
+    final code = await showDialog<String>(context: context, builder: (_) => const _LanguageCodeDialog());
     if (code != null && code.isNotEmpty && mounted) await _set('language', code.toLowerCase());
   }
 
@@ -528,4 +507,40 @@ class VoicePageState extends State<VoicePage> with RoutePage {
       ],
     );
   }
+}
+
+/// Other language: a Whisper code typed in (the service checks it).
+class _LanguageCodeDialog extends StatefulWidget {
+  const _LanguageCodeDialog();
+  @override
+  State<_LanguageCodeDialog> createState() => _LanguageCodeDialogState();
+}
+
+class _LanguageCodeDialogState extends State<_LanguageCodeDialog> {
+  final controller = TextEditingController();
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text(tr('Other language')),
+    content: SizedBox(
+      width: 360,
+      child: TextField(
+        key: const ValueKey('voice-language-code'),
+        controller: controller,
+        autofocus: true,
+        decoration: InputDecoration(labelText: tr('Whisper language code'), hintText: 'sv, ja, uk …'),
+        onSubmitted: (v) => Navigator.pop(context, v.trim()),
+      ),
+    ),
+    actions: [
+      TextButton(onPressed: () => Navigator.pop(context), child: Text(tr('Cancel'))),
+      FilledButton(key: const ValueKey('voice-language-ok'), onPressed: () => Navigator.pop(context, controller.text.trim()), child: Text(tr('Use'))),
+    ],
+  );
 }
