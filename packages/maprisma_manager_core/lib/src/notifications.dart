@@ -4,7 +4,6 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
-import 'ai/bounded.dart' show readBoundedText;
 import 'bar_cosmic.dart' show atomicWrite;
 import 'catalog.dart' show findApp;
 import 'catalog_model.dart' show DesktopId;
@@ -48,12 +47,6 @@ final class NotificationsService {
   String get settingsFile => p.join(ctx.paths.config, 'maprisma-notifier', 'settings.json');
   String get historyFile => p.join(ctx.paths.state, 'maprisma-notifier', 'history.jsonl');
   String get shellFile => p.join(ctx.paths.config, 'maprisma-shell', 'shell.json');
-  /// The AI helpers catalog (maprisma-notifier's docs/plan.md "AI helpers"): the Notifier's
-  /// installed copy and Maprisma's; the newer one (higher `version`, Maprisma's on a tie).
-  String get helpersFile => p.join(ctx.paths.data, 'maprisma-notifier', 'helpers.json');
-  String get systemHelpersFile => ctx.paths.sys('/usr/lib/maprisma/data/helpers.json');
-  static const helpersFileMax = 1024 * 1024;
-  static final _plainName = RegExp(r'^[A-Za-z0-9_+][A-Za-z0-9._+-]{0,63}$');
 
   String get cosmicDndFile => p.join(ctx.paths.config, 'cosmic', 'com.system76.CosmicNotifications', 'v1', 'do_not_disturb');
 
@@ -66,14 +59,11 @@ final class NotificationsService {
     final hypr = ctx.desktop == DesktopId.hyprland;
     final shell = hypr ? _shellView(_read(shellFile, 'shell.json')) : null;
     final links = native.links('notifications');
-    final helpers = await installedHelpers();
     return {
       'desktop': ctx.desktop.name,
       'installed': isExecutableFile(ctx.paths.expand('{bin}/maprisma-notifier')),
       'running': app != null && runningFor(app, ctx.paths, ctx.processes()).isNotEmpty,
       'settings': settings,
-      // "Check with AI" on a crash: the installed helpers, the first is what "auto" picks
-      'ai_helpers': [for (final h in helpers) {'id': h.id, 'name': h.name}],
       'history': _history(),
       'shell': shell,
       'desktop_dnd': switch (ctx.desktop) {
@@ -146,74 +136,9 @@ final class NotificationsService {
       'history_days': _int(r['history_days'], historyDaysRange) ?? historyDaysRange.def,
       'show_count': r['show_count'] is bool ? r['show_count'] : true,
       'notify_crashes': r['notify_crashes'] is bool ? r['notify_crashes'] : true,
-      'ai_helper': r['ai_helper'] is String && validHelperSetting(r['ai_helper'] as String) ? r['ai_helper'] : 'auto',
       'muted_apps': _apps(r['muted_apps']),
       'hidden_apps': _apps(r['hidden_apps']),
     };
-  }
-
-  /// `ai_helper`: "auto" or a helper id (a plain name).
-  static bool validHelperSetting(String v) => v == 'auto' || _plainName.hasMatch(v);
-
-  /// A helpers catalog: its version and the helpers with a usable `task` (argv of strings with a
-  /// `{prompt}` element, not the first); broken entries and repeated ids are left out. Null when
-  /// it isn't a catalog. The same rules as maprisma-notifier's helpers.rs.
-  static ({int version, List<({String id, String name, String command})> helpers})? parseHelpers(String text) {
-    Object? v;
-    try {
-      v = jsonDecode(text);
-    } on FormatException {
-      return null;
-    }
-    if (v is! Map || v['version'] is! int || v['helpers'] is! List) return null;
-    final out = <({String id, String name, String command})>[];
-    for (final h in v['helpers'] as List) {
-      if (h is! Map) continue;
-      final id = h['id'], command = h['command'], task = h['task'];
-      if (id is! String || !_plainName.hasMatch(id) || command is! String || !_plainName.hasMatch(command)) continue;
-      if (task is! Map || task['argv'] is! List) continue;
-      final argv = task['argv'] as List;
-      if (argv.isEmpty || argv.length > 64 || argv.any((a) => a is! String || a.contains('\x00'))) continue;
-      if ((argv.first as String).contains('{prompt}') || !argv.any((a) => (a as String).contains('{prompt}'))) continue;
-      if (out.any((o) => o.id == id)) continue;
-      final rawName = h['name'];
-      final name = rawName is String && rawName.trim().isNotEmpty ? rawName.trim() : id;
-      out.add((id: id, name: name.length > 64 ? name.substring(0, 64) : name, command: command));
-    }
-    return (version: v['version'] as int, helpers: out);
-  }
-
-  ({int version, List<({String id, String name, String command})> helpers})? _readHelpers(String path) {
-    try {
-      final f = File(path);
-      if (!f.existsSync() || f.lengthSync() > helpersFileMax) return null;
-      return parseHelpers(f.readAsStringSync());
-    } on FileSystemException {
-      return null;
-    }
-  }
-
-  /// The catalog's helpers whose command is installed (PATH, ~/.local/bin, ~/.npm-global/bin,
-  /// else `mise which`), in catalog order. Nothing that would install one is run.
-  Future<List<({String id, String name, String command})>> installedHelpers() async {
-    final own = _readHelpers(helpersFile), system = _readHelpers(systemHelpersFile);
-    final catalog = system != null && (own == null || system.version >= own.version) ? system : own;
-    if (catalog == null) return const [];
-    final mise = ctx.runner.which('mise');
-    Future<bool> installed(String command) async {
-      if (ctx.runner.which(command) != null) return true;
-      for (final dir in ['.local/bin', '.npm-global/bin']) {
-        if (isExecutableFile(p.join(ctx.paths.home, dir, command))) return true;
-      }
-      if (mise == null) return false;
-      final out = (await readBoundedText([mise, 'which', command], maxBytes: 4096, timeout: const Duration(seconds: 5), environment: ctx.environment))?.trim();
-      return out != null && out.isNotEmpty && p.isAbsolute(out) && isExecutableFile(out);
-    }
-
-    return [
-      for (final h in catalog.helpers)
-        if (await installed(h.command)) h,
-    ];
   }
 
   /// Whether [now] (local time) is inside the schedule's from–to window; from == to is no window.
@@ -352,10 +277,10 @@ final class NotificationsService {
     return out;
   }
 
-  static const _settingKeys = {'dnd', 'dnd_schedule', 'history_max', 'history_days', 'show_count', 'notify_crashes', 'ai_helper', 'muted_apps', 'hidden_apps'};
+  static const _settingKeys = {'dnd', 'dnd_schedule', 'history_max', 'history_days', 'show_count', 'notify_crashes', 'muted_apps', 'hidden_apps'};
 
   /// `notifications.set`: any of dnd, dnd_schedule {on?, from?, to?}, history_max, history_days,
-  /// show_count, notify_crashes, ai_helper ("auto" or a helper id), muted_apps, hidden_apps. Only these keys change (in dnd_schedule only the given
+  /// show_count, notify_crashes, muted_apps, hidden_apps. Only these keys change (in dnd_schedule only the given
   /// ones). With dnd or dnd_schedule the effective do-not-disturb goes to the desktop too.
   Future<Map<String, dynamic>> set(Map<String, dynamic> params) async {
     final unknown = params.keys.where((k) => !_settingKeys.contains(k)).toList();
@@ -367,11 +292,6 @@ final class NotificationsService {
       final v = params[key];
       if (v is! bool) throw RouteError('bad_params', key);
       change[key] = v;
-    }
-    if (params.containsKey('ai_helper')) {
-      final v = params['ai_helper'];
-      if (v is! String || !validHelperSetting(v)) throw RouteError('bad_params', 'ai_helper ("auto" or a helper id)');
-      change['ai_helper'] = v;
     }
     if (params.containsKey('history_max')) change['history_max'] = _clamped(params, 'history_max', historyMaxRange);
     if (params.containsKey('history_days')) change['history_days'] = _clamped(params, 'history_days', historyDaysRange);

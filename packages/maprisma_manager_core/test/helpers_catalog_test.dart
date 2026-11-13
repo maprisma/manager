@@ -189,10 +189,11 @@ void main() {
     w.writeFile(p.join(w.home, '.local/bin/copilot'), '#!/bin/sh\n', mode: '755');
     w.fake('gemini', 'exit 0');
     final core = w.core();
-    for (final saved in ['nobody', 'grok', 'gemini', 'copilot']) {
-      await core.call('settings.set', {'key': 'ai_helper', 'value': saved});
+    for (final saved in ['nobody', 'grok', 'gemini', 'copilot', 'auto']) {
+      await core.call('ai.set_helper', {'helper': saved});
       final h = await core.call('ai.helpers');
       expect(h['chosen'], saved == 'copilot' ? 'copilot' : 'gemini', reason: saved);
+      expect(h['fallback'], saved == 'nobody' || saved == 'grok', reason: saved);
     }
   });
 

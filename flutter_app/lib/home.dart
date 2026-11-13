@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:maprisma_manager_core/maprisma_manager_core.dart' show tr;
 
+import 'ai_page.dart';
 import 'apps_page.dart';
 import 'bar_editor.dart';
 import 'core_call.dart';
@@ -18,7 +19,7 @@ import 'theme.dart';
 import 'window.dart';
 
 /// The window's pages, in the sidebar's order.
-enum Section { apps, network, bluetooth, appearance, bar, displays, sound, notifications, power, input, applications, time, about, settings }
+enum Section { apps, network, bluetooth, appearance, bar, displays, sound, notifications, ai, power, input, applications, time, about, settings }
 
 /// The window as COSMIC Settings lays it out: a sidebar of pages left (icon and name, the open
 /// one highlighted), the page right. Below [condensedBelow] the sidebar hides behind a toggle
@@ -76,6 +77,7 @@ class ManagerHomeState extends State<ManagerHome> {
     Section.displays => on ? Icons.monitor : Icons.monitor_outlined,
     Section.sound => on ? Icons.volume_up : Icons.volume_up_outlined,
     Section.notifications => on ? Icons.notifications : Icons.notifications_outlined,
+    Section.ai => on ? Icons.auto_awesome : Icons.auto_awesome_outlined,
     Section.power => on ? Icons.power_settings_new : Icons.power_settings_new_outlined,
     Section.input => on ? Icons.keyboard : Icons.keyboard_outlined,
     Section.applications => on ? Icons.grid_view : Icons.grid_view_outlined,
@@ -93,6 +95,7 @@ class ManagerHomeState extends State<ManagerHome> {
     Section.displays => tr('Displays'),
     Section.sound => tr('Sound'),
     Section.notifications => tr('Notifications'),
+    Section.ai => tr('AI'),
     Section.power => tr('Power'),
     Section.input => tr('Input devices'),
     Section.applications => tr('Applications'),
@@ -203,7 +206,13 @@ class ManagerHomeState extends State<ManagerHome> {
     Section.network => NetworkPage(key: const ValueKey('network-page'), core: widget.core),
     Section.bluetooth => BluetoothPage(key: const ValueKey('bluetooth-page'), core: widget.core),
     Section.sound => SoundPage(key: const ValueKey('sound-page'), core: widget.core),
-    Section.notifications => NotificationsPage(key: const ValueKey('notifications-page'), core: widget.core, onInstall: _installer('notifier')),
+    Section.notifications => NotificationsPage(
+      key: const ValueKey('notifications-page'),
+      core: widget.core,
+      onInstall: _installer('notifier'),
+      onOpenAi: () => open(Section.ai),
+    ),
+    Section.ai => AiPage(key: const ValueKey('ai-page'), core: widget.core, onAiChanged: () => appsKey.currentState?.reload()),
     Section.displays => DisplaysPage(key: const ValueKey('displays-page'), core: widget.core),
     Section.input => InputPage(key: const ValueKey('input-page'), core: widget.core),
     Section.applications => ApplicationsPage(key: const ValueKey('applications-page'), core: widget.core),
@@ -220,7 +229,6 @@ class ManagerHomeState extends State<ManagerHome> {
         await appsKey.currentState?.reload();
       },
       onSettingsChanged: widget.onSettingsChanged,
-      onAiChanged: () => appsKey.currentState?.reload(),
     ),
   };
 

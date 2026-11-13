@@ -626,8 +626,10 @@ written again over the installer's new file, which becomes the kept original (lo
 
 ## Let AI do the updates (`ai.*`)
 
-Settings › AI › **Let AI do the updates** (`ai_updates`, off by default; it can only be switched
-on while a helper is ready) and **Helper** (`ai_helper`; null = the first ready one). The helpers
+The **AI** page (sidebar, `--page ai`): **Helper** — the AI helper every Maprisma app uses
+(Launcher, Theme, Playground, Notifier's *Check with AI* and the AI updates here; see "The shared
+AI helper" below) — and **Let AI do the updates** (`ai_updates` in the Manager's settings, off by
+default; it can only be switched on while a helper is ready). The helpers
 are Maprisma Theme's Ask AI helpers (`lib/src/ai/ask_ai.dart`, copied): Claude Code, Codex, pi,
 Hermes and pi's local models, each shown when installed and signed in, and every other agent of
 Maprisma's helpers catalog (`lib/src/ai/helpers_catalog.dart`: `data/helpers.json`, or Maprisma's
@@ -657,12 +659,36 @@ answers, 6 steps per answer, 20 steps per run; the same step at most twice. Stop
 a running `pub get` group and a job that can still be cancelled. Each run is saved as
 `$XDG_STATE_HOME/maprisma-manager/ai/<id>.json`.
 
-- `ai.helpers` → `{helpers: [{id, name, installed, signed_in, local, login, note}], chosen, enabled, busy}`
+- `ai.helpers` → `{helpers: [{id, name, installed, signed_in, local, login, note, verified}], helper, auto, chosen, fallback, file, enabled, busy}`:
+  `helper` the shared choice (`"auto"` or an id), `auto` the first ready helper, `chosen` the one
+  an AI update uses (the shared choice when it is ready, else `auto`), `fallback` true when a chosen
+  helper isn't ready (so `auto` is used), `file` the shared file
+- `ai.set_helper` `{helper}` → as `ai.helpers`; `helper` is `"auto"` or an id matching
+  `^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,160}$` (else `bad_params`; a write error: `write_failed`).
+  The AI dialog's Helper: [name ▾] writes it too: there is one choice for all apps
 - `ai.start` `{helper?}` → `{run}`; refused with `off`, `busy` or `unavailable` (no helper ready)
 - `ai.get` → `{run}` (null before the first): `{id, helper, helperName, state: running|succeeded|failed|cancelled, phase: checking|asking|working|done, round, steps: [{kind: say|note|action, …}], message?}`
 - `ai.cancel` → `{run}`
 
 CLI: `ai-helpers`, `ai-update [<helper>]`.
+
+### The shared AI helper (`maprisma-ai/settings.json`)
+
+`${XDG_CONFIG_HOME:-$HOME/.config}/maprisma-ai/settings.json`, a JSON object; `"helper"` is
+`"auto"` or a helper id as above (catalog ids such as `claude`, `codex`, `agy`; local models
+`pi:<provider>/<model>`). A missing or broken file, or a missing or invalid value, means `"auto"`:
+the first installed helper in the catalog's order that can do what the app needs (a one-shot
+`ask` here and in Launcher/Theme/Playground, an interactive `task` for Notifier's crash check). A
+chosen helper that isn't installed or can't do it falls back to auto. Every Maprisma app reads it
+when it needs a helper and any app's own helper drop-down writes it. Writes keep unknown keys and
+go through a temporary file in the same folder and a rename; the folder is 0700, the file 0600
+(`lib/src/ai/shared_helper.dart`). Migration: while the file doesn't exist, the Manager seeds it
+once from its old `ai_helper` setting when that is set and valid (the old key is no longer
+written or offered; `settings.set` refuses it).
+
+Notifications: the crash reports' helper is no longer a Notifier setting on this page
+(`notifications.get` has no `ai_helpers`, `notifications.set` refuses `ai_helper`); *Check with
+AI* uses the shared helper.
 
 ## CLI
 

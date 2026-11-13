@@ -93,7 +93,8 @@ class AiDialogState extends State<AiDialog> {
     if (id == helper) return;
     setState(() => helper = id);
     try {
-      await widget.core('settings.set', {'key': 'ai_helper', 'value': id});
+      // the helper all Maprisma apps use (the AI page's choice)
+      await widget.core('ai.set_helper', {'helper': id});
     } on ServiceError {
       // used for this run anyway; the choice is just not remembered
     }

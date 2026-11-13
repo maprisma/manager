@@ -21,7 +21,7 @@ const usage = '''usage: maprisma-manager-core status [--json] [--desktop cosmic|
        maprisma-manager-core remove <id> [--delete-settings] [--yes]
        maprisma-manager-core icon <id> [<name>|<file>|--reset] [--search <text>] [--json]
        maprisma-manager-core ai-helpers                   (the AI helpers for "Let AI do the updates")
-       maprisma-manager-core ai-update [<helper>]         (let the AI update the apps; Settings must allow it)
+       maprisma-manager-core ai-update [<helper>]         (let the AI update the apps; the AI page must allow it)
        maprisma-manager-core jobs [<id>]
        maprisma-manager-core log <job>
        maprisma-manager-core version
@@ -120,7 +120,7 @@ Future<int> runCli(List<String> args, {CoreService? service, IOSink? out}) async
         if (json) {
           sink.writeln(const JsonEncoder.withIndent('  ').convert(r));
         } else {
-          sink.writeln('AI updates: ${r['enabled'] == true ? 'on' : 'off'}   chosen: ${r['chosen'] ?? 'none ready'}');
+          sink.writeln('AI updates: ${r['enabled'] == true ? 'on' : 'off'}   helper (all Maprisma apps): ${r['helper']}${r['fallback'] == true ? ' (not ready: automatic)' : ''}   chosen: ${r['chosen'] ?? 'none ready'}');
           for (final h in (r['helpers'] as List).cast<Map<String, dynamic>>()) {
             var state = h['signed_in'] == true ? 'ready' : h['installed'] == true ? 'not signed in (${h['login']})' : 'not installed';
             if (h['verified'] == false) state = '$state (untested)';

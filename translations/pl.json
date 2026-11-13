@@ -754,7 +754,6 @@
   "Start again": "Uruchom ponownie",
   "the Manager updates itself from its own Update button": "Manager aktualizuje się własnym przyciskiem Aktualizuj",
   "it is installed with pacman and needs your password": "jest zainstalowane przez pacman i wymaga Twojego hasła",
-  "AI updates are off: turn them on in Settings": "Aktualizacje przez AI są wyłączone: włącz je w Ustawieniach",
   "the AI is already updating": "AI już aktualizuje",
   "no AI helper is installed and signed in": "żaden asystent AI nie jest zainstalowany i zalogowany",
   "the AI is not updating": "AI nie aktualizuje",
@@ -1019,5 +1018,16 @@
   "A password that starts or ends with a space can't be set here: use Maprisma WLAN Monitor or nmcli": "Hasła zaczynającego się lub kończącego spacją nie można tu ustawić: użyj Maprisma WLAN Monitor lub nmcli",
   "Too late: the previous display settings are back": "Za późno: przywrócono poprzednie ustawienia ekranu",
   "same files as {0} (other commits)": "te same pliki co {0} (inne commity)",
-  "bar icon: {0}": "ikona paska: {0}"
+  "bar icon: {0}": "ikona paska: {0}",
+  "{0} could not be saved: {1}": "Nie udało się zapisać {0}: {1}",
+  "AI updates are off: turn them on on the AI page": "Aktualizacje przez AI są wyłączone: włącz je na stronie AI",
+  "{0} is not installed or not ready here, so Automatic is used.": "{0} nie jest tu zainstalowany lub gotowy, więc używany jest wybór automatyczny.",
+  "Saved in {0}": "Zapisano w {0}",
+  "AI helper for all Maprisma apps": "Asystent AI dla wszystkich aplikacji Maprisma",
+  "Launcher, Theme, Playground, Notifier (Check with AI) and the Manager's AI updates use it. Automatic picks the first installed helper that can do the job.": "Używają go Launcher, Theme, Playground, Notifier (Sprawdź z AI) i aktualizacje przez AI w Managerze. Automatycznie wybiera pierwszego zainstalowanego asystenta, który to potrafi.",
+  "AI updates": "Aktualizacje przez AI",
+  "Check with AI": "Sprawdź z AI",
+  "Opens the AI helper chosen on the AI page in a terminal, the one all Maprisma apps use.": "Otwiera w terminalu asystenta AI wybranego na stronie AI – tego, którego używają wszystkie aplikacje Maprisma.",
+  "Open AI page": "Otwórz stronę AI",
+  "Automatic ({0})": "Automatycznie ({0})"
 }

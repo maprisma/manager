@@ -1,0 +1,103 @@
+/// The AI helper every Maprisma app uses (Launcher, Theme, Playground, Notifier and the Manager's
+/// AI updates): `$XDG_CONFIG_HOME/maprisma-ai/settings.json`, a JSON object whose `helper` is
+/// `"auto"` or a helper id (a catalog id like `claude`, or a local model like
+/// `pi:<provider>/<model>`). A missing or broken file or value means "auto": the first installed
+/// helper in the catalog's order that can do what the app needs. A chosen helper that isn't
+/// installed (or can't do it) falls back to auto.
+///
+/// Writes keep every other key, go through a temporary file in the same folder and a rename;
+/// the folder is 0700, the file 0600. When the file doesn't exist yet, the Manager seeds it once
+/// from its old `ai_helper` setting ([seedSharedHelper]).
+library;
+
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:path/path.dart' as p;
+
+import '../paths.dart';
+import 'posix.dart';
+
+const sharedAiDir = 'maprisma-ai';
+const sharedAuto = 'auto';
+const sharedAiFileMax = 64 * 1024;
+
+final _helperId = RegExp(r'^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,160}$');
+
+/// `"auto"` or a helper id.
+bool validSharedHelper(Object? value) => value is String && (value == sharedAuto || _helperId.hasMatch(value));
+
+String sharedAiFile(Paths paths) => p.join(paths.config, sharedAiDir, 'settings.json');
+
+/// The file's object; null when it is missing, too big or not a JSON object.
+Map<String, dynamic>? _readObject(String path) {
+  try {
+    final f = File(path);
+    if (FileSystemEntity.typeSync(path) != FileSystemEntityType.file || f.lengthSync() > sharedAiFileMax) return null;
+    final v = jsonDecode(f.readAsStringSync());
+    return v is Map<String, dynamic> ? v : null;
+  } on FileSystemException {
+    return null;
+  } on FormatException {
+    return null;
+  }
+}
+
+/// The shared choice: "auto" or a helper id (missing or invalid → "auto").
+String readSharedHelper(Paths paths) {
+  final v = _readObject(sharedAiFile(paths))?['helper'];
+  return validSharedHelper(v) ? v as String : sharedAuto;
+}
+
+/// Whether the shared file is there (any content).
+bool sharedHelperExists(Paths paths) =>
+    FileSystemEntity.typeSync(sharedAiFile(paths), followLinks: false) != FileSystemEntityType.notFound;
+
+/// Saves [helper] ("auto" or an id) and keeps every other key of the file.
+void writeSharedHelper(Paths paths, String helper) {
+  if (!validSharedHelper(helper)) throw ArgumentError.value(helper, 'helper', '"auto" or a helper id');
+  final path = sharedAiFile(paths);
+  final dir = Directory(p.dirname(path));
+  dir.createSync(recursive: true);
+  chmodPath(dir.path, 0x1c0); // 0700
+  final values = {...?_readObject(path), 'helper': helper};
+  final tmp = File(p.join(dir.path, '.settings.json.$pid.${DateTime.now().microsecondsSinceEpoch}.tmp'));
+  try {
+    final raf = tmp.openSync(mode: FileMode.writeOnly);
+    try {
+      if (!chmodPath(tmp.path, 0x180)) throw FileSystemException('chmod 0600 failed', tmp.path); // 0600
+      raf.writeStringSync('${const JsonEncoder.withIndent('  ').convert(values)}\n');
+      raf.flushSync();
+    } finally {
+      raf.closeSync();
+    }
+    tmp.renameSync(path);
+  } on Object {
+    if (tmp.existsSync()) tmp.deleteSync();
+    rethrow;
+  }
+}
+
+/// Migration: when the shared file doesn't exist yet, the Manager's old `ai_helper` setting (if
+/// it is set and valid) becomes the shared choice. Returns whether it wrote the file.
+bool seedSharedHelper(Paths paths, Settings settings) {
+  if (sharedHelperExists(paths)) return false;
+  final old = settings.str('ai_helper');
+  if (old == null || !validSharedHelper(old)) return false;
+  try {
+    writeSharedHelper(paths, old);
+    return true;
+  } on FileSystemException {
+    return false;
+  }
+}
+
+/// The shared choice after the one-time seed.
+String sharedHelper(Paths paths) {
+  seedSharedHelper(paths, Settings.load(paths));
+  return readSharedHelper(paths);
+}
+
+/// The helper to use from [ready] ids (in the catalog's order): the [choice] when it is ready,
+/// else the first ready one; null when none is.
+String? resolveHelper(String choice, List<String> ready) => ready.contains(choice) ? choice : ready.firstOrNull;

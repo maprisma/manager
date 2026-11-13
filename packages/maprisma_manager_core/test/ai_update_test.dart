@@ -55,20 +55,29 @@ void main() {
     expect(appFacts(status('wlan', here: false))['ai_may_act'], false);
   });
 
-  test('settings: off by default; ai_updates and ai_helper are saved; helpers lists Claude Code ready', () async {
+  test('settings: off by default; ai_updates is saved; the helper is the shared one; helpers lists Claude Code ready', () async {
     var s = await core.call('settings.get');
     expect(s['ai_updates'], false);
-    expect(s['ai_helper'], isNull);
+    expect(s.containsKey('ai_helper'), isFalse);
     await core.call('settings.set', {'key': 'ai_updates', 'value': true});
-    await core.call('settings.set', {'key': 'ai_helper', 'value': 'claude'});
-    expect(() => core.call('settings.set', {'key': 'ai_helper', 'value': '../x y'}), throwsA(isA<RouteError>()));
+    // the helper is not a Manager setting any more (ai.set_helper, the shared file)
+    expect(() => core.call('settings.set', {'key': 'ai_helper', 'value': 'claude'}), throwsA(isA<RouteError>()));
     s = await core.call('settings.get');
     expect(s['ai_updates'], true);
-    expect(s['ai_helper'], 'claude');
-    final h = await core.call('ai.helpers');
+    var h = await core.call('ai.helpers');
     expect(h['enabled'], true);
+    expect(h['helper'], 'auto');
+    expect(h['auto'], 'claude');
     expect(h['chosen'], 'claude');
+    expect(h['fallback'], false);
+    expect(h['file'], p.join(w.home, '.config/maprisma-ai/settings.json'));
     expect((h['helpers'] as List).firstWhere((x) => x['id'] == 'claude')['signed_in'], true);
+    h = await core.call('ai.set_helper', {'helper': 'claude'});
+    expect(h['helper'], 'claude');
+    expect(jsonDecode(File(p.join(w.home, '.config/maprisma-ai/settings.json')).readAsStringSync()), {'helper': 'claude'});
+    for (final bad in [null, '', '../x y', '-x', 3, 'a' * 200]) {
+      await expectLater(core.call('ai.set_helper', {'helper': bad}), throwsA(isA<RouteError>()), reason: '$bad');
+    }
   });
 
   test('settings: the window size is saved when whole and sane, else refused (rule 5a)', () async {

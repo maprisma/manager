@@ -754,7 +754,6 @@
   "Start again": "Iniciar de nuevo",
   "the Manager updates itself from its own Update button": "el Manager se actualiza con su propio botón Actualizar",
   "it is installed with pacman and needs your password": "está instalado con pacman y necesita tu contraseña",
-  "AI updates are off: turn them on in Settings": "Las actualizaciones con IA están desactivadas: actívalas en Ajustes",
   "the AI is already updating": "la IA ya está actualizando",
   "no AI helper is installed and signed in": "ningún asistente de IA está instalado y con sesión iniciada",
   "the AI is not updating": "la IA no está actualizando",
@@ -1019,5 +1018,16 @@
   "A password that starts or ends with a space can't be set here: use Maprisma WLAN Monitor or nmcli": "Aquí no se puede usar una contraseña que empiece o termine con un espacio: usa Maprisma WLAN Monitor o nmcli",
   "Too late: the previous display settings are back": "Demasiado tarde: se han restaurado los ajustes de pantalla anteriores",
   "same files as {0} (other commits)": "mismos archivos que {0} (otros commits)",
-  "bar icon: {0}": "icono de barra: {0}"
+  "bar icon: {0}": "icono de barra: {0}",
+  "{0} could not be saved: {1}": "No se pudo guardar {0}: {1}",
+  "AI updates are off: turn them on on the AI page": "Las actualizaciones con IA están desactivadas: actívalas en la página IA",
+  "{0} is not installed or not ready here, so Automatic is used.": "{0} no está instalado o no está listo aquí, así que se usa Automático.",
+  "Saved in {0}": "Guardado en {0}",
+  "AI helper for all Maprisma apps": "Asistente de IA para todas las aplicaciones de Maprisma",
+  "Launcher, Theme, Playground, Notifier (Check with AI) and the Manager's AI updates use it. Automatic picks the first installed helper that can do the job.": "Launcher, Theme, Playground, Notifier (Revisar con IA) y las actualizaciones con IA del Manager lo usan. Automático elige el primer asistente instalado que pueda hacerlo.",
+  "AI updates": "Actualizaciones con IA",
+  "Check with AI": "Revisar con IA",
+  "Opens the AI helper chosen on the AI page in a terminal, the one all Maprisma apps use.": "Abre en un terminal el asistente de IA elegido en la página IA, el que usan todas las aplicaciones de Maprisma.",
+  "Open AI page": "Abrir la página IA",
+  "Automatic ({0})": "Automático ({0})"
 }

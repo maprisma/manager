@@ -754,7 +754,6 @@
   "Start again": "Erneut starten",
   "the Manager updates itself from its own Update button": "der Manager aktualisiert sich über seinen eigenen Aktualisieren-Knopf",
   "it is installed with pacman and needs your password": "es ist mit pacman installiert und braucht dein Passwort",
-  "AI updates are off: turn them on in Settings": "KI-Updates sind aus: schalte sie in den Einstellungen ein",
   "the AI is already updating": "die KI aktualisiert bereits",
   "no AI helper is installed and signed in": "kein KI-Helfer ist installiert und angemeldet",
   "the AI is not updating": "die KI aktualisiert gerade nicht",
@@ -1019,5 +1018,16 @@
   "A password that starts or ends with a space can't be set here: use Maprisma WLAN Monitor or nmcli": "Ein Passwort, das mit einem Leerzeichen beginnt oder endet, lässt sich hier nicht setzen: Nutze Maprisma WLAN Monitor oder nmcli",
   "Too late: the previous display settings are back": "Zu spät: Die vorherigen Bildschirmeinstellungen sind wieder da",
   "same files as {0} (other commits)": "dieselben Dateien wie {0} (andere Commits)",
-  "bar icon: {0}": "Leistensymbol: {0}"
+  "bar icon: {0}": "Leistensymbol: {0}",
+  "{0} could not be saved: {1}": "{0} konnte nicht gespeichert werden: {1}",
+  "AI updates are off: turn them on on the AI page": "KI-Updates sind aus: Schalte sie auf der Seite KI ein",
+  "{0} is not installed or not ready here, so Automatic is used.": "{0} ist hier nicht installiert oder nicht bereit, daher wird Automatisch verwendet.",
+  "Saved in {0}": "Gespeichert in {0}",
+  "AI helper for all Maprisma apps": "KI-Helfer für alle Maprisma-Apps",
+  "Launcher, Theme, Playground, Notifier (Check with AI) and the Manager's AI updates use it. Automatic picks the first installed helper that can do the job.": "Launcher, Theme, Playground, Notifier (Mit KI prüfen) und die KI-Updates des Managers verwenden ihn. Automatisch nimmt den ersten installierten Helfer, der die Aufgabe kann.",
+  "AI updates": "KI-Updates",
+  "Check with AI": "Mit KI prüfen",
+  "Opens the AI helper chosen on the AI page in a terminal, the one all Maprisma apps use.": "Öffnet den auf der Seite KI gewählten KI-Helfer in einem Terminal – den, den alle Maprisma-Apps verwenden.",
+  "Open AI page": "Seite KI öffnen",
+  "Automatic ({0})": "Automatisch ({0})"
 }

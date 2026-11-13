@@ -754,7 +754,6 @@
   "Start again": "Opnieuw starten",
   "the Manager updates itself from its own Update button": "de Manager werkt zichzelf bij met zijn eigen Bijwerken-knop",
   "it is installed with pacman and needs your password": "het is met pacman geïnstalleerd en vraagt om je wachtwoord",
-  "AI updates are off: turn them on in Settings": "AI-updates staan uit: zet ze aan in Instellingen",
   "the AI is already updating": "de AI is al aan het bijwerken",
   "no AI helper is installed and signed in": "er is geen AI-helper geïnstalleerd en aangemeld",
   "the AI is not updating": "de AI is niet aan het bijwerken",
@@ -1019,5 +1018,16 @@
   "A password that starts or ends with a space can't be set here: use Maprisma WLAN Monitor or nmcli": "Een wachtwoord dat met een spatie begint of eindigt kan hier niet worden ingesteld: gebruik Maprisma WLAN Monitor of nmcli",
   "Too late: the previous display settings are back": "Te laat: de vorige scherminstellingen zijn terug",
   "same files as {0} (other commits)": "dezelfde bestanden als {0} (andere commits)",
-  "bar icon: {0}": "balkpictogram: {0}"
+  "bar icon: {0}": "balkpictogram: {0}",
+  "{0} could not be saved: {1}": "{0} kon niet worden bewaard: {1}",
+  "AI updates are off: turn them on on the AI page": "AI-updates staan uit: zet ze aan op de pagina AI",
+  "{0} is not installed or not ready here, so Automatic is used.": "{0} is hier niet geïnstalleerd of niet gereed, dus wordt Automatisch gebruikt.",
+  "Saved in {0}": "Bewaard in {0}",
+  "AI helper for all Maprisma apps": "AI-helper voor alle Maprisma-apps",
+  "Launcher, Theme, Playground, Notifier (Check with AI) and the Manager's AI updates use it. Automatic picks the first installed helper that can do the job.": "Launcher, Theme, Playground, Notifier (Controleren met AI) en de AI-updates van de Manager gebruiken hem. Automatisch kiest de eerste geïnstalleerde helper die het kan.",
+  "AI updates": "AI-updates",
+  "Check with AI": "Controleren met AI",
+  "Opens the AI helper chosen on the AI page in a terminal, the one all Maprisma apps use.": "Opent de op de pagina AI gekozen AI-helper in een terminal, de helper die alle Maprisma-apps gebruiken.",
+  "Open AI page": "Pagina AI openen",
+  "Automatic ({0})": "Automatisch ({0})"
 }

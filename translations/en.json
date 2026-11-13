@@ -754,7 +754,6 @@
   "Start again": "Start again",
   "the Manager updates itself from its own Update button": "the Manager updates itself from its own Update button",
   "it is installed with pacman and needs your password": "it is installed with pacman and needs your password",
-  "AI updates are off: turn them on in Settings": "AI updates are off: turn them on in Settings",
   "the AI is already updating": "the AI is already updating",
   "no AI helper is installed and signed in": "no AI helper is installed and signed in",
   "the AI is not updating": "the AI is not updating",
@@ -1019,5 +1018,16 @@
   "A password that starts or ends with a space can't be set here: use Maprisma WLAN Monitor or nmcli": "A password that starts or ends with a space can't be set here: use Maprisma WLAN Monitor or nmcli",
   "Too late: the previous display settings are back": "Too late: the previous display settings are back",
   "same files as {0} (other commits)": "same files as {0} (other commits)",
-  "bar icon: {0}": "bar icon: {0}"
+  "bar icon: {0}": "bar icon: {0}",
+  "{0} could not be saved: {1}": "{0} could not be saved: {1}",
+  "AI updates are off: turn them on on the AI page": "AI updates are off: turn them on on the AI page",
+  "{0} is not installed or not ready here, so Automatic is used.": "{0} is not installed or not ready here, so Automatic is used.",
+  "Saved in {0}": "Saved in {0}",
+  "AI helper for all Maprisma apps": "AI helper for all Maprisma apps",
+  "Launcher, Theme, Playground, Notifier (Check with AI) and the Manager's AI updates use it. Automatic picks the first installed helper that can do the job.": "Launcher, Theme, Playground, Notifier (Check with AI) and the Manager's AI updates use it. Automatic picks the first installed helper that can do the job.",
+  "AI updates": "AI updates",
+  "Check with AI": "Check with AI",
+  "Opens the AI helper chosen on the AI page in a terminal, the one all Maprisma apps use.": "Opens the AI helper chosen on the AI page in a terminal, the one all Maprisma apps use.",
+  "Open AI page": "Open AI page",
+  "Automatic ({0})": "Automatic ({0})"
 }

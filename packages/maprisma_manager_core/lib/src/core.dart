@@ -78,7 +78,6 @@ final class CoreService {
           'corners': settings.corners,
           'screenshot_key': settings.screenshotKey,
           'ai_updates': settings.values['ai_updates'] == true,
-          'ai_helper': settings.str('ai_helper'),
           // The window's size as the user left it (rule 5a), null when missing or broken.
           'window_size': windowSize(settings.values['window_size']),
         };
@@ -98,13 +97,12 @@ final class CoreService {
         final ok = switch (key) {
           'corners' => cornerSettings.contains(value),
           'screenshot_key' => value is bool,
-          // Let AI do the updates (off by default) and its helper (null: the first ready one).
+          // Let AI do the updates (off by default); its helper is the shared one (ai.set_helper).
           'ai_updates' => value is bool,
           // Sound › Amplification: volumes up to 150 %.
           'sound_amplify' => value is bool,
           // The window's size (GTK's [width, height]), saved after a resize.
           'window_size' => windowSize(value) != null,
-          'ai_helper' => value == null || (value is String && RegExp(r'^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,160}$').hasMatch(value)),
           _ => false,
         };
         if (!ok) throw RouteError('bad_params', 'key, value');
@@ -114,6 +112,8 @@ final class CoreService {
       'desktop.look': (_) async => desktopLook(ctx),
       // Let AI do the updates (ai_update.dart): the helpers, one run at a time, polled.
       'ai.helpers': (_) async => ai.helpers(),
+      // The AI page: the helper every Maprisma app uses (maprisma-ai/settings.json).
+      'ai.set_helper': (params) => ai.setHelper(params),
       'ai.start': (params) async => ai.start(params),
       'ai.get': (_) async => ai.get(),
       'ai.cancel': (_) => ai.cancel(),

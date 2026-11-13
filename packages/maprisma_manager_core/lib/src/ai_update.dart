@@ -24,6 +24,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import 'ai/ask_ai.dart';
+import 'ai/shared_helper.dart';
 import 'catalog.dart';
 import 'context.dart';
 import 'jobs.dart';
@@ -153,19 +154,38 @@ final class AiUpdater {
 
   Future<List<Map<String, dynamic>>> helperList() => helperStates(ctx.paths.home, ctx.environment);
 
-  /// The helpers; `chosen` is the saved one when it is ready, else (automatic, or one that is
-  /// unknown or no longer installed) the first ready one in the catalog's order.
+  /// The helpers; `helper` is the choice shared by all Maprisma apps (ai/shared_helper.dart:
+  /// "auto" or an id), `chosen` the one used: the shared choice when it is ready, else (automatic,
+  /// or one that is unknown or no longer installed) the first ready one in the catalog's order
+  /// (`auto`); `fallback`: a chosen helper isn't ready, so the automatic one is used.
   Future<Map<String, dynamic>> helpers() async {
     final settings = Settings.load(ctx.paths);
     final list = await helperList();
     final ready = [for (final h in list) if (h['signed_in'] == true) h['id'] as String];
-    final saved = settings.str('ai_helper');
+    final shared = sharedHelper(ctx.paths);
     return {
       'helpers': list,
-      'chosen': ready.contains(saved) ? saved : ready.firstOrNull,
+      'helper': shared,
+      'auto': ready.firstOrNull,
+      'chosen': resolveHelper(shared, ready),
+      'fallback': shared != sharedAuto && !ready.contains(shared),
+      'file': sharedAiFile(ctx.paths),
       'enabled': settings.values['ai_updates'] == true,
       'busy': running,
     };
+  }
+
+  /// `ai.set_helper` `{helper}`: "auto" or a helper id, for every Maprisma app.
+  Future<Map<String, dynamic>> setHelper(Map<String, dynamic> params) async {
+    final helper = params['helper'];
+    if (!validSharedHelper(helper)) throw RouteError('bad_params', 'helper ("auto" or a helper id)');
+    sharedHelper(ctx.paths); // the old setting can't come back over the new choice
+    try {
+      writeSharedHelper(ctx.paths, helper as String);
+    } on FileSystemException catch (e) {
+      throw RouteError('write_failed', trf('{0} could not be saved: {1}', [sharedAiFile(ctx.paths), e.message]));
+    }
+    return helpers();
   }
 
   Map<String, dynamic> get() => {'run': _run == null ? null : _view(_run!)};
@@ -176,7 +196,7 @@ final class AiUpdater {
   };
 
   Future<Map<String, dynamic>> start(Map<String, dynamic> params) async {
-    if (Settings.load(ctx.paths).values['ai_updates'] != true) throw RouteError('off', tr('AI updates are off: turn them on in Settings'));
+    if (Settings.load(ctx.paths).values['ai_updates'] != true) throw RouteError('off', tr('AI updates are off: turn them on on the AI page'));
     if (running) throw RouteError('busy', tr('the AI is already updating'));
     final wanted = params['helper'];
     if (wanted != null && wanted is! String) throw RouteError('bad_params', 'helper');

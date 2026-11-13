@@ -469,7 +469,7 @@ void main() {
 
   testWidgets('Let AI do the updates: off without a helper; on, the AI button, the helper row and its steps', (tester) async {
     await open(tester, 900);
-    await tester.tap(find.byKey(const ValueKey('nav-settings')));
+    await tester.tap(find.byKey(const ValueKey('nav-ai')));
     await settle(tester, 2);
     expect(find.text('No AI helper is installed and signed in'), findsOneWidget);
     expect(tester.widget<Switch>(find.descendant(of: find.byKey(const ValueKey('ai-updates')), matching: find.byType(Switch))).onChanged, isNull);
@@ -485,9 +485,9 @@ void main() {
     core.ai.ask = (helper, prompt) async => ++round == 1
         ? jsonEncode({'say': 'The WLAN Monitor needs its packages.', 'actions': [{'do': 'pub_get', 'app': 'wlan'}, {'do': 'update', 'app': 'manager'}], 'done': false})
         : jsonEncode({'say': 'All done.', 'actions': [], 'done': true});
-    await tester.tap(find.byKey(const ValueKey('nav-settings')));
+    await tester.tap(find.byKey(const ValueKey('nav-ai')));
     await settle(tester, 4);
-    expect(find.text('Claude Code'), findsOneWidget);
+    expect(find.text('Automatic (Claude Code)'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('ai-updates')));
     await settle(tester, 3);
     expect(Settings.load(w.paths).values['ai_updates'], isTrue);

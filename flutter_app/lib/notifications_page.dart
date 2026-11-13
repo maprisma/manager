@@ -8,13 +8,16 @@ import 'power_page.dart' show idleLabel;
 import 'settings_widgets.dart';
 
 /// Notifications: Maprisma Notifier's settings (do not disturb with its schedule, how long the
-/// history is kept, the unread count, crash reports and their AI helper, muted and hidden apps,
+/// history is kept, the unread count, crash reports (Check with AI uses the AI page's helper), muted and hidden apps,
 /// Clear history) on every desktop;
 /// on Hyprland also Maprisma Shell's popups (position, how long, how many); on COSMIC and KDE a
 /// link to the desktop's own notification settings (`notifications.*`, `native.open`).
 class NotificationsPage extends StatefulWidget {
-  const NotificationsPage({super.key, required this.core, this.onInstall});
+  const NotificationsPage({super.key, required this.core, this.onInstall, this.onOpenAi});
   final CoreCall core;
+
+  /// Opens the AI page (where Check with AI's helper is chosen).
+  final VoidCallback? onOpenAi;
 
   /// Installs Maprisma Notifier (the Apps page's job); null: not possible here or not known yet.
   final VoidCallback? onInstall;
@@ -197,12 +200,9 @@ class NotificationsPageState extends State<NotificationsPage> with RoutePage {
     );
   }
 
-  /// Crash reports: the switch, and which AI helper "Check with AI" opens (when one is installed).
-  Widget _crashes(Map s, List helpers) {
+  /// Crash reports: the switch; Check with AI uses the helper of the AI page (all Maprisma apps').
+  Widget _crashes(Map s) {
     final off = working || s['error'] != null;
-    final ids = [for (final h in helpers) '${(h as Map)['id']}'];
-    // a chosen helper that isn't installed works as Automatic
-    final chosen = ids.contains(s['ai_helper']) ? s['ai_helper'] as String : 'auto';
     return SettingsSection(
       title: tr('Crashes'),
       children: [
@@ -213,18 +213,14 @@ class NotificationsPageState extends State<NotificationsPage> with RoutePage {
           value: s['notify_crashes'] != false,
           onChanged: off ? null : (v) => _set({'notify_crashes': v}),
         ),
-        if (helpers.isNotEmpty)
-          SettingsChoice<String>(
-            key: const ValueKey('notifications-ai-helper'),
-            title: tr('AI helper'),
-            description: tr('Check with AI on a crash opens it in a terminal.'),
-            value: chosen,
-            choices: [
-              ('auto', trf('Automatic ({0})', [(helpers.first as Map)['name']])),
-              for (final h in helpers) ('${(h as Map)['id']}', '${h['name']}'),
-            ],
-            onChanged: off || s['notify_crashes'] == false ? null : (v) => _set({'ai_helper': v}),
-          ),
+        SettingsItem(
+          key: const ValueKey('notifications-ai-helper'),
+          title: tr('Check with AI'),
+          description: tr('Opens the AI helper chosen on the AI page in a terminal, the one all Maprisma apps use.'),
+          trailing: widget.onOpenAi == null
+              ? null
+              : TextButton(key: const ValueKey('notifications-open-ai'), onPressed: widget.onOpenAi, child: Text(tr('Open AI page'))),
+        ),
       ],
     );
   }
@@ -331,7 +327,7 @@ class NotificationsPageState extends State<NotificationsPage> with RoutePage {
       title: tr('Notifications'),
       actions: reloadActions(),
       children: [
-        if (d['installed'] != true) _install() else ...[_dnd(d, s), _history(s, history), _crashes(s, d['ai_helpers'] is List ? d['ai_helpers'] as List : const []), _apps(s, history)],
+        if (d['installed'] != true) _install() else ...[_dnd(d, s), _history(s, history), _crashes(s), _apps(s, history)],
         if (d['shell'] is Map) _popups(d['shell'] as Map),
         if (d['native'] is Map) _native(d['native'] as Map),
       ],
