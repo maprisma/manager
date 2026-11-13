@@ -1171,5 +1171,18 @@
   "The wake listener failed: {0}": "L'écoute de la phrase a échoué : {0}",
   "Try the phrase": "Essayer la phrase",
   "Wake phrase": "Phrase d'activation",
-  "While it listens, the microphone stays open. Only short stretches of speech are turned into text, on this PC; nothing is stored or sent online.": "Pendant l'écoute, le microphone reste ouvert. Seuls de courts passages de parole sont transcrits, sur ce PC ; rien n'est enregistré ni envoyé en ligne."
+  "While it listens, the microphone stays open. Only short stretches of speech are turned into text, on this PC; nothing is stored or sent online.": "Pendant l'écoute, le microphone reste ouvert. Seuls de courts passages de parole sont transcrits, sur ce PC ; rien n'est enregistré ni envoyé en ligne.",
+  "Preview": "Aperçu",
+  "Previous wallpaper": "Fond d'écran précédent",
+  "Next wallpaper": "Fond d'écran suivant",
+  "Apply theme": "Appliquer le thème",
+  "3D flip to wallpaper on hover": "Rotation 3D vers le fond d'écran au survol",
+  "Hovering a theme card flips its preview in 3D to show the theme's wallpaper.": "Au survol d'une carte de thème, son aperçu pivote en 3D pour montrer le fond d'écran du thème.",
+  "Auto-rotate big preview": "Rotation automatique du grand aperçu",
+  "Automatically flips the big preview to its first wallpaper after the 3D rotation delay. Off keeps the theme preview until you use the arrows.": "Retourne automatiquement le grand aperçu vers son premier fond d’écran après le délai de rotation 3D. Désactivé garde l’aperçu du thème jusqu’à l’utilisation des flèches.",
+  "Set in Maprisma Theme › Settings.": "Se règle dans Maprisma Theme › Réglages.",
+  "Reduced motion is on: the previews turn only with the arrows. Set in Maprisma Theme › Settings.": "Animations réduites activées : les aperçus ne tournent qu’avec les flèches. Se règle dans Maprisma Theme › Réglages.",
+  "Click a theme to preview it; double-click or Enter uses it.": "Un clic affiche un thème en aperçu ; un double-clic ou Entrée l’applique.",
+  "In use: {0}. Click a theme to preview it; double-click or Enter uses it.": "Utilisé : {0}. Un clic affiche un thème en aperçu ; un double-clic ou Entrée l’applique.",
+  "Wallpapers: {0} (‹ › on the picture)": "Fonds d’écran : {0} (‹ › sur l’image)"
 }

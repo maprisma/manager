@@ -1171,5 +1171,18 @@
   "The wake listener failed: {0}": "L'ascolto della frase non è riuscito: {0}",
   "Try the phrase": "Prova la frase",
   "Wake phrase": "Frase di attivazione",
-  "While it listens, the microphone stays open. Only short stretches of speech are turned into text, on this PC; nothing is stored or sent online.": "Mentre ascolta, il microfono resta aperto. Solo brevi tratti di voce vengono trascritti, su questo PC; nulla viene salvato o inviato online."
+  "While it listens, the microphone stays open. Only short stretches of speech are turned into text, on this PC; nothing is stored or sent online.": "Mentre ascolta, il microfono resta aperto. Solo brevi tratti di voce vengono trascritti, su questo PC; nulla viene salvato o inviato online.",
+  "Preview": "Anteprima",
+  "Previous wallpaper": "Sfondo precedente",
+  "Next wallpaper": "Sfondo successivo",
+  "Apply theme": "Applica tema",
+  "3D flip to wallpaper on hover": "Rotazione 3D verso lo sfondo al passaggio",
+  "Hovering a theme card flips its preview in 3D to show the theme's wallpaper.": "Passando il puntatore sulla scheda di un tema, la sua anteprima ruota in 3D per mostrare lo sfondo del tema.",
+  "Auto-rotate big preview": "Rotazione automatica nell’anteprima grande",
+  "Automatically flips the big preview to its first wallpaper after the 3D rotation delay. Off keeps the theme preview until you use the arrows.": "Capovolge automaticamente l’anteprima grande al primo sfondo dopo il ritardo di rotazione 3D. Disattivo mantiene l’anteprima del tema finché non usi le frecce.",
+  "Set in Maprisma Theme › Settings.": "Si imposta in Maprisma Theme › Impostazioni.",
+  "Reduced motion is on: the previews turn only with the arrows. Set in Maprisma Theme › Settings.": "Movimento ridotto attivo: le anteprime ruotano solo con le frecce. Si imposta in Maprisma Theme › Impostazioni.",
+  "Click a theme to preview it; double-click or Enter uses it.": "Un clic mostra un tema nell’anteprima; doppio clic o Invio lo usa.",
+  "In use: {0}. Click a theme to preview it; double-click or Enter uses it.": "In uso: {0}. Un clic mostra un tema nell’anteprima; doppio clic o Invio lo usa.",
+  "Wallpapers: {0} (‹ › on the picture)": "Sfondi: {0} (‹ › sull’immagine)"
 }

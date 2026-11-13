@@ -9,7 +9,8 @@ import 'context.dart';
 /// The Theme page: Maprisma Theme's themes in short (`maprisma-theme-core list`, its route
 /// themes.brief) and applying one (`maprisma-theme-core apply <slug>`, the same route the Theme
 /// app, its applet and its shortcuts use; Theme core runs one apply at a time). Nothing of
-/// Theme's own files is read or written here.
+/// Theme's own files is written here; its settings.json is only read for the preview settings
+/// when an older Theme core's list doesn't carry them.
 final class ThemeViewService {
   ThemeViewService(this.ctx);
   final Ctx ctx;
@@ -55,12 +56,19 @@ final class ThemeViewService {
     if (t is! Map || t['slug'] is! String || !slugRe.hasMatch(t['slug'] as String)) return null;
     final colors = t['colors'] is Map ? t['colors'] as Map : const {};
     final preview = t['preview'];
+    final hasPreview = preview is String && preview.startsWith('/') && File(preview).existsSync();
     return {
       'slug': t['slug'],
       'name': t['name'] is String && (t['name'] as String).trim().isNotEmpty ? (t['name'] as String).trim() : t['slug'],
       'current': t['current'] == true,
       'favorite': t['favorite'] == true,
-      'preview': preview is String && preview.startsWith('/') && File(preview).existsSync() ? preview : null,
+      'preview': hasPreview ? preview : null,
+      // The pictures its card flips to (Theme's order; none without a preview to flip from).
+      'wallpapers': [
+        if (hasPreview && t['wallpapers'] is List)
+          for (final w in (t['wallpapers'] as List).take(maxWallpapers))
+            if (w is String && w.startsWith('/') && !w.contains('\n') && File(w).existsSync()) w,
+      ],
       'mode': colors['mode'] == 'light' ? 'light' : 'dark',
       'colors': {
         for (final k in ['background', 'foreground', 'accent', 'red', 'green', 'yellow', 'blue', 'magenta', 'cyan'])
@@ -69,15 +77,49 @@ final class ThemeViewService {
     };
   }
 
-  /// `theme.list`: {current, themes: [{slug, name, current, favorite, preview, mode, colors}]}
-  /// in Theme's order, without the themes hidden there.
+  static const maxWallpapers = 64;
+  static const flipDelays = <num>[0, 0.5, 1, 1.5, 2, 3, 5, 10];
+
+  /// Maprisma Theme's preview settings ("3D flip to wallpaper on hover", its delay, "Auto-rotate
+  /// big preview"), checked as Theme checks them; defaults as Theme's.
+  static Map<String, dynamic> previewSettings(Object? raw) {
+    final m = raw is Map ? raw : const {};
+    final delay = m['preview_flip_delay'];
+    return {
+      'preview_flip_3d': m['preview_flip_3d'] is bool ? m['preview_flip_3d'] : true,
+      'preview_flip_delay': delay is num && flipDelays.any((c) => c.toDouble() == delay.toDouble()) ? delay.toDouble() : 2.0,
+      'preview_big_auto_rotate': m['preview_big_auto_rotate'] is bool ? m['preview_big_auto_rotate'] : true,
+    };
+  }
+
+  /// An older Theme core's list has no settings: Theme's settings.json, read only (small, a
+  /// regular file), else the defaults.
+  Map<String, dynamic> _settingsFile() {
+    try {
+      final f = File(p.join(ctx.paths.config, 'maprisma-theme/settings.json'));
+      if (FileSystemEntity.typeSync(f.path, followLinks: false) != FileSystemEntityType.file || f.lengthSync() > 256 * 1024) {
+        return previewSettings(null);
+      }
+      return previewSettings(jsonDecode(f.readAsStringSync()));
+    } on Object {
+      return previewSettings(null);
+    }
+  }
+
+  /// `theme.list`: {current, themes: [{slug, name, current, favorite, preview, wallpapers, mode,
+  /// colors}], settings: {preview_flip_3d, preview_flip_delay, preview_big_auto_rotate}} in
+  /// Theme's order, without the themes hidden there.
   Future<Map<String, dynamic>> list() async {
     final v = await _run(['list'], const Duration(seconds: 20));
     final themes = [
       for (final t in v['themes'] is List ? v['themes'] as List : const [])
         if (t is Map && t['hidden'] != true) ?clean(t),
     ];
-    return {'current': v['current'] is String ? v['current'] : '', 'themes': themes};
+    return {
+      'current': v['current'] is String ? v['current'] : '',
+      'themes': themes,
+      'settings': v['settings'] is Map ? previewSettings(v['settings']) : _settingsFile(),
+    };
   }
 
   /// `theme.apply` {slug}: Theme core's answer (what was done).

@@ -1171,5 +1171,18 @@
   "The wake listener failed: {0}": "Das Zuhören auf die Phrase ist fehlgeschlagen: {0}",
   "Try the phrase": "Phrase ausprobieren",
   "Wake phrase": "Aktivierungsphrase",
-  "While it listens, the microphone stays open. Only short stretches of speech are turned into text, on this PC; nothing is stored or sent online.": "Während es zuhört, bleibt das Mikrofon offen. Nur kurze Sprachabschnitte werden in Text umgewandelt, auf diesem PC; nichts wird gespeichert oder online gesendet."
+  "While it listens, the microphone stays open. Only short stretches of speech are turned into text, on this PC; nothing is stored or sent online.": "Während es zuhört, bleibt das Mikrofon offen. Nur kurze Sprachabschnitte werden in Text umgewandelt, auf diesem PC; nichts wird gespeichert oder online gesendet.",
+  "Preview": "Vorschau",
+  "Previous wallpaper": "Voriger Hintergrund",
+  "Next wallpaper": "Nächster Hintergrund",
+  "Apply theme": "Theme anwenden",
+  "3D flip to wallpaper on hover": "3D-Drehung zum Hintergrund beim Überfahren",
+  "Hovering a theme card flips its preview in 3D to show the theme's wallpaper.": "Beim Überfahren einer Theme-Karte dreht sich ihre Vorschau in 3D und zeigt den Hintergrund des Themes.",
+  "Auto-rotate big preview": "Große Vorschau automatisch drehen",
+  "Automatically flips the big preview to its first wallpaper after the 3D rotation delay. Off keeps the theme preview until you use the arrows.": "Dreht die große Vorschau nach der 3D-Drehverzögerung automatisch zum ersten Hintergrund. Aus behält die Theme-Vorschau, bis Sie die Pfeile nutzen.",
+  "Set in Maprisma Theme › Settings.": "Eingestellt in Maprisma Theme › Einstellungen.",
+  "Reduced motion is on: the previews turn only with the arrows. Set in Maprisma Theme › Settings.": "Weniger Bewegung ist an: Die Vorschauen drehen sich nur mit den Pfeilen. Eingestellt in Maprisma Theme › Einstellungen.",
+  "Click a theme to preview it; double-click or Enter uses it.": "Ein Klick zeigt ein Theme in der Vorschau, Doppelklick oder Enter verwendet es.",
+  "In use: {0}. Click a theme to preview it; double-click or Enter uses it.": "In Verwendung: {0}. Ein Klick zeigt ein Theme in der Vorschau, Doppelklick oder Enter verwendet es.",
+  "Wallpapers: {0} (‹ › on the picture)": "Hintergründe: {0} (‹ › auf dem Bild)"
 }

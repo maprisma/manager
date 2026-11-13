@@ -1171,5 +1171,18 @@
   "The wake listener failed: {0}": "Het luisteren naar de zin is mislukt: {0}",
   "Try the phrase": "Zin uitproberen",
   "Wake phrase": "Activeringszin",
-  "While it listens, the microphone stays open. Only short stretches of speech are turned into text, on this PC; nothing is stored or sent online.": "Terwijl het luistert, blijft de microfoon open. Alleen korte stukjes spraak worden omgezet in tekst, op deze pc; niets wordt bewaard of online verstuurd."
+  "While it listens, the microphone stays open. Only short stretches of speech are turned into text, on this PC; nothing is stored or sent online.": "Terwijl het luistert, blijft de microfoon open. Alleen korte stukjes spraak worden omgezet in tekst, op deze pc; niets wordt bewaard of online verstuurd.",
+  "Preview": "Voorbeeld",
+  "Previous wallpaper": "Vorige achtergrond",
+  "Next wallpaper": "Volgende achtergrond",
+  "Apply theme": "Thema toepassen",
+  "3D flip to wallpaper on hover": "3D-draai naar achtergrond bij aanwijzen",
+  "Hovering a theme card flips its preview in 3D to show the theme's wallpaper.": "Wanneer je een themakaart aanwijst, draait het voorbeeld in 3D om de achtergrond van het thema te tonen.",
+  "Auto-rotate big preview": "Groot voorbeeld automatisch draaien",
+  "Automatically flips the big preview to its first wallpaper after the 3D rotation delay. Off keeps the theme preview until you use the arrows.": "Draait het grote voorbeeld na de 3D-draaivertraging automatisch naar de eerste achtergrond. Uit behoudt het themavoorbeeld totdat u de pijlen gebruikt.",
+  "Set in Maprisma Theme › Settings.": "In te stellen in Maprisma Theme › Instellingen.",
+  "Reduced motion is on: the previews turn only with the arrows. Set in Maprisma Theme › Settings.": "Minder beweging staat aan: de voorbeelden draaien alleen met de pijlen. In te stellen in Maprisma Theme › Instellingen.",
+  "Click a theme to preview it; double-click or Enter uses it.": "Klik op een thema voor een voorbeeld; dubbelklik of Enter gebruikt het.",
+  "In use: {0}. Click a theme to preview it; double-click or Enter uses it.": "In gebruik: {0}. Klik op een thema voor een voorbeeld; dubbelklik of Enter gebruikt het.",
+  "Wallpapers: {0} (‹ › on the picture)": "Achtergronden: {0} (‹ › op de afbeelding)"
 }

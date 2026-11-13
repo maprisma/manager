@@ -29,10 +29,12 @@ void main() {
       'current': true,
       'favorite': true,
       'preview': p.join(w.home, 'themes/nord/preview.png'),
+      'wallpapers': [p.join(w.home, 'themes/nord/backgrounds/b.png'), p.join(w.home, 'themes/nord/backgrounds/a.png')],
       'mode': 'dark',
       'colors': {'background': '#2e3440', 'foreground': '#d8dee9', 'accent': '#88c0d0'},
     });
     expect(themes[1]['mode'], 'light');
+    expect(themes[1]['wallpapers'], isEmpty, reason: 'no preview to flip from');
     expect(themes[2]['preview'], isNull, reason: 'the file is not there');
     expect((themes[2]['colors'] as Map).containsKey('green'), isFalse, reason: 'not a colour');
   });
@@ -63,8 +65,28 @@ void main() {
     final other = p.join(w.dir, 'other-core');
     w.writeFile(other, '#!/bin/sh\necho \'{"current":"x","themes":[]}\'\n', mode: '755');
     final r = await w.core(extra: {'MAPRISMA_THEME_CORE': other}).call('theme.list');
-    expect(r, {'current': 'x', 'themes': <Object>[]});
+    expect(r['current'], 'x');
+    expect(r['themes'], isEmpty);
     // not absolute: ignored
     expect((await w.core(extra: {'MAPRISMA_THEME_CORE': 'other-core'}).call('theme.list'))['current'], 'nord');
+  });
+
+  test('theme.list: the preview settings from Theme core, else read from Theme\'s settings.json, else defaults', () async {
+    fakeThemeCore(w);
+    const defaults = {'preview_flip_3d': true, 'preview_flip_delay': 2.0, 'preview_big_auto_rotate': true};
+    expect((await w.core().call('theme.list'))['settings'], defaults);
+    final file = p.join(w.home, '.config/maprisma-theme/settings.json');
+    w.writeFile(file, '{"preview_flip_3d":false,"preview_flip_delay":1.5,"preview_big_auto_rotate":false,"language":"de"}');
+    expect((await w.core().call('theme.list'))['settings'], {'preview_flip_3d': false, 'preview_flip_delay': 1.5, 'preview_big_auto_rotate': false});
+    w.writeFile(file, '{"preview_flip_3d":"no","preview_flip_delay":7}');
+    expect((await w.core().call('theme.list'))['settings'], defaults, reason: 'values Theme would refuse');
+    w.writeFile(file, 'not json');
+    expect((await w.core().call('theme.list'))['settings'], defaults);
+    // a newer Theme core says them itself; the file is not asked then
+    final other = p.join(w.dir, 'other-core');
+    w.writeFile(other, '#!/bin/sh\necho \'{"current":"x","themes":[],"settings":{"preview_flip_3d":true,"preview_flip_delay":0,"preview_big_auto_rotate":false}}\'\n', mode: '755');
+    expect((await w.core(extra: {'MAPRISMA_THEME_CORE': other}).call('theme.list'))['settings'],
+        {'preview_flip_3d': true, 'preview_flip_delay': 0.0, 'preview_big_auto_rotate': false});
+    expect(File(file).readAsStringSync(), 'not json', reason: 'never written');
   });
 }

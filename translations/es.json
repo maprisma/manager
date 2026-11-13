@@ -1171,5 +1171,18 @@
   "The wake listener failed: {0}": "La escucha de la frase falló: {0}",
   "Try the phrase": "Probar la frase",
   "Wake phrase": "Frase de activación",
-  "While it listens, the microphone stays open. Only short stretches of speech are turned into text, on this PC; nothing is stored or sent online.": "Mientras escucha, el micrófono queda abierto. Solo fragmentos cortos de voz se convierten en texto, en este PC; nada se guarda ni se envía en línea."
+  "While it listens, the microphone stays open. Only short stretches of speech are turned into text, on this PC; nothing is stored or sent online.": "Mientras escucha, el micrófono queda abierto. Solo fragmentos cortos de voz se convierten en texto, en este PC; nada se guarda ni se envía en línea.",
+  "Preview": "Vista previa",
+  "Previous wallpaper": "Fondo anterior",
+  "Next wallpaper": "Fondo siguiente",
+  "Apply theme": "Aplicar tema",
+  "3D flip to wallpaper on hover": "Giro 3D al fondo al pasar el ratón",
+  "Hovering a theme card flips its preview in 3D to show the theme's wallpaper.": "Al pasar el ratón sobre la tarjeta de un tema, su vista previa gira en 3D para mostrar el fondo del tema.",
+  "Auto-rotate big preview": "Rotación automática en vista previa grande",
+  "Automatically flips the big preview to its first wallpaper after the 3D rotation delay. Off keeps the theme preview until you use the arrows.": "Gira automáticamente la vista previa grande hacia su primer fondo tras el retardo de rotación 3D. Desactivado mantiene la vista previa del tema hasta usar las flechas.",
+  "Set in Maprisma Theme › Settings.": "Se ajusta en Maprisma Theme › Ajustes.",
+  "Reduced motion is on: the previews turn only with the arrows. Set in Maprisma Theme › Settings.": "Movimiento reducido activado: las vistas previas solo giran con las flechas. Se ajusta en Maprisma Theme › Ajustes.",
+  "Click a theme to preview it; double-click or Enter uses it.": "Un clic muestra un tema en la vista previa; doble clic o Intro lo usa.",
+  "In use: {0}. Click a theme to preview it; double-click or Enter uses it.": "En uso: {0}. Un clic muestra un tema en la vista previa; doble clic o Intro lo usa.",
+  "Wallpapers: {0} (‹ › on the picture)": "Fondos: {0} (‹ › en la imagen)"
 }

@@ -173,6 +173,12 @@ void fakeThemeCore(World w, {bool old = false}) {
   File(preview)
     ..parent.createSync(recursive: true)
     ..writeAsBytesSync(base64Decode(tinyPng));
+  for (final n in ['b.png', 'a.png']) {
+    File(p.join(w.home, 'themes/nord/backgrounds', n))
+      ..parent.createSync(recursive: true)
+      ..writeAsBytesSync(base64Decode(tinyPng));
+  }
+  final walls = p.join(w.home, 'themes/nord/backgrounds');
   w.writeFile(p.join(w.home, '.local/bin/maprisma-theme-core'), old
       ? '#!/bin/sh\necho \'{"error":"bad_args"}\'\nexit 2\n'
       : '''#!/bin/sh
@@ -181,8 +187,8 @@ t() { [ "\$1" = "\$cur" ] && echo true || echo false; }
 case "\$1" in
   list)
     printf '{"current":"%s","themes":[' "\$cur"
-    printf '{"slug":"nord","name":"Nord","current":%s,"favorite":true,"hidden":false,"preview":"$preview","colors":{"mode":"dark","background":"#2e3440","foreground":"#d8dee9","accent":"#88c0d0"}},' "\$(t nord)"
-    printf '{"slug":"latte","name":"Catppuccin Latte","current":%s,"favorite":false,"hidden":false,"preview":null,"colors":{"mode":"light","background":"#eff1f5","foreground":"#4c4f69","accent":"#1e66f5","red":"#d20f39"}},' "\$(t latte)"
+    printf '{"slug":"nord","name":"Nord","current":%s,"favorite":true,"hidden":false,"preview":"$preview","wallpapers":["$walls/b.png","$walls/gone.png","relative.png","$walls/a.png"],"colors":{"mode":"dark","background":"#2e3440","foreground":"#d8dee9","accent":"#88c0d0"}},' "\$(t nord)"
+    printf '{"slug":"latte","name":"Catppuccin Latte","current":%s,"favorite":false,"hidden":false,"preview":null,"wallpapers":["$walls/a.png"],"colors":{"mode":"light","background":"#eff1f5","foreground":"#4c4f69","accent":"#1e66f5","red":"#d20f39"}},' "\$(t latte)"
     printf '{"slug":"secret","name":"Secret","current":%s,"favorite":false,"hidden":true,"preview":null,"colors":{"mode":"dark","background":"#000000"}},' "\$(t secret)"
     printf '{"slug":"autumn","name":"Autumn","current":%s,"favorite":false,"hidden":false,"preview":"/nowhere/x.png","colors":{"mode":"dark","background":"#2a1d17","foreground":"#e8d5c0","accent":"#e07a3f","green":"bad"}}' "\$(t autumn)"
     echo ']}' ;;

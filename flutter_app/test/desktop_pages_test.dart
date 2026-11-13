@@ -5,11 +5,15 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:maprisma_manager/app.dart';
 import 'package:maprisma_manager/core_call.dart';
+import 'package:maprisma_manager/flip_picture.dart';
 import 'package:maprisma_manager/jobs_model.dart';
+import 'package:maprisma_manager/settings_widgets.dart';
 import 'package:maprisma_manager/theme_page.dart';
 import 'package:maprisma_manager_core/maprisma_manager_core.dart';
 import 'package:path/path.dart' as p;
@@ -236,30 +240,179 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Theme: Maprisma Theme\'s themes in small, the one in use marked; Light narrows; a click applies', (tester) async {
+  /// Frames for a turn to land (the flip steps at most 0.1 s per frame).
+  Future<void> frames(WidgetTester tester, [int n = 20]) async {
+    for (var i = 0; i < n; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+  }
+
+  Finder tile(String slug) => find.byKey(ValueKey('theme-$slug'));
+  Finder bigName(String name) => find.descendant(of: find.byKey(const ValueKey('theme-big')), matching: find.text(name));
+  FlipPictureState? bigFlip() =>
+      find.descendant(of: find.byKey(const ValueKey('theme-big')), matching: find.byType(FlipPicture)).evaluate().map((e) => (e as StatefulElement).state as FlipPictureState).firstOrNull;
+
+  testWidgets('Theme: Maprisma Theme\'s themes in small under a big preview; Light narrows; a double-click applies', (tester) async {
     fakeThemeCore(w);
     await open(tester, 'COSMIC');
     await nav(tester, 'theme');
     expect(find.byKey(const ValueKey('theme-page')), findsOneWidget);
-    expect(find.text('Nord'), findsOneWidget);
+    expect(find.descendant(of: tile('nord'), matching: find.text('Nord')), findsOneWidget);
     expect(find.text('Catppuccin Latte'), findsOneWidget);
     expect(find.text('Autumn'), findsOneWidget);
     expect(find.text('Secret'), findsNothing, reason: 'hidden in Maprisma Theme');
-    expect(find.descendant(of: find.byKey(const ValueKey('theme-nord')), matching: find.text('In use')), findsOneWidget);
+    expect(find.descendant(of: tile('nord'), matching: find.text('In use')), findsOneWidget);
+    // nothing selected yet: the big preview shows the one in use
+    expect(bigName('Nord'), findsOneWidget);
+    expect(find.byKey(const ValueKey('theme-big-swatches')), findsOneWidget);
+    expect(tester.widget<FilledButton>(find.byKey(const ValueKey('theme-apply'))).onPressed, isNull, reason: 'in use already');
     await shot(tester, 'page-theme');
     await tester.tap(find.text('Light'));
     await settle(tester, 2);
-    expect(find.text('Nord'), findsNothing);
-    expect(find.text('Catppuccin Latte'), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('theme-latte')));
+    expect(tile('nord'), findsNothing);
+    expect(bigName('Catppuccin Latte'), findsOneWidget, reason: 'the one in use is not shown: the first one');
+    // one click selects (no apply), the second one applies
+    await tester.tap(tile('latte'));
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(log('theme.log'), isEmpty);
+    await tester.tap(tile('latte'));
     await settle(tester, 8);
     expect(log('theme.log'), ['apply latte']);
-    expect(find.descendant(of: find.byKey(const ValueKey('theme-latte')), matching: find.text('In use')), findsOneWidget);
+    expect(find.descendant(of: tile('latte'), matching: find.text('In use')), findsOneWidget);
     // the one in use is not applied again
-    await tester.tap(find.byKey(const ValueKey('theme-latte')));
+    await tester.tap(tile('latte'));
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(tile('latte'));
     await settle(tester, 2);
     expect(log('theme.log'), ['apply latte']);
     expect(find.byKey(const ValueKey('theme-more')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Theme: the big preview follows a click, a resting pointer and the arrow keys; its Apply and Enter apply', (tester) async {
+    fakeThemeCore(w);
+    await open(tester, 'Hyprland');
+    await nav(tester, 'theme');
+    expect(bigName('Nord'), findsOneWidget);
+    await tester.tap(tile('autumn'));
+    await settle(tester, 2);
+    expect(bigName('Autumn'), findsOneWidget);
+    expect(bigName('Nord'), findsNothing);
+    // the pointer resting on a card selects it; passing over one quickly doesn't
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(location: Offset.zero);
+    await mouse.moveTo(tester.getCenter(tile('latte')));
+    await tester.pump(const Duration(milliseconds: 80));
+    await mouse.moveTo(tester.getCenter(find.byKey(const ValueKey('theme-preview-settings'))));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(bigName('Autumn'), findsOneWidget, reason: 'only passed over');
+    await mouse.moveTo(tester.getCenter(tile('latte')));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(bigName('Catppuccin Latte'), findsOneWidget);
+    await mouse.moveTo(Offset.zero);
+    await tester.pump();
+    // the keys: ← → (and ↑ ↓ by rows) move the selection, Enter applies it
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+    await tester.pump();
+    expect(bigName('Nord'), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+    await tester.pump();
+    expect(bigName('Nord'), findsOneWidget, reason: 'the first one stays');
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pump();
+    expect(bigName('Autumn'), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await settle(tester, 8);
+    expect(log('theme.log'), ['apply autumn']);
+    expect(find.descendant(of: tile('autumn'), matching: find.text('In use')), findsOneWidget);
+    // Apply in the big preview
+    await tester.sendKeyEvent(LogicalKeyboardKey.home);
+    await tester.pump();
+    expect(bigName('Nord'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('theme-apply')));
+    await settle(tester, 8);
+    expect(log('theme.log'), ['apply autumn', 'apply nord']);
+    expect(find.descendant(of: find.byKey(const ValueKey('theme-apply')), matching: find.text('In use')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Theme: the big preview turns to the wallpapers after Theme\'s delay, ‹ › step; the cards turn under the pointer', (tester) async {
+    fakeThemeCore(w);
+    await open(tester, 'Hyprland');
+    await nav(tester, 'theme');
+    expect(bigName('Nord'), findsOneWidget);
+    final flip = bigFlip()!;
+    expect(tester.widget<SettingsToggle>(find.byKey(const ValueKey('theme-flip-3d'))).value, isTrue);
+    expect(tester.widget<SettingsToggle>(find.byKey(const ValueKey('theme-auto-rotate'))).value, isTrue);
+    // Auto-rotate (Theme's default delay, 2 s): it turns to the first wallpaper by itself
+    await tester.pump(const Duration(seconds: 3));
+    await frames(tester);
+    expect(flip.isShowingWallpaper, isTrue);
+    expect(flip.currentWallpaperPath, endsWith('/b.png'));
+    await shot(tester, 'page-theme-flipped');
+    final next = find.descendant(of: find.byKey(const ValueKey('theme-big')), matching: find.byKey(const ValueKey('flip-next-nord')));
+    await tester.tap(next);
+    await frames(tester);
+    expect(flip.currentWallpaperPath, endsWith('/a.png'));
+    await tester.tap(next);
+    await frames(tester);
+    expect(flip.isShowingWallpaper, isFalse, reason: 'round to the preview');
+    // a card turns under the pointer (3D flip to wallpaper on hover)
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    addTearDown(mouse.removePointer);
+    await mouse.addPointer(location: Offset.zero);
+    await mouse.moveTo(tester.getCenter(tile('nord')));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 3));
+    await frames(tester);
+    final card = tester.state<FlipPictureState>(find.descendant(of: tile('nord'), matching: find.byType(FlipPicture)));
+    expect(card.isShowingWallpaper, isTrue);
+    await mouse.moveTo(Offset.zero);
+    await frames(tester);
+    expect(card.isShowingWallpaper, isFalse, reason: 'back to the preview when the pointer leaves');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Theme: Theme\'s switches off (no auto-turn, no card flip) and reduced motion keep the previews still', (tester) async {
+    fakeThemeCore(w);
+    w.writeFile(p.join(w.home, '.config/maprisma-theme/settings.json'), '{"preview_flip_3d":false,"preview_big_auto_rotate":false}');
+    await open(tester, 'Hyprland');
+    await nav(tester, 'theme');
+    expect(tester.widget<SettingsToggle>(find.byKey(const ValueKey('theme-flip-3d'))).value, isFalse);
+    expect(tester.widget<SettingsToggle>(find.byKey(const ValueKey('theme-auto-rotate'))).value, isFalse);
+    expect(tester.widget<SettingsToggle>(find.byKey(const ValueKey('theme-auto-rotate'))).onChanged, isNull, reason: 'read only: set in Theme');
+    expect(find.descendant(of: tile('nord'), matching: find.byType(FlipPicture)), findsNothing);
+    final flip = bigFlip()!;
+    await tester.pump(const Duration(seconds: 5));
+    await frames(tester);
+    expect(flip.isShowingWallpaper, isFalse);
+    // arrows only
+    await tester.tap(find.descendant(of: find.byKey(const ValueKey('theme-big')), matching: find.byKey(const ValueKey('flip-next-nord'))));
+    await frames(tester);
+    expect(flip.currentWallpaperPath, endsWith('/b.png'));
+
+    // reduced motion: on with Theme's defaults, still nothing turns by itself; an arrow lands at once
+    w.writeFile(p.join(w.home, '.config/maprisma-theme/settings.json'), '{}');
+    final core = call(w.core(desktop: 'Hyprland'));
+    await tester.pumpWidget(MaterialApp(
+      home: MediaQuery(
+        data: const MediaQueryData(size: Size(1000, 1100), disableAnimations: true),
+        child: Scaffold(body: ThemePage(core: core)),
+      ),
+    ));
+    await settle(tester, 4);
+    expect(find.descendant(of: tile('nord'), matching: find.byType(FlipPicture)), findsNothing);
+    final still = bigFlip()!;
+    await tester.pump(const Duration(seconds: 5));
+    expect(still.isShowingWallpaper, isFalse);
+    expect(find.textContaining('Reduced motion is on'), findsOneWidget);
+    await tester.tap(find.descendant(of: find.byKey(const ValueKey('theme-big')), matching: find.byKey(const ValueKey('flip-next-nord'))));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 20));
+    expect(still.currentWallpaperPath, endsWith('/b.png'));
+    expect(still.currentAngleDegrees, 0);
     expect(tester.takeException(), isNull);
   });
 

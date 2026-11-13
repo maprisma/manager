@@ -1171,5 +1171,18 @@
   "The wake listener failed: {0}": "Nasłuchiwanie frazy nie powiodło się: {0}",
   "Try the phrase": "Wypróbuj frazę",
   "Wake phrase": "Fraza aktywująca",
-  "While it listens, the microphone stays open. Only short stretches of speech are turned into text, on this PC; nothing is stored or sent online.": "Podczas nasłuchiwania mikrofon pozostaje otwarty. Tylko krótkie fragmenty mowy są zamieniane na tekst, na tym komputerze; nic nie jest zapisywane ani wysyłane do sieci."
+  "While it listens, the microphone stays open. Only short stretches of speech are turned into text, on this PC; nothing is stored or sent online.": "Podczas nasłuchiwania mikrofon pozostaje otwarty. Tylko krótkie fragmenty mowy są zamieniane na tekst, na tym komputerze; nic nie jest zapisywane ani wysyłane do sieci.",
+  "Preview": "Podgląd",
+  "Previous wallpaper": "Poprzednia tapeta",
+  "Next wallpaper": "Następna tapeta",
+  "Apply theme": "Zastosuj motyw",
+  "3D flip to wallpaper on hover": "Obrót 3D do tapety po najechaniu",
+  "Hovering a theme card flips its preview in 3D to show the theme's wallpaper.": "Po najechaniu na kartę motywu jej podgląd obraca się w 3D, pokazując tapetę motywu.",
+  "Auto-rotate big preview": "Automatyczny obrót dużego podglądu",
+  "Automatically flips the big preview to its first wallpaper after the 3D rotation delay. Off keeps the theme preview until you use the arrows.": "Automatycznie obraca duży podgląd do pierwszej tapety po opóźnieniu obrotu 3D. Wyłączone zachowuje podgląd motywu do użycia strzałek.",
+  "Set in Maprisma Theme › Settings.": "Ustawiane w Maprisma Theme › Ustawienia.",
+  "Reduced motion is on: the previews turn only with the arrows. Set in Maprisma Theme › Settings.": "Ograniczony ruch jest włączony: podglądy obracają się tylko strzałkami. Ustawiane w Maprisma Theme › Ustawienia.",
+  "Click a theme to preview it; double-click or Enter uses it.": "Kliknięcie pokazuje motyw w podglądzie; dwuklik lub Enter go używa.",
+  "In use: {0}. Click a theme to preview it; double-click or Enter uses it.": "W użyciu: {0}. Kliknięcie pokazuje motyw w podglądzie; dwuklik lub Enter go używa.",
+  "Wallpapers: {0} (‹ › on the picture)": "Tapety: {0} (‹ › na obrazie)"
 }
