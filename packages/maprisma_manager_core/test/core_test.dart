@@ -25,6 +25,19 @@ void main() {
       expect(detectDesktop({'XDG_CURRENT_DESKTOP': 'COSMIC', 'MAPRISMA_MANAGER_DESKTOP': 'kde'}), DesktopId.kde);
     });
 
+    test('without XDG_CURRENT_DESKTOP: the session\'s other marks', () {
+      expect(detectDesktop({'XDG_SESSION_DESKTOP': 'KDE'}), DesktopId.kde);
+      expect(detectDesktop({'XDG_CURRENT_DESKTOP': '', 'DESKTOP_SESSION': 'plasma'}), DesktopId.kde);
+      expect(detectDesktop({'DESKTOP_SESSION': '/usr/share/wayland-sessions/plasmawayland'}), DesktopId.kde);
+      expect(detectDesktop({'XDG_SESSION_DESKTOP': 'COSMIC'}), DesktopId.cosmic);
+      expect(detectDesktop({'DESKTOP_SESSION': 'hyprland'}), DesktopId.hyprland);
+      expect(detectDesktop({'HYPRLAND_INSTANCE_SIGNATURE': 'abc'}), DesktopId.hyprland);
+      expect(detectDesktop({'KDE_FULL_SESSION': 'true'}), DesktopId.kde);
+      expect(detectDesktop({'XDG_SESSION_DESKTOP': 'gnome'}), DesktopId.other);
+      // a named XDG_CURRENT_DESKTOP wins over the rest
+      expect(detectDesktop({'XDG_CURRENT_DESKTOP': 'GNOME', 'HYPRLAND_INSTANCE_SIGNATURE': 'abc'}), DesktopId.other);
+    });
+
     test('a desktop param shows the list as that desktop sees it', () async {
       final r = await w.core().call('apps.list', {'desktop': 'kde'});
       expect(r['desktop'], 'kde');

@@ -21,14 +21,29 @@ final class RouteError implements Exception {
 }
 
 /// COSMIC / KDE / other from XDG_CURRENT_DESKTOP; MAPRISMA_MANAGER_DESKTOP overrides it.
+/// Without XDG_CURRENT_DESKTOP (a service or launcher with a short environment) the session's
+/// other marks count: XDG_SESSION_DESKTOP, DESKTOP_SESSION, then HYPRLAND_INSTANCE_SIGNATURE and
+/// KDE_FULL_SESSION.
 DesktopId detectDesktop(Map<String, String> env) {
   final forced = parseDesktop(env['MAPRISMA_MANAGER_DESKTOP']);
   if (forced != null) return forced;
-  final names = (env['XDG_CURRENT_DESKTOP'] ?? '').toUpperCase().split(':');
-  if (names.contains('COSMIC')) return DesktopId.cosmic;
-  if (names.contains('KDE')) return DesktopId.kde;
-  if (names.contains('HYPRLAND')) return DesktopId.hyprland;
-  return DesktopId.other;
+  DesktopId? named(String? v) {
+    final names = (v ?? '').toUpperCase().split(RegExp(r'[:/]'));
+    if (names.contains('COSMIC')) return DesktopId.cosmic;
+    if (names.contains('KDE') || names.contains('PLASMA') || names.contains('PLASMAWAYLAND') || names.contains('PLASMAX11')) return DesktopId.kde;
+    if (names.contains('HYPRLAND')) return DesktopId.hyprland;
+    return null;
+  }
+
+  final current = env['XDG_CURRENT_DESKTOP'] ?? '';
+  if (current.trim().isNotEmpty) return named(current) ?? DesktopId.other;
+  return named(env['XDG_SESSION_DESKTOP']) ??
+      named(env['DESKTOP_SESSION']) ??
+      ((env['HYPRLAND_INSTANCE_SIGNATURE'] ?? '').isNotEmpty
+          ? DesktopId.hyprland
+          : env['KDE_FULL_SESSION'] == 'true'
+              ? DesktopId.kde
+              : DesktopId.other);
 }
 
 DesktopId? parseDesktop(String? v) => switch (v?.toLowerCase()) {
