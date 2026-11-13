@@ -76,11 +76,12 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  test('the sidebar has Notifications after Sound, then AI, then Power', () {
+  test('the sidebar has Notifications after Sound, then AI, Voice and Power', () {
     final s = Section.values;
     expect(s.indexOf(Section.notifications), s.indexOf(Section.sound) + 1);
     expect(s.indexOf(Section.ai), s.indexOf(Section.notifications) + 1);
-    expect(s.indexOf(Section.power), s.indexOf(Section.ai) + 1);
+    expect(s.indexOf(Section.voice), s.indexOf(Section.ai) + 1);
+    expect(s.indexOf(Section.power), s.indexOf(Section.voice) + 1);
     expect(ManagerHomeState.sectionNamed('notifications'), Section.notifications);
   });
 
