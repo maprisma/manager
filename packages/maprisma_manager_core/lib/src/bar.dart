@@ -68,6 +68,11 @@ final class Bar {
   /// Waits for cosmic-panel after a write (tests replace it).
   Future<Map<String, dynamic>> Function(List<ProcInfo> before)? follow;
 
+  /// Starts / stops a KDE tray right after it was put in / taken out (the core sets the job
+  /// engine's; null: only the autostart file changes, as before).
+  Future<bool> Function(String exe, List<String> args)? startTray;
+  Future<void> Function(List<ProcInfo> trays)? stopTrays;
+
   AppEntry? appByBarId(String id) {
     for (final a in catalog) {
       if (a.bar.cosmicApplet == id || a.bar.kdeId == id || hyprBarId(a) == id) return a;
@@ -357,7 +362,17 @@ final class Bar {
         return {'id': id, 'app': ?a?.id, 'placed': placed, 'panels': results, 'reload': ?follow};
       case DesktopId.kde:
         final procs = ctx.processes();
-        final found = await kdeWidget(params['widget']);
+        ({KdeWidget? widget, List<KdeWidget> all}) found;
+        String? noScripting;
+        try {
+          found = await kdeWidget(params['widget']);
+        } on RouteError catch (e) {
+          // Without qdbus6 Plasma can't be scripted (bar.get shows the system tray then): an
+          // app's own tray can still be put in or out; zone orders stay refused.
+          if (e.code != 'unavailable' || a == null || ctx.runner.which('qdbus6') != null) rethrow;
+          found = (widget: null, all: const []);
+          noScripting = e.message;
+        }
         final w = found.widget;
         final result = <String, dynamic>{'id': id, 'app': ?a?.id, 'placed': placed};
         final autostart = a?.bar.kdeAutostart == null || !touchAutostart ? null : paths.expand(a!.bar.kdeAutostart!);
@@ -384,10 +399,23 @@ final class Bar {
         } else if (a == null) {
           throw RouteError('unavailable', tr('without Maprisma Icons only Maprisma icons can be put in or out (the system tray orders itself)'));
         } else {
-          result['note'] = tr('Maprisma Icons is not in a panel: the icon goes to the system tray');
+          result['note'] = noScripting ?? tr('Maprisma Icons is not in a panel: the icon goes to the system tray');
         }
         if (autostart != null) {
           result['autostart'] = File(autostart).existsSync() ? (setDesktopHidden(paths, autostart, !placed) ? 'changed' : 'unchanged') : 'missing';
+          // The change shows now, not only after the next login: a tray put in starts; one taken
+          // out of the system tray stops (Maprisma Icons hides it by itself, it keeps running).
+          if (a != null && a.bar.kdeTrayExe != null) {
+            final exe = paths.expand(a.bar.kdeTrayExe!);
+            final targets = {exe, ?_resolved(exe)};
+            final trays = [for (final pr in procs) if (pr.exe != null && targets.any((t) => p.equals(pr.exe!, t))) pr];
+            if (placed && trays.isEmpty && startTray != null) {
+              result['trayStarted'] = await startTray!(exe, a.bar.kdeTrayArgs);
+            } else if (!placed && w == null && trays.isNotEmpty && stopTrays != null) {
+              await stopTrays!(trays);
+              result['trayStopped'] = trays.length;
+            }
+          }
         }
         if (a != null && remember) {
           final idx = result['index'];

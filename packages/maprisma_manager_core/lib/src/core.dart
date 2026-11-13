@@ -30,6 +30,7 @@ import 'sources.dart';
 import 'run.dart';
 import 'sound.dart';
 import 'status.dart';
+import 'sysproc.dart';
 import 'time_lang.dart';
 import 'voice.dart';
 
@@ -348,7 +349,10 @@ final class CoreService {
     jobs.follow = f;
   }
 
-  Future<Map<String, dynamic>> _bar(Future<Map<String, dynamic>> Function(Bar b) f) => f(Bar(ctx)..follow = followPanel);
+  Future<Map<String, dynamic>> _bar(Future<Map<String, dynamic>> Function(Bar b) f) => f(Bar(ctx)
+    ..follow = followPanel
+    ..startTray = jobs.startDetached
+    ..stopTrays = (trays) => stopProcesses(trays, signaller: jobs.signaller, procRoot: ctx.paths.proc, uid: ctx.uid, grace: jobs.stopGrace));
 
   /// A `desktop` param shows the status as another desktop would see it.
   /// One setting into settings.json; the others stay (written whole, then renamed into place).

@@ -520,6 +520,50 @@ void main() {
       await expectLater(core.call('bar.move', {'entry': 'clock', 'area': 'left', 'index': 0}), throwsA(isA<RouteError>()));
     });
 
+    test('system tray: taking a tray out stops it now, putting it in starts it', () async {
+      plasma([]);
+      w.install('wlan');
+      w.writeFile(autostart('wlan'), '[Desktop Entry]\nExec=x\n');
+      final exe = w.paths.expand(findApp('wlan')!.bar.kdeTrayExe!);
+      w.process(700, exe: exe);
+      final core = kde();
+      final started = <String>[];
+      final stopped = <int>[];
+      final bar = Bar(core.ctx)
+        ..startTray = ((e, args) async {
+          started.add(e);
+          return true;
+        })
+        ..stopTrays = ((trays) async => stopped.addAll(trays.map((t) => t.pid)));
+      var r = await bar.remove({'app': 'wlan'});
+      expect(r['trayStopped'], 1);
+      expect(stopped, [700]);
+      Directory(p.join(w.proc, '700')).deleteSync(recursive: true);
+      r = await bar.place({'app': 'wlan', 'area': 'left'});
+      expect(r['trayStarted'], isTrue);
+      expect(started, [exe]);
+      // with Maprisma Icons the widget hides it: the tray keeps running
+      plasma([widget()]);
+      w.process(701, exe: exe);
+      stopped.clear();
+      r = await bar.remove({'app': 'wlan'});
+      expect(r.containsKey('trayStopped'), isFalse);
+      expect(stopped, isEmpty);
+    });
+
+    test('no qdbus6: an app\'s tray still goes in and out, orders are refused', () async {
+      plasma([widget()]);
+      File(p.join(w.fakeBin, 'qdbus6')).deleteSync();
+      w.install('wlan');
+      w.writeFile(autostart('wlan'), '[Desktop Entry]\nExec=x\n');
+      final core = kde();
+      expect((await core.call('bar.get'))['kind'], 'systemTray');
+      final r = await core.call('bar.remove', {'app': 'wlan'});
+      expect(r['note'], contains('qdbus6'));
+      expect(File(autostart('wlan')).readAsStringSync(), contains('Hidden=true'));
+      await expectLater(core.call('bar.move', {'entry': 'clock', 'area': 'left', 'index': 0}), throwsA(isA<RouteError>().having((e) => e.code, 'code', 'unavailable')));
+    });
+
     test('plasmashell not reachable: bar.get says so, changes are refused', () async {
       plasma([widget()]);
       final core = kde(extra: {'FAKE_PLASMA_DOWN': '1'});
