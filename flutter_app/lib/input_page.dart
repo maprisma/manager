@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:maprisma_manager_core/maprisma_manager_core.dart' show tr;
 
+import 'backend.dart' show ServiceError;
 import 'core_call.dart';
 import 'desktop_page.dart';
 import 'settings_widgets.dart';
@@ -19,6 +20,44 @@ class InputPage extends StatelessWidget {
     title: tr('Input devices'),
     what: tr('the keyboard, mouse and touchpad'),
     own: (_) => _Input(core: core),
+    // COSMIC/KDE: their settings app has the devices, the app shortcuts stay in Maprisma Launcher
+    alsoNative: (_) => [ShortcutsSection(core: core)],
+  );
+}
+
+/// "Keyboard shortcuts": the app shortcuts are set in Maprisma Launcher (every desktop).
+class ShortcutsSection extends StatelessWidget {
+  const ShortcutsSection({super.key, required this.core, this.open});
+  final CoreCall core;
+
+  /// How the button opens the Launcher (the own page: its act with the busy state).
+  final VoidCallback? open;
+
+  @override
+  Widget build(BuildContext context) => SettingsSection(
+    title: tr('Keyboard shortcuts'),
+    children: [
+      SettingsItem(
+        title: tr('View and customize shortcuts'),
+        description: tr('App shortcuts are set in Maprisma Launcher.'),
+        trailing: FilledButton.tonal(
+          key: const ValueKey('input-shortcuts'),
+          onPressed: open ??
+              () async {
+                try {
+                  await core('apps.open', {'id': 'launcher'});
+                } on ServiceError catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context)
+                      ..hideCurrentSnackBar()
+                      ..showSnackBar(SnackBar(content: Text(failure(e))));
+                  }
+                }
+              },
+          child: Text(tr('Open Maprisma Launcher')),
+        ),
+      ),
+    ],
   );
 }
 
@@ -157,20 +196,7 @@ class _InputState extends State<_Input> with RoutePage {
           ),
         ],
       ),
-      SettingsSection(
-        title: tr('Keyboard shortcuts'),
-        children: [
-          SettingsItem(
-            title: tr('View and customize shortcuts'),
-            description: tr('App shortcuts are set in Maprisma Launcher.'),
-            trailing: FilledButton.tonal(
-              key: const ValueKey('input-shortcuts'),
-              onPressed: () => act('apps.open', {'id': 'launcher'}, reload: false),
-              child: Text(tr('Open Maprisma Launcher')),
-            ),
-          ),
-        ],
-      ),
+      ShortcutsSection(core: core, open: () => act('apps.open', {'id': 'launcher'}, reload: false)),
     ];
   }
 

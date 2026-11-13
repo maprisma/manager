@@ -82,9 +82,12 @@ class NativeSection extends StatelessWidget {
 /// A page of the sidebar that COSMIC and KDE set in their own app: there the native card; on
 /// Hyprland (and other desktops) [own] builds the Manager's own sections.
 class DesktopSettingsPage extends StatefulWidget {
-  const DesktopSettingsPage({super.key, required this.core, required this.page, required this.title, required this.what, required this.own, this.actions});
+  const DesktopSettingsPage({super.key, required this.core, required this.page, required this.title, required this.what, required this.own, this.actions, this.alsoNative});
   final CoreCall core;
   final String page, title, what;
+
+  /// Sections the Manager keeps under the native card too (what the desktop's app doesn't set).
+  final List<Widget> Function(BuildContext context)? alsoNative;
 
   /// The Manager's own sections (called only where the desktop has no settings app for it) and
   /// the title's buttons.
@@ -128,7 +131,10 @@ class _DesktopSettingsPageState extends State<DesktopSettingsPage> {
       );
     }
     if ((n['links'] as List).isNotEmpty) {
-      return SettingsPage(title: widget.title, children: [NativeSection(core: widget.core, native: n, what: widget.what)]);
+      return SettingsPage(title: widget.title, children: [
+        NativeSection(core: widget.core, native: n, what: widget.what),
+        ...?widget.alsoNative?.call(context),
+      ]);
     }
     return widget.own(context);
   }

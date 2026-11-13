@@ -459,6 +459,8 @@ void main() {
     await settle(tester);
     await nav(tester, 'input');
     expect(find.text('Mouse'), findsOneWidget);
+    // the app shortcuts stay reachable under the native card
+    expect(find.byKey(const ValueKey('input-shortcuts')), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('native-open-2')));
     await settle(tester);
     expect(log('cosmic.log'), ['sound', 'touchpad']);
@@ -472,6 +474,8 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('native-open-1')));
     await settle(tester);
     expect(log('kde.log'), ['kcm_mouse']);
+    expect(find.byKey(const ValueKey('input-shortcuts')), findsOneWidget);
+    expect(find.text('Open Maprisma Launcher'), findsOneWidget);
     await shot(tester, 'page-input-kde');
   });
 }
