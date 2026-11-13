@@ -41,11 +41,12 @@ void main() {
     expect(c.version, greaterThanOrEqualTo(1));
     final ids = [for (final h in c.helpers) h.id];
     expect(ids.take(2), ['claude', 'codex']);
-    expect(ids, containsAll(['gemini', 'agy', 'cursor-agent', 'copilot', 'grok', 'hermes', 'omp', 'openclaw', 'pi']));
+    expect(ids, containsAll(['agy', 'cursor-agent', 'copilot', 'grok', 'hermes', 'omp', 'openclaw', 'pi']));
     // no `ask`: not a one-shot helper
+    expect(ids, isNot(contains('gemini')), reason: 'interactive only: its tools stay on in one-shot mode');
     expect(ids, isNot(contains('opencode')));
     expect(ids, isNot(contains('goose')));
-    expect(c.helpers.firstWhere((h) => h.id == 'gemini').verified, isFalse);
+    expect(c.helpers.firstWhere((h) => h.id == 'cursor-agent').verified, isFalse);
     expect(c.helpers.firstWhere((h) => h.id == 'claude').verified, isTrue);
   });
 
@@ -143,7 +144,8 @@ void main() {
   test('the helpers: catalog order; Claude Code, Codex, pi and Hermes keep their own argv and handling', () {
     final list = helpersFrom(shippedHelpersCatalog);
     final ids = [for (final h in list) h.id];
-    expect(ids.take(4), ['claude', 'codex', 'gemini', 'agy']);
+    expect(ids.take(4), ['claude', 'codex', 'agy', 'cursor-agent']);
+    expect(ids, isNot(contains('gemini')), reason: 'no one-shot ask in catalog version 2');
     expect(ids, containsAll(['cursor-agent', 'copilot', 'grok', 'omp', 'openclaw', 'pi', 'hermes']));
     expect(ids.indexOf('hermes'), lessThan(ids.indexOf('pi')));
     final claude = list.firstWhere((h) => h.id == 'claude'), codex = list.firstWhere((h) => h.id == 'codex');
@@ -159,13 +161,13 @@ void main() {
     expect(codex.argv, containsAll(['--ignore-user-config', '--output-last-message', '{answer}']));
     expect(pi.argv, contains('--no-context-files'));
     expect(hermes.argv, containsAll(['--query-file', '-']));
-    final gemini = list.firstWhere((h) => h.id == 'gemini');
-    expect(gemini.catalog, isNotNull);
-    expect(gemini.verified, isFalse);
-    expect(gemini.jail, isNull);
-    expect(gemini.web, isNull);
-    expect(gemini.argv.first, 'gemini');
-    expect(gemini.env, contains('GEMINI_API_KEY'));
+    final cursor = list.firstWhere((h) => h.id == 'cursor-agent');
+    expect(cursor.catalog, isNotNull);
+    expect(cursor.verified, isFalse);
+    expect(cursor.jail, isNull);
+    expect(cursor.web, isNull);
+    expect(cursor.argv.first, 'cursor-agent');
+    expect(cursor.env, contains('CURSOR_API_KEY'));
     // one of ours missing from a catalog is still offered, last
     final short = helpersFrom(parseHelpersCatalog(catalogText(1, [entry('gemini'), entry('codex')]))!);
     expect([for (final h in short) h.id], ['gemini', 'codex', 'claude', 'pi', 'hermes']);
@@ -173,12 +175,14 @@ void main() {
 
   test('helper states: a catalog agent is offered when installed, ready, marked untested', () async {
     w.fake('claude', 'exit 0');
+    w.writeFile(p.join(w.home, '.local/bin/cursor-agent'), '#!/bin/sh\n', mode: '755');
     w.writeFile(p.join(w.home, '.local/bin/gemini'), '#!/bin/sh\n', mode: '755');
     final states = {for (final h in await helperStates(w.home, {'PATH': w.fakeBin})) h['id']: h};
-    expect(states['gemini']!['installed'], isTrue);
-    expect(states['gemini']!['signed_in'], isTrue);
-    expect(states['gemini']!['verified'], isFalse);
-    expect(states['gemini']!['name'], 'Gemini CLI');
+    expect(states['cursor-agent']!['installed'], isTrue);
+    expect(states['cursor-agent']!['signed_in'], isTrue);
+    expect(states['cursor-agent']!['verified'], isFalse);
+    expect(states['cursor-agent']!['name'], 'Cursor CLI');
+    expect(states.containsKey('gemini'), isFalse, reason: 'installed, but no one-shot ask: not offered');
     expect(states['claude']!['installed'], isTrue);
     expect(states['claude']!['signed_in'], isFalse, reason: 'its own sign-in check');
     expect(states['claude']!['verified'], isTrue);
@@ -187,12 +191,12 @@ void main() {
 
   test('ai.helpers: a saved helper that is unknown or no longer installed falls back to the first ready', () async {
     w.writeFile(p.join(w.home, '.local/bin/copilot'), '#!/bin/sh\n', mode: '755');
-    w.fake('gemini', 'exit 0');
+    w.fake('cursor-agent', 'exit 0');
     final core = w.core();
-    for (final saved in ['nobody', 'grok', 'gemini', 'copilot', 'auto']) {
+    for (final saved in ['nobody', 'grok', 'cursor-agent', 'copilot', 'auto']) {
       await core.call('ai.set_helper', {'helper': saved});
       final h = await core.call('ai.helpers');
-      expect(h['chosen'], saved == 'copilot' ? 'copilot' : 'gemini', reason: saved);
+      expect(h['chosen'], saved == 'copilot' ? 'copilot' : 'cursor-agent', reason: saved);
       expect(h['fallback'], saved == 'nobody' || saved == 'grok', reason: saved);
     }
   });
@@ -221,21 +225,21 @@ void main() {
         markTestSkipped('util-linux missing');
         return;
       }
-      w.fake('gemini', r'''
+      w.fake('cursor-agent', r'''
 for a in "$@"; do printf '[%s]' "$a"; done > "$HOME/args"
 cat > "$HOME/stdin"
 pwd > "$HOME/where"
 env > "$HOME/env"
 echo "the answer"
 ''');
-      final runner = AskRunner(home: w.home, environment: {'PATH': '${w.fakeBin}:/usr/bin:/bin', 'GEMINI_API_KEY': 'k', 'OPENAI_API_KEY': 'other'});
+      final runner = AskRunner(home: w.home, environment: {'PATH': '${w.fakeBin}:/usr/bin:/bin', 'CURSOR_API_KEY': 'k', 'OPENAI_API_KEY': 'other'});
       const prompt = "-rf it's \"odd\"\n\$HOME `x`";
-      expect(await runner.run('gemini', prompt), 'the answer\n');
-      expect(File('${w.home}/args').readAsStringSync(), '[--approval-mode][default][-o][text][-p][ $prompt]');
+      expect(await runner.run('cursor-agent', prompt), 'the answer\n');
+      expect(File('${w.home}/args').readAsStringSync(), '[-p][--mode][ask][--sandbox][enabled][--output-format][text][ $prompt]');
       expect(File('${w.home}/stdin').readAsStringSync(), '');
       expect(File('${w.home}/where').readAsStringSync().trim(), isNot(w.home));
       final env = File('${w.home}/env').readAsStringSync();
-      expect(env, contains('GEMINI_API_KEY=k'));
+      expect(env, contains('CURSOR_API_KEY=k'));
       expect(env, isNot(contains('OPENAI_API_KEY')));
     });
 
