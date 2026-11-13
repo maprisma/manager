@@ -81,7 +81,7 @@ class ManagerHomeState extends State<ManagerHome> {
     Section.sound => on ? Icons.volume_up : Icons.volume_up_outlined,
     Section.notifications => on ? Icons.notifications : Icons.notifications_outlined,
     Section.ai => on ? Icons.auto_awesome : Icons.auto_awesome_outlined,
-    Section.voice => on ? Icons.mic : Icons.mic_none,
+    Section.voice => on ? Icons.mic : Icons.mic_outlined,
     Section.power => on ? Icons.power_settings_new : Icons.power_settings_new_outlined,
     Section.input => on ? Icons.keyboard : Icons.keyboard_outlined,
     Section.applications => on ? Icons.grid_view : Icons.grid_view_outlined,

@@ -95,6 +95,9 @@ fi
 
 if (( build )); then
   "$root/tools/gen-translations"
+  # Flutter's asset step does not track the code: an incremental release build keeps the icon
+  # font subset of an earlier build, so icons added since draw wrong or not at all. Start it fresh.
+  rm -rf "$root/flutter_app/build/flutter_assets"
   (cd "$root/flutter_app" && flutter build linux --release >/dev/null)
   mkdir -p "$bundle/bin"
   (cd "$root/packages/maprisma_manager_core" && dart compile exe bin/maprisma_manager_core.dart -o "$bundle/bin/maprisma-manager-core" >/dev/null)
