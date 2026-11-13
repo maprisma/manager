@@ -292,4 +292,35 @@ void main() {
     await expectLater(core.call('notifications.clear_history'), refused('unavailable'));
     expect(File(other).readAsStringSync(), 'keep');
   });
+
+  test('clear_history waits for the Notifier\'s history.lock (it never lands inside a change)', () async {
+    w.writeFile(historyFile(), '${entry('Slack')}\n', mode: '600');
+    final dir = p.dirname(historyFile());
+    final ready = p.join(w.home, 'holder.ready');
+    // As history.rs `modify` does it: flock(LOCK_EX) on history.lock, read, write back atomically.
+    final holder = await Process.start('/usr/bin/python3', ['-I', '-c', r"""
+import fcntl, os, sys, time
+d, ready = sys.argv[1], sys.argv[2]
+lock = open(os.path.join(d, 'history.lock'), 'w')
+fcntl.flock(lock, fcntl.LOCK_EX)
+entries = open(os.path.join(d, 'history.jsonl')).read()
+open(ready, 'w').close()
+time.sleep(0.4)
+tmp = os.path.join(d, 'history.jsonl.tmp')
+open(tmp, 'w').write(entries)
+os.rename(tmp, os.path.join(d, 'history.jsonl'))
+fcntl.flock(lock, fcntl.LOCK_UN)
+""", dir, ready], includeParentEnvironment: false, environment: {'PATH': '/usr/bin:/bin'});
+    for (var i = 0; i < 200 && !File(ready).existsSync(); i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    }
+    expect(File(ready).existsSync(), isTrue);
+    final watch = Stopwatch()..start();
+    final r = await w.core().call('notifications.clear_history');
+    expect(watch.elapsedMilliseconds, greaterThan(200));
+    expect(await holder.exitCode, 0);
+    // cleared after the Notifier's write, not before it (which would bring the entries back)
+    expect(r['cleared'], isTrue);
+    expect(File(historyFile()).lengthSync(), 0);
+  });
 }

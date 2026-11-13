@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import 'ai/posix.dart' show Posix;
 import 'bar_cosmic.dart' show atomicWrite;
 import 'catalog.dart' show findApp;
 import 'catalog_model.dart' show DesktopId;
@@ -383,19 +384,31 @@ final class NotificationsService {
     return {'shell': _shellView(_read(shellFile, 'shell.json')), 'written': written};
   }
 
+  /// Maprisma Notifier's lock: it holds flock(LOCK_EX) on it while it reads the history for a
+  /// change and writes it again (history.rs `Locked`), so a clear never comes in between.
+  String get historyLock => p.join(ctx.paths.state, 'maprisma-notifier', 'history.lock');
+
   /// `notifications.clear_history`: the history emptied in one step (truncated in place, so the
-  /// file keeps its mode and a recorder's open handle).
+  /// file keeps its mode and a recorder's open handle), holding the Notifier's `history.lock`.
   Future<Map<String, dynamic>> clearHistory() async {
     final path = historyFile;
     final type = FileSystemEntity.typeSync(path, followLinks: false);
     if (type == FileSystemEntityType.notFound) return {'cleared': false, 'history': _history()};
     if (type != FileSystemEntityType.file) throw RouteError('unavailable', tr('history.jsonl is not a regular file'));
+    final bool cleared;
     try {
-      File(path).openSync(mode: FileMode.write).closeSync();
+      cleared = Posix.instance.withFlock(historyLock, () {
+        // looked at again under the lock: the Notifier may have replaced it meanwhile
+        final now = FileSystemEntity.typeSync(path, followLinks: false);
+        if (now == FileSystemEntityType.notFound) return false;
+        if (now != FileSystemEntityType.file) throw RouteError('unavailable', tr('history.jsonl is not a regular file'));
+        File(path).openSync(mode: FileMode.write).closeSync();
+        return true;
+      });
     } on FileSystemException catch (e) {
-      throw RouteError('failed', e.message);
+      throw RouteError('failed', e.path == null ? e.message : '${e.message}: ${e.path}');
     }
-    return {'cleared': true, 'history': _history()};
+    return {'cleared': cleared, 'history': _history()};
   }
 }
 
