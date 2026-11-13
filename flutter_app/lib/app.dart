@@ -143,7 +143,9 @@ class _ManagerAppState extends State<ManagerApp> with WidgetsBindingObserver {
 
   void _titlebar() {
     final platform = WidgetsBinding.instance.platformDispatcher.platformBrightness;
-    AppWindow.titlebar(appTheme(platform, look['colors'] as Map? ?? {}, 12).brightness == Brightness.dark);
+    final theme = appTheme(platform, look['colors'] as Map? ?? {}, 12);
+    final s = theme.colorScheme;
+    AppWindow.titlebar(theme.brightness == Brightness.dark, background: hexOf(s.surface), foreground: hexOf(s.onSurface), border: hexOf(s.outlineVariant));
   }
 
   // --- F12: a picture of the window ------------------------------------------------------------

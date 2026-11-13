@@ -34,10 +34,23 @@ class _ThemePageState extends State<ThemePage> {
   /// '' (all), 'dark' or 'light'.
   String mode = '';
 
+  /// The palette the page was last built with: when it changes (a theme applied here or
+  /// elsewhere, as Maprisma Theme or its applet), the list is read again for the new mark.
+  ColorScheme? _scheme;
+
   @override
   void initState() {
     super.initState();
     unawaited(load());
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final scheme = Theme.of(context).colorScheme;
+    final before = _scheme;
+    _scheme = scheme;
+    if (before != null && before != scheme && applying == null) unawaited(load());
   }
 
   Future<void> load() async {

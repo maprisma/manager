@@ -10,6 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:maprisma_manager/app.dart';
 import 'package:maprisma_manager/core_call.dart';
 import 'package:maprisma_manager/jobs_model.dart';
+import 'package:maprisma_manager/theme_page.dart';
 import 'package:maprisma_manager_core/maprisma_manager_core.dart';
 import 'package:path/path.dart' as p;
 
@@ -260,6 +261,21 @@ void main() {
     expect(log('theme.log'), ['apply latte']);
     expect(find.byKey(const ValueKey('theme-more')), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Theme: a theme applied elsewhere moves the mark once the palette changes', (tester) async {
+    fakeThemeCore(w);
+    final core = call(w.core(desktop: 'Hyprland'));
+    Widget page(Brightness b) => MaterialApp(theme: ThemeData(brightness: b), home: Scaffold(body: ThemePage(core: core)));
+    await tester.pumpWidget(page(Brightness.dark));
+    await settle(tester, 4);
+    expect(find.descendant(of: find.byKey(const ValueKey('theme-nord')), matching: find.text('In use')), findsOneWidget);
+    // Maprisma Theme (its applet, say) applies Autumn; the desktop's palette follows
+    w.writeFile(p.join(w.home, 'theme-current'), 'autumn');
+    await tester.pumpWidget(page(Brightness.light));
+    await settle(tester, 4);
+    expect(find.descendant(of: find.byKey(const ValueKey('theme-autumn')), matching: find.text('In use')), findsOneWidget);
+    expect(find.descendant(of: find.byKey(const ValueKey('theme-nord')), matching: find.text('In use')), findsNothing);
   });
 
   testWidgets('Theme without Maprisma Theme points to the Apps page', (tester) async {

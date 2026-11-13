@@ -37,10 +37,17 @@ abstract final class AppWindow {
     }
   }
 
-  /// The title bar follows the palette (dark or light).
-  static Future<void> titlebar(bool dark) async {
+  /// The title bar follows the palette: dark or light, and GTK's header bar takes the
+  /// palette's [background], [foreground] and [border] (`#rrggbb`), also when the theme
+  /// changes while the window is open.
+  static Future<void> titlebar(bool dark, {String? background, String? foreground, String? border}) async {
     try {
-      await _channel.invokeMethod('titlebar', dark);
+      await _channel.invokeMethod('titlebar', {
+        'dark': dark,
+        'background': ?background,
+        'foreground': ?foreground,
+        'border': ?border,
+      });
     } on MissingPluginException {
       // tests
     } on PlatformException {
@@ -48,3 +55,6 @@ abstract final class AppWindow {
     }
   }
 }
+
+/// `#rrggbb` of [c] (alpha dropped), for the runner's header bar.
+String hexOf(Color c) => '#${(c.toARGB32() & 0xffffff).toRadixString(16).padLeft(6, '0')}';
