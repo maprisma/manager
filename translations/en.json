@@ -1117,5 +1117,20 @@
   "Windows": "Windows",
   "Workspace speed": "Workspace speed",
   "Workspace style": "Workspace style",
-  "Workspaces": "Workspaces"
+  "Workspaces": "Workspaces",
+  "All": "All",
+  "Applying {0}…": "Applying {0}…",
+  "Click a theme to use it.": "Click a theme to use it.",
+  "Dark": "Dark",
+  "In use: {0}. Click another theme to use it.": "In use: {0}. Click another theme to use it.",
+  "Its themes are shown and applied here once it is installed.": "Its themes are shown and applied here once it is installed.",
+  "Light": "Light",
+  "Maprisma Theme is not installed": "Maprisma Theme is not installed",
+  "Maprisma Theme took too long": "Maprisma Theme took too long",
+  "More in Maprisma Theme…": "More in Maprisma Theme…",
+  "No themes.": "No themes.",
+  "Theme": "Theme",
+  "Update Maprisma Theme to pick its themes here": "Update Maprisma Theme to pick its themes here",
+  "Use {0}": "Use {0}",
+  "{0} is the theme now": "{0} is the theme now"
 }

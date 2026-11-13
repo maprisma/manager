@@ -83,6 +83,8 @@ void main() {
     expect(s.indexOf(Section.voice), s.indexOf(Section.ai) + 1);
     expect(s.indexOf(Section.power), s.indexOf(Section.voice) + 1);
     expect(ManagerHomeState.sectionNamed('notifications'), Section.notifications);
+    expect(s.indexOf(Section.theme), s.indexOf(Section.appearance) + 1);
+    expect(ManagerHomeState.sectionNamed('theme'), Section.theme);
   });
 
   testWidgets('Hyprland: do not disturb, history, apps, Shell\'s popups; changes only what was touched', (tester) async {

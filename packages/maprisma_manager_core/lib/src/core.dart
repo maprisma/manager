@@ -16,6 +16,7 @@ import 'displays.dart';
 import 'icons.dart';
 import 'animations.dart';
 import 'input.dart';
+import 'theme_view.dart';
 import 'jobs.dart';
 import 'network.dart';
 import 'notifications.dart';
@@ -212,6 +213,9 @@ final class CoreService {
       'animations.get': (_) => animations.get(),
       'animations.set': (params) => animations.set(params),
       'animations.reset': (_) => animations.reset(),
+      // The Theme page: Maprisma Theme's themes, applied through its core (theme_view.dart).
+      'theme.list': (_) => themeView.list(),
+      'theme.apply': (params) => themeView.apply(params),
       // Network & Wireless and Bluetooth on Hyprland (nmcli, bluetoothctl).
       'network.get': (params) => network.get(params),
       'network.wifi': (params) => network.wifi(params),
@@ -292,6 +296,9 @@ final class CoreService {
 
   /// Hyprland's animations (animations.*); one service, so changes go one after another.
   late final AnimationsService animations = AnimationsService(ctx);
+
+  /// The Theme page (theme.*): Maprisma Theme's core does the work.
+  late final ThemeViewService themeView = ThemeViewService(ctx);
 
   /// The Network & Wireless and Bluetooth pages (network.*, bluetooth.*).
   late final NetworkService network = NetworkService(ctx);

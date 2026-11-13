@@ -15,12 +15,13 @@ import 'notifications_page.dart';
 import 'pages.dart';
 import 'power_page.dart';
 import 'settings_page.dart';
+import 'theme_page.dart';
 import 'theme.dart';
 import 'voice_page.dart';
 import 'window.dart';
 
 /// The window's pages, in the sidebar's order.
-enum Section { apps, network, bluetooth, appearance, bar, displays, sound, notifications, ai, voice, power, input, applications, time, about, settings }
+enum Section { apps, network, bluetooth, appearance, theme, bar, displays, sound, notifications, ai, voice, power, input, applications, time, about, settings }
 
 /// The window as COSMIC Settings lays it out: a sidebar of pages left (icon and name, the open
 /// one highlighted), the page right. Below [condensedBelow] the sidebar hides behind a toggle
@@ -74,6 +75,7 @@ class ManagerHomeState extends State<ManagerHome> {
     Section.network => on ? Icons.wifi : Icons.wifi_outlined,
     Section.bluetooth => on ? Icons.bluetooth : Icons.bluetooth_outlined,
     Section.appearance => on ? Icons.palette : Icons.palette_outlined,
+    Section.theme => on ? Icons.style : Icons.style_outlined,
     Section.bar => on ? Icons.view_week : Icons.view_week_outlined,
     Section.displays => on ? Icons.monitor : Icons.monitor_outlined,
     Section.sound => on ? Icons.volume_up : Icons.volume_up_outlined,
@@ -93,6 +95,7 @@ class ManagerHomeState extends State<ManagerHome> {
     Section.network => tr('Network & Wireless'),
     Section.bluetooth => tr('Bluetooth'),
     Section.appearance => tr('Appearance'),
+    Section.theme => tr('Theme'),
     Section.bar => tr('Bar'),
     Section.displays => tr('Displays'),
     Section.sound => tr('Sound'),
@@ -206,6 +209,7 @@ class ManagerHomeState extends State<ManagerHome> {
       theme: appsKey.currentState?.apps.where((a) => a['id'] == 'theme').firstOrNull,
       onShowApps: () => open(Section.apps),
     ),
+    Section.theme => ThemePage(key: const ValueKey('theme-page'), core: widget.core, onShowApps: () => open(Section.apps)),
     Section.network => NetworkPage(key: const ValueKey('network-page'), core: widget.core),
     Section.bluetooth => BluetoothPage(key: const ValueKey('bluetooth-page'), core: widget.core),
     Section.sound => SoundPage(key: const ValueKey('sound-page'), core: widget.core),

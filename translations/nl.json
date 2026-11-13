@@ -1117,5 +1117,20 @@
   "Windows": "Vensters",
   "Workspace speed": "Werkbladsnelheid",
   "Workspace style": "Werkbladstijl",
-  "Workspaces": "Werkbladen"
+  "Workspaces": "Werkbladen",
+  "All": "Alle",
+  "Applying {0}…": "{0} wordt toegepast…",
+  "Click a theme to use it.": "Klik op een thema om het te gebruiken.",
+  "Dark": "Donker",
+  "In use: {0}. Click another theme to use it.": "In gebruik: {0}. Klik op een ander thema om het te gebruiken.",
+  "Its themes are shown and applied here once it is installed.": "Zijn thema's worden hier getoond en toegepast zodra het is geïnstalleerd.",
+  "Light": "Licht",
+  "Maprisma Theme is not installed": "Maprisma Theme is niet geïnstalleerd",
+  "Maprisma Theme took too long": "Maprisma Theme deed er te lang over",
+  "More in Maprisma Theme…": "Meer in Maprisma Theme…",
+  "No themes.": "Geen thema's.",
+  "Theme": "Thema",
+  "Update Maprisma Theme to pick its themes here": "Werk Maprisma Theme bij om zijn thema's hier te kiezen",
+  "Use {0}": "{0} gebruiken",
+  "{0} is the theme now": "{0} is nu het thema"
 }

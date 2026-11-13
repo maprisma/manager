@@ -235,6 +235,41 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('Theme: Maprisma Theme\'s themes in small, the one in use marked; Light narrows; a click applies', (tester) async {
+    fakeThemeCore(w);
+    await open(tester, 'COSMIC');
+    await nav(tester, 'theme');
+    expect(find.byKey(const ValueKey('theme-page')), findsOneWidget);
+    expect(find.text('Nord'), findsOneWidget);
+    expect(find.text('Catppuccin Latte'), findsOneWidget);
+    expect(find.text('Autumn'), findsOneWidget);
+    expect(find.text('Secret'), findsNothing, reason: 'hidden in Maprisma Theme');
+    expect(find.descendant(of: find.byKey(const ValueKey('theme-nord')), matching: find.text('In use')), findsOneWidget);
+    await shot(tester, 'page-theme');
+    await tester.tap(find.text('Light'));
+    await settle(tester, 2);
+    expect(find.text('Nord'), findsNothing);
+    expect(find.text('Catppuccin Latte'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('theme-latte')));
+    await settle(tester, 8);
+    expect(log('theme.log'), ['apply latte']);
+    expect(find.descendant(of: find.byKey(const ValueKey('theme-latte')), matching: find.text('In use')), findsOneWidget);
+    // the one in use is not applied again
+    await tester.tap(find.byKey(const ValueKey('theme-latte')));
+    await settle(tester, 2);
+    expect(log('theme.log'), ['apply latte']);
+    expect(find.byKey(const ValueKey('theme-more')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Theme without Maprisma Theme points to the Apps page', (tester) async {
+    await open(tester, 'Hyprland');
+    await nav(tester, 'theme');
+    expect(find.text('Maprisma Theme is not installed'), findsOneWidget);
+    expect(find.byKey(const ValueKey('theme-install')), findsOneWidget);
+    await shot(tester, 'page-theme-missing');
+  });
+
   testWidgets('COSMIC and KDE: no animations card on Appearance', (tester) async {
     for (final desktop in ['COSMIC', 'KDE']) {
       await open(tester, desktop);

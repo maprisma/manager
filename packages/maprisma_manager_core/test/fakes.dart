@@ -2,6 +2,7 @@
 // localectl, nmcli, bluetoothctl, xdg-mime, timedatectl and .desktop files. No package:test
 // here, so the Flutter tests can use them too.
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
@@ -158,4 +159,39 @@ case "$1" in
   status) printf '   System Locale: LANG=en_US.UTF-8\n                  LC_TIME=de_DE.UTF-8\n       VC Keymap: de\n      X11 Layout: de\n' ;;
   list-locales) printf 'C.UTF-8\nde_DE.UTF-8\nen_US.UTF-8\n' ;;
 esac''');
+}
+
+/// A 1x1 PNG (a theme's preview in the fakes).
+const tinyPng = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+
+/// A fake `~/.local/bin/maprisma-theme-core`: `list` answers three themes (one hidden, one
+/// light) with the current one from \$HOME/theme-current; `apply <slug>` logs to
+/// \$HOME/theme.log and makes it the current one (`apply broken` fails as Theme core does).
+void fakeThemeCore(World w, {bool old = false}) {
+  w.writeFile(p.join(w.home, 'theme-current'), 'nord');
+  final preview = p.join(w.home, 'themes/nord/preview.png');
+  File(preview)
+    ..parent.createSync(recursive: true)
+    ..writeAsBytesSync(base64Decode(tinyPng));
+  w.writeFile(p.join(w.home, '.local/bin/maprisma-theme-core'), old
+      ? '#!/bin/sh\necho \'{"error":"bad_args"}\'\nexit 2\n'
+      : '''#!/bin/sh
+IFS= read -r cur < "\$HOME/theme-current" || true
+t() { [ "\$1" = "\$cur" ] && echo true || echo false; }
+case "\$1" in
+  list)
+    printf '{"current":"%s","themes":[' "\$cur"
+    printf '{"slug":"nord","name":"Nord","current":%s,"favorite":true,"hidden":false,"preview":"$preview","colors":{"mode":"dark","background":"#2e3440","foreground":"#d8dee9","accent":"#88c0d0"}},' "\$(t nord)"
+    printf '{"slug":"latte","name":"Catppuccin Latte","current":%s,"favorite":false,"hidden":false,"preview":null,"colors":{"mode":"light","background":"#eff1f5","foreground":"#4c4f69","accent":"#1e66f5","red":"#d20f39"}},' "\$(t latte)"
+    printf '{"slug":"secret","name":"Secret","current":%s,"favorite":false,"hidden":true,"preview":null,"colors":{"mode":"dark","background":"#000000"}},' "\$(t secret)"
+    printf '{"slug":"autumn","name":"Autumn","current":%s,"favorite":false,"hidden":false,"preview":"/nowhere/x.png","colors":{"mode":"dark","background":"#2a1d17","foreground":"#e8d5c0","accent":"#e07a3f","green":"bad"}}' "\$(t autumn)"
+    echo ']}' ;;
+  apply)
+    echo "apply \$2" >> "\$HOME/theme.log"
+    if [ "\$2" = broken ]; then echo '{"error":"not_found","message":"no theme broken"}'; exit 1; fi
+    echo "\$2" > "\$HOME/theme-current"
+    printf '{"applied":"%s","done":["colors","wallpaper"]}\n' "\$2" ;;
+  *) echo '{"error":"bad_args"}'; exit 2 ;;
+esac
+''', mode: '755');
 }

@@ -1117,5 +1117,20 @@
   "Windows": "Ventanas",
   "Workspace speed": "Velocidad de los espacios de trabajo",
   "Workspace style": "Estilo de los espacios de trabajo",
-  "Workspaces": "Espacios de trabajo"
+  "Workspaces": "Espacios de trabajo",
+  "All": "Todos",
+  "Applying {0}…": "Aplicando {0}…",
+  "Click a theme to use it.": "Haz clic en un tema para usarlo.",
+  "Dark": "Oscuro",
+  "In use: {0}. Click another theme to use it.": "En uso: {0}. Haz clic en otro tema para usarlo.",
+  "Its themes are shown and applied here once it is installed.": "Sus temas se muestran y aplican aquí cuando esté instalado.",
+  "Light": "Claro",
+  "Maprisma Theme is not installed": "Maprisma Theme no está instalado",
+  "Maprisma Theme took too long": "Maprisma Theme tardó demasiado",
+  "More in Maprisma Theme…": "Más en Maprisma Theme…",
+  "No themes.": "No hay temas.",
+  "Theme": "Tema",
+  "Update Maprisma Theme to pick its themes here": "Actualiza Maprisma Theme para elegir sus temas aquí",
+  "Use {0}": "Usar {0}",
+  "{0} is the theme now": "{0} es ahora el tema"
 }
