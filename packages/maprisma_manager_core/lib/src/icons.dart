@@ -5,7 +5,7 @@
 /// `~/.local/share/icons/hicolor/scalable/apps`) can get another one: the chosen SVG (a theme icon
 /// by name, or a file) is checked (SVG only, at most [maxIconBytes], no scripts, event handlers or
 /// references outside the file) and written over that file; the installer's original is kept in
-/// `~/.local/state/maprisma-manager/icons/<app>/` for "reset"; the choice is applied again after
+/// `~/.local/state/maprisma-settings/icons/<app>/` for "reset"; the choice is applied again after
 /// every install or update of the app; then the icon cache and the bar icon are refreshed.
 library;
 
@@ -216,7 +216,7 @@ Map<String, ({String file, String theme})> themeSvgs(Ctx ctx, List<String> chain
   return out;
 }
 
-/// The icon state of one app: `~/.local/state/maprisma-manager/icons/<app>/`.
+/// The icon state of one app: `~/.local/state/maprisma-settings/icons/<app>/`.
 final class _IconState {
   _IconState(this.dir, this.data);
   final String dir;
@@ -242,7 +242,7 @@ final class _IconState {
 /// Writes [bytes] next to [path] and renames it over it (mode 644).
 void atomicWriteBytes(String path, List<int> bytes) {
   Directory(p.dirname(path)).createSync(recursive: true);
-  final tmp = File(p.join(p.dirname(path), '.${p.basename(path)}.maprisma-manager.$pid.tmp'));
+  final tmp = File(p.join(p.dirname(path), '.${p.basename(path)}.maprisma-settings.$pid.tmp'));
   tmp.writeAsBytesSync(bytes, flush: true);
   try {
     Process.runSync('/usr/bin/chmod', ['644', tmp.path], includeParentEnvironment: false);

@@ -14,7 +14,7 @@ void main() {
   tearDown(() => w.dispose());
 
   String file() => p.join(w.home, '.config/maprisma-ai/settings.json');
-  String managerSettings() => p.join(w.home, '.config/maprisma-manager/settings.json');
+  String managerSettings() => p.join(w.home, '.config/maprisma-settings/settings.json');
   Map<String, dynamic> stored() => jsonDecode(File(file()).readAsStringSync()) as Map<String, dynamic>;
   int mode(String path) => File(path).statSync().mode & 0x1ff;
 

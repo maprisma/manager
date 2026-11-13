@@ -1,14 +1,18 @@
 #!/bin/bash
-# Remove Maprisma Manager for this user (the Manager doesn't remove itself):
+# Remove Maprisma Settings (formerly Maprisma Manager) for this user (it doesn't remove itself):
 #
 #   tools/uninstall-local [--delete-settings]
 #
-# Stops the running copies (by their real program path), then deletes ~/.local/lib/maprisma-manager,
-# the links ~/.local/bin/maprisma-manager{,-core,-applet,-tray}, the desktop entries, the icons and the tray's autostart. Its settings and
-# state (~/.config/maprisma-manager, ~/.local/state/maprisma-manager: receipts, bar.json, job logs)
-# stay unless --delete-settings is given. The apps it installed are not touched.
+# Stops the running copies (by their real program path), then deletes ~/.local/lib/maprisma-settings,
+# the links ~/.local/bin/maprisma-settings{,-core,-applet,-tray} and their old names
+# maprisma-manager{,-core,-applet,-tray}, the desktop entries (com.maprisma.Settings and the hidden
+# com.maprisma.Manager), the icons and the tray's autostart. Its settings and state
+# (~/.config/maprisma-settings, ~/.local/state/maprisma-settings: receipts, bar.json, job logs, and
+# the links of their old names) stay unless --delete-settings is given. The apps it installed are
+# not touched.
 set -euo pipefail
-lib="$HOME/.local/lib/maprisma-manager"
+lib="$HOME/.local/lib/maprisma-settings"
+old_lib="$HOME/.local/lib/maprisma-manager"
 bin="$HOME/.local/bin"
 data="${XDG_DATA_HOME:-$HOME/.local/share}"
 delete=0
@@ -20,25 +24,38 @@ for arg in "$@"; do
 done
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 source "$root/tools/procs.sh"
-# Never while the self-update helper may be swapping (it would put the Manager back, or lose its rollback copy).
-if ! take_lock "${XDG_STATE_HOME:-$HOME/.local/state}/maprisma-manager/self-update"; then
-  echo "a self-update of Maprisma Manager is in progress: try again when it has finished" >&2
+# The folders of the old name first (so the lock below is the one an older helper takes too).
+migrate_legacy
+state="$(xdg_dir XDG_STATE_HOME .local/state)"
+config="$(xdg_dir XDG_CONFIG_HOME .config)"
+# Never while the self-update helper may be swapping (it would put the app back, or lose its rollback copy).
+if ! take_lock "$state/maprisma-settings/self-update"; then
+  echo "a self-update of Maprisma Settings is in progress: try again when it has finished" >&2
   exit 1
 fi
 stop_running 1
-for l in "$bin/maprisma-manager" "$bin/maprisma-manager-core" "$bin/maprisma-manager-applet" "$bin/maprisma-manager-tray"; do
-  # only our links (never a file someone put there)
-  if [[ -L $l && $(readlink "$l") == "$lib/"* ]]; then rm -f -- "$l"; fi
+for name in maprisma-settings maprisma-manager; do
+  for l in "$bin/$name" "$bin/$name-core" "$bin/$name-applet" "$bin/$name-tray"; do
+    # only our links (never a file someone put there)
+    if [[ -L $l && ( $(readlink "$l") == "$lib/"* || $(readlink "$l") == "$old_lib/"* ) ]]; then rm -f -- "$l"; fi
+  done
 done
 rm -rf -- "$lib" "$lib".new.* "$lib".old.*
-rm -f -- "$data/applications/com.maprisma.Manager.desktop" "$data/icons/hicolor/scalable/apps/com.maprisma.Manager.svg" \
-  "$data/applications/io.github.ubruckhaus.CosmicMaprismaManager.desktop" "$data/icons/hicolor/scalable/apps/io.github.ubruckhaus.CosmicMaprismaManager-symbolic.svg" \
-  "${XDG_CONFIG_HOME:-$HOME/.config}/autostart/com.maprisma.Manager.Tray.desktop"
+# the link of the old name (a real folder there is an install the migration left alone: not ours to judge)
+[[ -L $old_lib ]] && rm -f -- "$old_lib"
+apps="$data/applications" icons="$data/icons/hicolor/scalable/apps" autostart="${XDG_CONFIG_HOME:-$HOME/.config}/autostart"
+rm -f -- "$apps/com.maprisma.Settings.desktop" "$apps/com.maprisma.Manager.desktop" \
+  "$icons/com.maprisma.Settings.svg" "$icons/com.maprisma.Manager.svg" \
+  "$apps/io.github.ubruckhaus.CosmicMaprismaManager.desktop" "$icons/io.github.ubruckhaus.CosmicMaprismaManager-symbolic.svg" \
+  "$autostart/com.maprisma.Settings.Tray.desktop" "$autostart/com.maprisma.Manager.Tray.desktop"
 command -v gtk-update-icon-cache >/dev/null && gtk-update-icon-cache -f -t "$data/icons/hicolor" >/dev/null 2>&1 || true
 command -v update-desktop-database >/dev/null && update-desktop-database "$data/applications" >/dev/null 2>&1 || true
 if (( delete )); then
-  rm -rf -- "${XDG_CONFIG_HOME:-$HOME/.config}/maprisma-manager" "${XDG_STATE_HOME:-$HOME/.local/state}/maprisma-manager"
-  echo "Removed Maprisma Manager and its settings"
+  for d in "$config" "$state"; do
+    rm -rf -- "$d/maprisma-settings"
+    [[ -L $d/maprisma-manager ]] && rm -f -- "$d/maprisma-manager"
+  done
+  echo "Removed Maprisma Settings and its settings"
 else
-  echo "Removed Maprisma Manager (its settings and state stay)"
+  echo "Removed Maprisma Settings (its settings and state stay)"
 fi

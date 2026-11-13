@@ -1,24 +1,31 @@
 #!/bin/bash
-# Build and install Maprisma Manager for this user (no sudo):
+# Build and install Maprisma Settings (formerly Maprisma Manager) for this user (no sudo):
 #
 #   tools/install-local [--no-build]     build, stop the running copies, swap the bundle in, links, entry, icon
-#   tools/install-local --stage <dir>    build into <dir> only (the Manager's self-update: nothing installed)
+#   tools/install-local --stage <dir>    build into <dir> only (the self-update: nothing installed)
 #   tools/install-local --integrate      links, desktop entry and icon for the installed bundle only
 #
-# ~/.local/lib/maprisma-manager          the Flutter bundle, with bin/maprisma-manager-core (the core CLI)
-# ~/.local/bin/maprisma-manager{,-core}  links
-# ~/.local/share/applications            com.maprisma.Manager.desktop; the icon under icons/hicolor
+# ~/.local/lib/maprisma-settings          the Flutter bundle, with bin/maprisma-settings-core (the core CLI)
+# ~/.local/bin/maprisma-settings{,-core}  links
+# ~/.local/share/applications             com.maprisma.Settings.desktop; the icon under icons/hicolor
+#
+# The old names keep working: the bundle has maprisma-manager and bin/maprisma-manager-core{,-applet,
+# -tray} as links to the new programs, ~/.local/bin has maprisma-manager{,-core,-applet,-tray} links
+# to those, com.maprisma.Manager.desktop is a hidden entry that starts maprisma-settings, and the
+# folders of the old name (~/.config, ~/.local/state, ~/.local/share, ~/.cache, ~/.local/lib) are
+# renamed once and left as links to the new ones (procs.sh migrate_legacy). A Manager from before the
+# rename updates itself into this build: its checks look for the old names, which the stage has.
 #
 # A running Flutter app maps its code from its bundle: never copy over it. The running copies are
 # stopped (found by their real program path: the process name is cut to 15 characters, so pkill by
 # name misses them), a fresh folder is swapped in by rename, and the app is not restarted.
 #
-# --stage <dir> is what the Manager runs to update itself: <dir> gets bundle/, tools/install-local,
-# tools/self-update and packaging/; the Manager checks it and its helper (tools/self-update) swaps
-# it in once the Manager has quit, then runs <dir>/tools/install-local --integrate.
+# --stage <dir> is what Maprisma Settings runs to update itself: <dir> gets bundle/, tools/install-local,
+# tools/self-update and packaging/; it checks it and its helper (tools/self-update) swaps
+# it in once the app has quit, then runs <dir>/tools/install-local --integrate.
 set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
-lib="$HOME/.local/lib/maprisma-manager"
+lib="$HOME/.local/lib/maprisma-settings"
 bin="$HOME/.local/bin"
 data="${XDG_DATA_HOME:-$HOME/.local/share}"
 build=1 stage="" integrate=0
@@ -52,33 +59,57 @@ put_entry() {
   mv -f "$2.tmp.$$" "$2"
 }
 
-integrate() {
-  local autostart="${XDG_CONFIG_HOME:-$HOME/.config}/autostart" icons="$data/icons/hicolor/scalable/apps" f
-  mkdir -p "$bin" "$data/applications" "$icons" "$autostart"
-  ln -sfn "$lib/maprisma-manager" "$bin/maprisma-manager"
-  for f in maprisma-manager-core maprisma-manager-applet maprisma-manager-tray; do
-    [[ -e $lib/bin/$f ]] && ln -sfn "$lib/bin/$f" "$bin/$f"
+# The old names inside a bundle folder ($1): links to the new programs.
+compat_links() {
+  local f
+  [[ -e $1/maprisma-settings ]] && ln -sfn maprisma-settings "$1/maprisma-manager"
+  for f in core applet tray; do
+    [[ -e $1/bin/maprisma-settings-$f ]] && ln -sfn "maprisma-settings-$f" "$1/bin/maprisma-manager-$f"
   done
-  put_entry "$root/packaging/com.maprisma.Manager.desktop" "$data/applications/com.maprisma.Manager.desktop" "$(exec_of "$bin/maprisma-manager")"
-  for f in com.maprisma.Manager.svg io.github.ubruckhaus.CosmicMaprismaManager-symbolic.svg; do
+  return 0
+}
+
+integrate() {
+  local autostart="${XDG_CONFIG_HOME:-$HOME/.config}/autostart" icons="$data/icons/hicolor/scalable/apps" f old_tray
+  mkdir -p "$bin" "$data/applications" "$icons" "$autostart"
+  ln -sfn "$lib/maprisma-settings" "$bin/maprisma-settings"
+  # the old name (the bundle's own link, so an older bundle put back by a rollback is found too)
+  ln -sfn "$lib/maprisma-manager" "$bin/maprisma-manager"
+  for f in core applet tray; do
+    [[ -e $lib/bin/maprisma-settings-$f ]] && ln -sfn "$lib/bin/maprisma-settings-$f" "$bin/maprisma-settings-$f"
+    [[ -e $lib/bin/maprisma-manager-$f ]] && ln -sfn "$lib/bin/maprisma-manager-$f" "$bin/maprisma-manager-$f"
+  done
+  put_entry "$root/packaging/com.maprisma.Settings.desktop" "$data/applications/com.maprisma.Settings.desktop" "$(exec_of "$bin/maprisma-settings")"
+  # The old id: a hidden entry that starts Maprisma Settings (launchers, shortcuts and pins made
+  # with com.maprisma.Manager); never with the Hidden=true of the old visible entry.
+  rm -f -- "$data/applications/com.maprisma.Manager.desktop"
+  put_entry "$root/packaging/com.maprisma.Manager.desktop" "$data/applications/com.maprisma.Manager.desktop" "$(exec_of "$bin/maprisma-settings")"
+  for f in com.maprisma.Settings.svg com.maprisma.Manager.svg io.github.ubruckhaus.CosmicMaprismaManager-symbolic.svg; do
     [[ -f $root/packaging/$f ]] || continue
     install -m644 "$root/packaging/$f" "$icons/$f.tmp.$$"
     mv -f "$icons/$f.tmp.$$" "$icons/$f"
   done
   # The bar icon: COSMIC's applet entry, the tray's autostart (KDE, Maprisma Shell on Hyprland).
-  if [[ -x $lib/bin/maprisma-manager-applet && -f $root/packaging/io.github.ubruckhaus.CosmicMaprismaManager.desktop ]]; then
-    put_entry "$root/packaging/io.github.ubruckhaus.CosmicMaprismaManager.desktop" "$data/applications/io.github.ubruckhaus.CosmicMaprismaManager.desktop" "$(exec_of "$bin/maprisma-manager-applet")"
+  if [[ -x $lib/bin/maprisma-settings-applet && -f $root/packaging/io.github.ubruckhaus.CosmicMaprismaManager.desktop ]]; then
+    put_entry "$root/packaging/io.github.ubruckhaus.CosmicMaprismaManager.desktop" "$data/applications/io.github.ubruckhaus.CosmicMaprismaManager.desktop" "$(exec_of "$bin/maprisma-settings-applet")"
   fi
-  if [[ -x $lib/bin/maprisma-manager-tray && -f $root/packaging/com.maprisma.Manager.Tray.desktop ]]; then
-    put_entry "$root/packaging/com.maprisma.Manager.Tray.desktop" "$autostart/com.maprisma.Manager.Tray.desktop" "$(exec_of "$bin/maprisma-manager-tray")"
+  # The tray's autostart of the old name gives way to the new one; a Hidden=true in it (the Bar
+  # page took the icon out) goes with it.
+  old_tray="$autostart/com.maprisma.Manager.Tray.desktop"
+  if [[ -f $old_tray && ! -e $autostart/com.maprisma.Settings.Tray.desktop ]] && grep -qx 'Hidden=true' "$old_tray"; then
+    printf '[Desktop Entry]\nHidden=true\n' > "$autostart/com.maprisma.Settings.Tray.desktop"
+  fi
+  if [[ -x $lib/bin/maprisma-settings-tray && -f $root/packaging/com.maprisma.Settings.Tray.desktop ]]; then
+    put_entry "$root/packaging/com.maprisma.Settings.Tray.desktop" "$autostart/com.maprisma.Settings.Tray.desktop" "$(exec_of "$bin/maprisma-settings-tray")"
+    rm -f -- "$old_tray"
     # The tray of the build before (still mapping the old files) makes way for this one.
     local ids
     ids=$(tray_ids)
     # shellcheck disable=SC2086
     [[ -n $ids ]] && { signal_ids TERM $ids; sleep 0.3; }
-    if [[ ${XDG_CURRENT_DESKTOP:-} =~ (KDE|Hyprland) ]] && ! grep -qx 'Hidden=true' "$autostart/com.maprisma.Manager.Tray.desktop"; then
+    if [[ ${XDG_CURRENT_DESKTOP:-} =~ (KDE|Hyprland) ]] && ! grep -qx 'Hidden=true' "$autostart/com.maprisma.Settings.Tray.desktop"; then
       # 9>&-: the install/self-update lock stays with us (the long-running tray would hold it).
-      setsid -f "$bin/maprisma-manager-tray" >/dev/null 2>&1 < /dev/null 9>&- || true
+      setsid -f "$bin/maprisma-settings-tray" >/dev/null 2>&1 < /dev/null 9>&- || true
     fi
   fi
   command -v gtk-update-icon-cache >/dev/null && gtk-update-icon-cache -f -t "$data/icons/hicolor" >/dev/null 2>&1 || true
@@ -86,10 +117,11 @@ integrate() {
 }
 
 if (( integrate )); then
-  [[ -x $lib/maprisma-manager ]] || { echo "no Maprisma Manager in $lib" >&2; exit 1; }
   source "$root/tools/procs.sh"
+  migrate_legacy
+  [[ -x $lib/maprisma-settings ]] || { echo "no Maprisma Settings in $lib" >&2; exit 1; }
   integrate
-  echo "Linked Maprisma Manager in $lib"
+  echo "Linked Maprisma Settings in $lib"
   exit 0
 fi
 
@@ -100,16 +132,18 @@ if (( build )); then
   rm -rf "$root/flutter_app/build/flutter_assets"
   (cd "$root/flutter_app" && flutter build linux --release >/dev/null)
   mkdir -p "$bundle/bin"
-  (cd "$root/packages/maprisma_manager_core" && dart compile exe bin/maprisma_manager_core.dart -o "$bundle/bin/maprisma-manager-core" >/dev/null)
-  # The bar icon (COSMIC applet, tray): Rust; without cargo the Manager has no bar icon.
+  rm -f -- "$bundle/maprisma-manager" "$bundle/bin/maprisma-manager-"*
+  (cd "$root/packages/maprisma_manager_core" && dart compile exe bin/maprisma_manager_core.dart -o "$bundle/bin/maprisma-settings-core" >/dev/null)
+  # The bar icon (COSMIC applet, tray): Rust; without cargo there is no bar icon.
   if command -v cargo >/dev/null; then
     (cd "$root/bar" && cargo build --release -q)
-    install -m755 "$root/bar/target/release/maprisma-manager-applet" "$root/bar/target/release/maprisma-manager-tray" "$bundle/bin/"
+    install -m755 "$root/bar/target/release/maprisma-settings-applet" "$root/bar/target/release/maprisma-settings-tray" "$bundle/bin/"
   else
     echo "cargo is missing: no bar icon this time" >&2
   fi
 fi
-for f in maprisma-manager lib/libapp.so data/flutter_assets/version.json bin/maprisma-manager-core; do
+compat_links "$bundle"
+for f in maprisma-settings lib/libapp.so data/flutter_assets/version.json bin/maprisma-settings-core maprisma-manager bin/maprisma-manager-core; do
   [[ -e $bundle/$f ]] || { echo "missing in the build: $f (run without --no-build)" >&2; exit 1; }
 done
 
@@ -120,14 +154,16 @@ if [[ -n $stage ]]; then
   install -m755 "$root/tools/install-local" "$root/tools/self-update" "$stage/tools/"
   install -m644 "$root/tools/procs.sh" "$stage/tools/"
   install -m644 "$root/packaging/"*.desktop "$root/packaging/"*.svg "$stage/packaging/"
-  echo "Staged Maprisma Manager in $stage"
+  echo "Staged Maprisma Settings in $stage"
   exit 0
 fi
 
-# The helper of a self-update may be swapping right now: never at the same time.
+# The helper of a self-update may be swapping right now: never at the same time. The folders of
+# the old name first (the lock of an older helper is then the same file).
 source "$root/tools/procs.sh"
-if ! take_lock "${XDG_STATE_HOME:-$HOME/.local/state}/maprisma-manager/self-update"; then
-  echo "a self-update of Maprisma Manager is in progress: try again when it has finished" >&2
+migrate_legacy
+if ! take_lock "$(xdg_dir XDG_STATE_HOME .local/state)/maprisma-settings/self-update"; then
+  echo "a self-update of Maprisma Settings is in progress: try again when it has finished" >&2
   exit 1
 fi
 
@@ -150,4 +186,4 @@ fi
 trap - EXIT
 [[ -n $old ]] && rm -rf -- "$old"
 integrate
-echo "Installed Maprisma Manager into $lib"
+echo "Installed Maprisma Settings into $lib"

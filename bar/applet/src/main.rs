@@ -1,8 +1,11 @@
-// Maprisma Manager for COSMIC: its icon in the panel. A click opens Maprisma Manager when it is
+// Maprisma Settings (formerly Maprisma Manager) for COSMIC: its icon in the panel. A click opens
+// Maprisma Settings when it is
 // closed or hidden and hides it when it is shown, in front or not (it may be installing
 // something, so it is hidden, not closed).
 //
-// That is the app's own: `maprisma-manager --toggle` (single instance).
+// That is the app's own: `maprisma-settings --toggle` (single instance). The applet's id, icon name
+// and D-Bus names keep "CosmicMaprismaManager": COSMIC's panel configuration lists the applet by
+// that id, so a new id would drop the icon from the user's panel.
 
 use std::path::PathBuf;
 use std::process::Stdio;
@@ -21,13 +24,19 @@ fn main() -> cosmic::iced::Result {
     cosmic::applet::run::<Applet>(())
 }
 
-// MAPRISMA_MANAGER, or the link tools/install-local makes, or one on PATH.
+// MAPRISMA_MANAGER, or the link tools/install-local makes (the old name of an earlier install
+// too), or one on PATH.
 fn manager_bin() -> PathBuf {
     if let Some(path) = std::env::var_os("MAPRISMA_MANAGER") {
         return PathBuf::from(path);
     }
-    let local = PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".local/bin/maprisma-manager");
-    if local.exists() { local } else { PathBuf::from("maprisma-manager") }
+    let bin = PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".local/bin");
+    for name in ["maprisma-settings", "maprisma-manager"] {
+        if bin.join(name).exists() {
+            return bin.join(name);
+        }
+    }
+    PathBuf::from("maprisma-settings")
 }
 
 fn toggle() {

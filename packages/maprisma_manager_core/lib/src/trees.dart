@@ -201,7 +201,7 @@ TreeCheck checkTree(String root, List<Map<String, dynamic>> entries, {required S
         c.goes.add((path: e.path, sha256: h, link: null));
         c.derived++;
       } else {
-        stay(e.path, w == null ? foreignWhy(rel) : (w['sha256'] != null ? tr('changed since the Manager installed it') : tr('not what the Manager installed')));
+        stay(e.path, w == null ? foreignWhy(rel) : (w['sha256'] != null ? tr('changed since Maprisma Settings installed it') : tr('not what Maprisma Settings installed')));
       }
     } else if (type == FileSystemEntityType.link) {
       final t = Link(e.path).targetSync();
@@ -211,10 +211,10 @@ TreeCheck checkTree(String root, List<Map<String, dynamic>> entries, {required S
         stay(e.path, w == null ? foreignWhy(rel) : tr('the link points elsewhere now'));
       }
     } else {
-      stay(e.path, tr('not a file the Manager installed'));
+      stay(e.path, tr('not a file Maprisma Settings installed'));
     }
   }
-  if (extra > 0) c.stays.add({'path': root, 'why': trf('{0} more path(s) in it stay (changed or not the Manager\'s)', [extra])});
+  if (extra > 0) c.stays.add({'path': root, 'why': trf('{0} more path(s) in it stay (changed or not from Maprisma Settings)', [extra])});
   dirs.sort((a, b) => p.split(b).length.compareTo(p.split(a).length));
   c.dirs
     ..addAll(dirs)

@@ -168,7 +168,7 @@ Map<String, Map<String, dynamic>> loadKept(Paths paths, String app) {
 
 // --- displaced files -------------------------------------------------------------------------
 
-/// The displaced files of one app: `<state>/maprisma-manager/displaced/<app>/index.json`
+/// The displaced files of one app: `<state>/maprisma-settings/displaced/<app>/index.json`
 /// `{"entries": [{path, backup?, link?, sha256?, mode?, restore, reason, at, job}]}`.
 /// A file that existed at a catalog path and wasn't the Manager's (per the receipt) is copied here
 /// before an install script runs; remove puts back those marked `restore`.

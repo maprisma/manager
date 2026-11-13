@@ -18,7 +18,7 @@ void main() {
 
   String lua() => File(p.join(w.home, '.config/hypr/hypr-manager.lua')).readAsStringSync();
   String user() => File(p.join(w.home, '.config/hypr/hypr-user.lua')).readAsStringSync();
-  Map state() => jsonDecode(File(p.join(w.home, '.config/maprisma-manager/hyprland.json')).readAsStringSync()) as Map;
+  Map state() => jsonDecode(File(p.join(w.home, '.config/maprisma-settings/hyprland.json')).readAsStringSync()) as Map;
   int reloads() {
     final f = File(p.join(w.home, 'hyprctl.log'));
     return f.existsSync() ? f.readAsLinesSync().length : 0;

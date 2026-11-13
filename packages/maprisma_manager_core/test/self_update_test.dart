@@ -1,4 +1,4 @@
-// Step 6: the Manager updates itself (jobs_self.dart, tools/self-update, tools/install-local
+// Step 6: Maprisma Settings (formerly Maprisma Manager) updates itself (jobs_self.dart, tools/self-update, tools/install-local
 // --integrate) in a temp HOME. The repo's install-local is a fake for --stage (a tiny bundle of
 // shell scripts) and the real one for --integrate; the helper is the real tools/self-update. The
 // running Manager window is a fake /proc entry (the helper is pointed at the same fake /proc), so
@@ -24,28 +24,34 @@ ctl="$HOME/.mm-test"
 mkdir -p "$stage/bundle/lib" "$stage/bundle/bin" "$stage/bundle/data/flutter_assets" "$stage/tools" "$stage/packaging"
 build=$(cat "$ctl/build" 2>/dev/null || echo 1)
 if [[ -e $ctl/never-ready ]]; then
-  printf '#!/bin/sh\nexit 0\n' > "$stage/bundle/maprisma-manager"
+  printf '#!/bin/sh\nexit 0\n' > "$stage/bundle/maprisma-settings"
 else
-  printf '#!/bin/sh\n[ -n "${MAPRISMA_MANAGER_READY:-}" ] && echo $$ > "$MAPRISMA_MANAGER_READY"\necho "started build %s" >> "$HOME/.mm-test/started"\nls -l /proc/$$/fd > "$HOME/.mm-test/gui-fds"\n' "$build" > "$stage/bundle/maprisma-manager"
+  printf '#!/bin/sh\n[ -n "${MAPRISMA_MANAGER_READY:-}" ] && echo $$ > "$MAPRISMA_MANAGER_READY"\necho "started build %s" >> "$HOME/.mm-test/started"\nls -l /proc/$$/fd > "$HOME/.mm-test/gui-fds"\n' "$build" > "$stage/bundle/maprisma-settings"
 fi
-chmod 755 "$stage/bundle/maprisma-manager"
+chmod 755 "$stage/bundle/maprisma-settings"
 echo "lib $build" > "$stage/bundle/lib/libapp.so"
 echo flutter > "$stage/bundle/lib/libflutter_linux_gtk.so"
 echo icu > "$stage/bundle/data/icudtl.dat"
 echo "{\"version\":\"0.1.$build\"}" > "$stage/bundle/data/flutter_assets/version.json"
-cat > "$stage/bundle/bin/maprisma-manager-core" <<'CORE'
+cat > "$stage/bundle/bin/maprisma-settings-core" <<'CORE'
 #!/bin/sh
-if [ "$1" = version ]; then echo "maprisma-manager-core 0.1.0"; exit 0; fi
+# answers with the name it was started by, as the real core does (cli.dart cliName)
+if [ "$1" = version ]; then echo "$(basename "$0") 0.1.0"; exit 0; fi
 echo "$*" >> "$HOME/.mm-test/core-calls"
 CORE
-chmod 755 "$stage/bundle/bin/maprisma-manager-core"
-[[ -e $ctl/no-core ]] && rm "$stage/bundle/bin/maprisma-manager-core"
+chmod 755 "$stage/bundle/bin/maprisma-settings-core"
+[[ -e $ctl/no-core ]] && rm "$stage/bundle/bin/maprisma-settings-core"
 # the bar icon (bar/, Rust): a COSMIC applet that ends at once and a tray that notes its open
 # files (a lock it holds would block every later install); none without cargo (no-bar)
-printf '#!/bin/sh\nexit 0\n' > "$stage/bundle/bin/maprisma-manager-applet"
-printf '#!/bin/sh\nls -l /proc/$$/fd > "$HOME/.mm-test/tray-fds"\n' > "$stage/bundle/bin/maprisma-manager-tray"
-chmod 755 "$stage/bundle/bin/maprisma-manager-applet" "$stage/bundle/bin/maprisma-manager-tray"
-[[ -e $ctl/no-bar ]] && rm "$stage/bundle/bin/maprisma-manager-applet" "$stage/bundle/bin/maprisma-manager-tray"
+printf '#!/bin/sh\nexit 0\n' > "$stage/bundle/bin/maprisma-settings-applet"
+printf '#!/bin/sh\nls -l /proc/$$/fd > "$HOME/.mm-test/tray-fds"\n' > "$stage/bundle/bin/maprisma-settings-tray"
+chmod 755 "$stage/bundle/bin/maprisma-settings-applet" "$stage/bundle/bin/maprisma-settings-tray"
+[[ -e $ctl/no-bar ]] && rm "$stage/bundle/bin/maprisma-settings-applet" "$stage/bundle/bin/maprisma-settings-tray"
+# the old names, as the real install-local's compat_links makes them
+ln -s maprisma-settings "$stage/bundle/maprisma-manager"
+for f in core applet tray; do
+  [[ -e $stage/bundle/bin/maprisma-settings-$f ]] && ln -s "maprisma-settings-$f" "$stage/bundle/bin/maprisma-manager-$f"
+done
 cp "$here/tools/real-install-local" "$stage/tools/install-local"
 [[ -e $ctl/bad-integrate ]] && printf '#!/bin/sh\n[ "$1" = --integrate ] && exit 1\nexit 0\n' > "$stage/tools/install-local"
 cp "$here/tools/self-update" "$stage/tools/self-update"
@@ -58,7 +64,7 @@ echo "staged build $build"
 const _tools = [
   'sh', 'bash', 'cp', 'mv', 'rm', 'mkdir', 'chmod', 'ln', 'cat', 'sleep', 'setsid', 'head', 'grep', 'mktemp',
   'readlink', 'ls', 'touch', 'env', 'dirname', 'basename', 'true', 'false', 'printf', 'rmdir', 'echo', 'date',
-  'seq', 'install', 'kill', 'flock', 'sed', 'cut',
+  'seq', 'install', 'kill', 'flock', 'sed', 'cut', 'stat',
 ];
 
 void main() {
@@ -89,7 +95,7 @@ void main() {
     File(p.join(_repoRoot, 'tools/install-local')).copySync(p.join(repo, 'tools/real-install-local'));
     File(p.join(_repoRoot, 'tools/self-update')).copySync(p.join(repo, 'tools/self-update'));
     File(p.join(_repoRoot, 'tools/procs.sh')).copySync(p.join(repo, 'tools/procs.sh'));
-    for (final f in ['com.maprisma.Manager.desktop', 'com.maprisma.Manager.svg', 'com.maprisma.Manager.Tray.desktop', 'io.github.ubruckhaus.CosmicMaprismaManager.desktop', 'io.github.ubruckhaus.CosmicMaprismaManager-symbolic.svg']) {
+    for (final f in Directory(p.join(_repoRoot, 'packaging')).listSync().map((e) => p.basename(e.path))) {
       w.writeFile(p.join(repo, 'packaging', f), File(p.join(_repoRoot, 'packaging', f)).readAsStringSync());
     }
   });
@@ -108,13 +114,13 @@ void main() {
   }
 
   Future<Map<String, dynamic>> run(CoreService c, String kind) async {
-    final j = await c.call('jobs.start', {'app': 'manager', 'kind': kind});
+    final j = await c.call('jobs.start', {'app': 'settings', 'kind': kind});
     return c.jobs.done(j['id'] as String)!;
   }
 
-  String lib() => p.join(w.home, '.local/lib/maprisma-manager');
+  String lib() => p.join(w.home, '.local/lib/maprisma-settings');
   String selfDir() => p.join(w.paths.managerState, 'self-update');
-  Map<String, dynamic> receipt() => jsonDecode(File(p.join(w.paths.receipts, 'manager.json')).readAsStringSync()) as Map<String, dynamic>;
+  Map<String, dynamic> receipt() => jsonDecode(File(p.join(w.paths.receipts, 'settings.json')).readAsStringSync()) as Map<String, dynamic>;
 
   Future<String> waitStatus(String id, bool Function(String) done) async {
     final f = File(p.join(selfDir(), '$id.status'));
@@ -132,10 +138,20 @@ void main() {
     expect(job['state'], 'succeeded', reason: File(job['log'] as String).readAsStringSync());
     expect(job['result']['selfUpdate']['state'], 'done');
     expect(File(p.join(lib(), 'lib/libapp.so')).readAsStringSync(), 'lib 1\n');
+    expect(Link(p.join(w.home, '.local/bin/maprisma-settings')).targetSync(), p.join(lib(), 'maprisma-settings'));
+    expect(Link(p.join(w.home, '.local/bin/maprisma-settings-core')).targetSync(), p.join(lib(), 'bin/maprisma-settings-core'));
+    // the old names: links to the bundle's links of the old name, which point to the new programs
     expect(Link(p.join(w.home, '.local/bin/maprisma-manager')).targetSync(), p.join(lib(), 'maprisma-manager'));
     expect(Link(p.join(w.home, '.local/bin/maprisma-manager-core')).targetSync(), p.join(lib(), 'bin/maprisma-manager-core'));
-    final entry = File(p.join(w.paths.apps, 'com.maprisma.Manager.desktop')).readAsStringSync();
-    expect(entry, contains('Exec="${p.join(w.home, '.local/bin/maprisma-manager')}"'));
+    expect(File(p.join(w.home, '.local/bin/maprisma-manager')).resolveSymbolicLinksSync(), p.join(lib(), 'maprisma-settings'));
+    final entry = File(p.join(w.paths.apps, 'com.maprisma.Settings.desktop')).readAsStringSync();
+    expect(entry, contains('Exec="${p.join(w.home, '.local/bin/maprisma-settings')}"'));
+    expect(entry, contains('Name=Maprisma Settings'));
+    expect(entry, isNot(contains('NoDisplay')));
+    final compat = File(p.join(w.paths.apps, 'com.maprisma.Manager.desktop')).readAsStringSync();
+    expect(compat, contains('NoDisplay=true'));
+    expect(compat, contains('Exec="${p.join(w.home, '.local/bin/maprisma-settings')}"'));
+    expect(File(p.join(w.paths.icons, 'com.maprisma.Settings.svg')).existsSync(), isTrue);
     expect(File(p.join(w.paths.icons, 'com.maprisma.Manager.svg')).existsSync(), isTrue);
     final r = receipt();
     expect(r['version'], '0.1.1');
@@ -145,12 +161,12 @@ void main() {
     expect(Directory(p.join(selfDir(), job['id'] as String)).existsSync(), isFalse);
     expect(File(p.join(ctl, 'started')).existsSync(), isFalse);
     final list = await c.call('apps.list');
-    final m = appOf(list, 'manager');
+    final m = appOf(list, 'settings');
     expect(m['state'], 'installed');
     expect(m['build']['known'], isTrue);
     expect(m['support']['install'], isTrue);
     expect(m['support']['remove'], isFalse);
-    expect(m['icon']['file'], p.join(w.paths.icons, 'com.maprisma.Manager.svg'));
+    expect(m['icon']['file'], p.join(w.paths.icons, 'com.maprisma.Settings.svg'));
   });
 
   test('without cargo (no bar binaries): the self-update succeeds, the Manager is partly installed (no bar icon)', () async {
@@ -159,7 +175,7 @@ void main() {
     final job = await run(c, 'install');
     expect(job['state'], 'succeeded', reason: File(job['log'] as String).readAsStringSync());
     expect(File(job['log'] as String).readAsStringSync(), contains('partly installed: no bar icon'));
-    final m = appOf(await c.call('apps.list'), 'manager');
+    final m = appOf(await c.call('apps.list'), 'settings');
     expect(m['state'], 'partial');
     // the bar icon's picture is there anyway (the main part)
     expect(File(p.join(w.paths.icons, 'io.github.ubruckhaus.CosmicMaprismaManager-symbolic.svg')).existsSync(), isTrue);
@@ -182,7 +198,7 @@ void main() {
     expect((await run(c, 'install'))['state'], 'succeeded');
     File(p.join(ctl, 'build')).writeAsStringSync('2');
     // a Manager window of the installed build
-    w.process(424242, exe: p.join(lib(), 'maprisma-manager'), start: 777);
+    w.process(424242, exe: p.join(lib(), 'maprisma-settings'), start: 777);
     final job = await run(c, 'reinstall');
     final id = job['id'] as String;
     expect(job['state'], 'succeeded', reason: File(job['log'] as String).readAsStringSync());
@@ -193,6 +209,7 @@ void main() {
     // nothing swapped while the window is open; a second Manager job is refused meanwhile
     await Future<void>.delayed(const Duration(milliseconds: 400));
     expect(File(p.join(lib(), 'lib/libapp.so')).readAsStringSync(), 'lib 1\n');
+    // (by its old id too)
     await expectLater(c.call('jobs.start', {'app': 'manager', 'kind': 'reinstall'}), throwsA(isA<RouteError>().having((e) => e.code, 'code', 'busy')));
     // nothing else starts either while the window has to quit for it
     await expectLater(c.call('jobs.start', {'app': 'wlan', 'kind': 'install'}), throwsA(isA<RouteError>().having((e) => e.code, 'code', 'busy')));
@@ -216,34 +233,34 @@ void main() {
     // only once
     expect(() => finishSelfUpdate(w.paths, id), throwsA(isA<RouteError>().having((e) => e.code, 'code', 'finished')));
     // no old bundle left beside it
-    expect(Directory(p.dirname(lib())).listSync().map((e) => p.basename(e.path)), ['maprisma-manager']);
+    expect(Directory(p.dirname(lib())).listSync().map((e) => p.basename(e.path)), ['maprisma-settings']);
   });
 
   test('a new Manager that is not ready in time: rolled back to the old bundle, the old one started, the job failed', () async {
     final c = core();
     expect((await run(c, 'install'))['state'], 'succeeded');
-    final oldEntry = File(p.join(w.paths.apps, 'com.maprisma.Manager.desktop')).readAsStringSync();
+    final oldEntry = File(p.join(w.paths.apps, 'com.maprisma.Settings.desktop')).readAsStringSync();
     File(p.join(ctl, 'build')).writeAsStringSync('3');
     File(p.join(ctl, 'never-ready')).writeAsStringSync('');
-    w.process(424243, exe: p.join(lib(), 'maprisma-manager'), start: 778);
+    w.process(424243, exe: p.join(lib(), 'maprisma-settings'), start: 778);
     final job = await run(c, 'reinstall');
     final id = job['id'] as String;
     expect(job['result']['restart'], isTrue);
     Directory(p.join(w.proc, '424243')).deleteSync(recursive: true);
     final s = await waitStatus(id, (s) => s == 'done' || s.startsWith('rolled') || s.startsWith('failed'));
-    expect(s, startsWith('rolled back: the new Manager wasn\'t ready within 3 s'));
+    expect(s, startsWith('rolled back: the new Maprisma Settings wasn\'t ready within 3 s'));
     expect(File(p.join(lib(), 'lib/libapp.so')).readAsStringSync(), 'lib 1\n');
-    expect(File(p.join(w.paths.apps, 'com.maprisma.Manager.desktop')).readAsStringSync(), oldEntry);
+    expect(File(p.join(w.paths.apps, 'com.maprisma.Settings.desktop')).readAsStringSync(), oldEntry);
     // the old build was started again (it writes "started build 1")
     expect(File(p.join(ctl, 'started')).readAsStringSync(), contains('started build 1'));
     final call = File(p.join(ctl, 'core-calls')).readAsStringSync().trim();
     expect(call, startsWith('self-update-done $id --failed'));
-    finishSelfUpdate(w.paths, id, failed: 'the new Manager wasn\'t ready within 3 s; the old build is back');
+    finishSelfUpdate(w.paths, id, failed: 'the new Maprisma Settings wasn\'t ready within 3 s; the old build is back');
     final j = await c.call('jobs.get', {'id': id});
     expect(j['state'], 'failed');
     expect(j['result']['code'], 'self_update_failed');
     expect(receipt()['version'], '0.1.1');
-    expect(Directory(p.dirname(lib())).listSync().map((e) => p.basename(e.path)), ['maprisma-manager']);
+    expect(Directory(p.dirname(lib())).listSync().map((e) => p.basename(e.path)), ['maprisma-settings']);
   });
 
   test('linking the new build fails: rolled back before the new one starts, the old bundle back', () async {
@@ -256,7 +273,7 @@ void main() {
     expect(job['result']['code'], 'self_update_failed');
     expect(job['result']['message'], contains('linking the new build failed'));
     expect(File(p.join(lib(), 'lib/libapp.so')).readAsStringSync(), 'lib 1\n');
-    expect(Directory(p.dirname(lib())).listSync().map((e) => p.basename(e.path)), ['maprisma-manager']);
+    expect(Directory(p.dirname(lib())).listSync().map((e) => p.basename(e.path)), ['maprisma-settings']);
   });
 
   test('another install holds the lock: the helper changes nothing', () async {
@@ -273,7 +290,7 @@ void main() {
     expect(File(p.join(lib(), 'lib/libapp.so')).readAsStringSync(), 'lib 1\n');
   });
 
-  test('self-update-done also finishes a job whose window closed before it wrote its result', () async {
+  test('self-update-done also finishes a job whose window closed before it wrote its result (a job of the old id)', () async {
     final c = core();
     expect((await run(c, 'install'))['state'], 'succeeded');
     final id = '20261109T120000Z-manager-update';
@@ -286,6 +303,78 @@ void main() {
     expect(r['state'], 'succeeded');
     expect(r['selfUpdate'], 'done');
     expect(receipt()['job'], id);
+  });
+
+  test('across the rename: a Manager from before it updates into this build; the old folders become links', () async {
+    // an install of before the rename, by hand: bundle, links, settings, state, entries
+    final oldLib = p.join(w.home, '.local/lib/maprisma-manager');
+    w.writeFile(p.join(oldLib, 'maprisma-manager'), '#!/bin/sh\nexit 0\n', mode: '755');
+    w.writeFile(p.join(oldLib, 'lib/libapp.so'), 'lib old\n');
+    w.writeFile(p.join(oldLib, 'bin/maprisma-manager-core'), '#!/bin/sh\necho "maprisma-manager-core 0.3.1"\n', mode: '755');
+    Directory(p.join(w.home, '.local/bin')).createSync(recursive: true);
+    Link(p.join(w.home, '.local/bin/maprisma-manager')).createSync(p.join(oldLib, 'maprisma-manager'));
+    final oldConfig = p.join(w.home, '.config/maprisma-manager');
+    w.writeFile(p.join(oldConfig, 'settings.json'), '{"language":"de","window_size":[900,700]}');
+    final oldState = p.join(w.home, '.local/state/maprisma-manager');
+    w.writeFile(p.join(oldState, 'installed/manager.json'), jsonEncode({'schema': 1, 'id': 'manager', 'at': '2026-11-13T00:00:00Z', 'inputs': []}));
+    w.writeFile(p.join(oldState, 'bar.json'), jsonEncode({'hyprland': {'manager': {'placed': true, 'area': 'right'}, 'wlan': {'placed': false}}}));
+    w.writeFile(p.join(w.paths.apps, 'com.maprisma.Manager.desktop'), '[Desktop Entry]\nName=Maprisma Manager\nExec=maprisma-manager\n');
+    w.writeFile(p.join(w.home, '.config/autostart/com.maprisma.Manager.Tray.desktop'), '[Desktop Entry]\nExec=maprisma-manager-tray\nHidden=true\n');
+
+    // the new build, staged as the old Manager stages it (the repo's install-local --stage)
+    File(p.join(ctl, 'build')).writeAsStringSync('7');
+    final env = {'HOME': w.home, 'PATH': sysbin, 'XDG_CURRENT_DESKTOP': 'COSMIC'};
+    final stage = p.join(oldState, 'self-update', 'stage-7');
+    final staged = await Process.run('bash', [p.join(repo, 'tools/install-local'), '--stage', stage], environment: env, includeParentEnvironment: false);
+    expect(staged.exitCode, 0, reason: '${staged.stdout}${staged.stderr}');
+    // what the old Manager's checks look for (its _stageFiles and `version` answer)
+    for (final f in ['bundle/maprisma-manager', 'bundle/bin/maprisma-manager-core', 'packaging/com.maprisma.Manager.desktop', 'packaging/com.maprisma.Manager.svg']) {
+      expect(FileSystemEntity.typeSync(p.join(stage, f)), FileSystemEntityType.file, reason: f);
+    }
+    final v = await Process.run(p.join(stage, 'bundle/bin/maprisma-manager-core'), ['version'], environment: env, includeParentEnvironment: false);
+    expect('${v.stdout}', startsWith('maprisma-manager-core '));
+
+    // the old Manager starts the stage's helper with the folders of the old name
+    final helper = p.join(oldState, 'self-update', 'helper');
+    File(p.join(repo, 'tools/self-update')).copySync(helper);
+    const id = '20261113T120000Z-manager-update';
+    final run = await Process.run('bash', [
+      helper, '--job', id, '--stage', stage, '--lib', oldLib, '--state', p.join(oldState, 'self-update'),
+      '--proc', w.proc, '--restart', '0', '--ready-timeout', '3', '--wait-timeout', '5',
+    ], environment: env, includeParentEnvironment: false);
+    final status = File(p.join(oldState, 'self-update', '$id.status'));
+    expect(status.readAsStringSync().trim(), 'done', reason: '${run.stderr}${File(p.join(oldState, 'self-update', '$id.log')).readAsStringSync()}');
+
+    // the folders: renamed (not copied), links of the old name left
+    for (final (old, renamed) in [(oldLib, lib()), (oldConfig, p.join(w.home, '.config/maprisma-settings')), (oldState, p.join(w.home, '.local/state/maprisma-settings'))]) {
+      expect(FileSystemEntity.isLinkSync(old), isTrue, reason: old);
+      expect(Link(old).targetSync(), p.basename(renamed));
+      expect(FileSystemEntity.isDirectorySync(renamed), isTrue);
+    }
+    expect(File(p.join(lib(), 'lib/libapp.so')).readAsStringSync(), 'lib 7\n');
+    expect(File(p.join(w.home, '.config/maprisma-settings/settings.json')).readAsStringSync(), contains('"language":"de"'));
+    // the old paths still lead to the same files (older tools, the old Manager's job reading the status)
+    expect(File(p.join(oldConfig, 'settings.json')).readAsStringSync(), contains('"language":"de"'));
+    expect(File(p.join(w.home, '.local/bin/maprisma-manager')).resolveSymbolicLinksSync(), p.join(lib(), 'maprisma-settings'));
+    expect(File(p.join(w.home, '.local/bin/maprisma-settings')).resolveSymbolicLinksSync(), p.join(lib(), 'maprisma-settings'));
+    // the entries: the new one, the old id hidden; the tray's Hidden=true carried over
+    expect(File(p.join(w.paths.apps, 'com.maprisma.Settings.desktop')).readAsStringSync(), contains('Name=Maprisma Settings'));
+    expect(File(p.join(w.paths.apps, 'com.maprisma.Manager.desktop')).readAsStringSync(), contains('NoDisplay=true'));
+    final autostart = p.join(w.home, '.config/autostart');
+    expect(File(p.join(autostart, 'com.maprisma.Manager.Tray.desktop')).existsSync(), isFalse);
+    expect(File(p.join(autostart, 'com.maprisma.Settings.Tray.desktop')).readAsLinesSync(), contains('Hidden=true'));
+
+    // the first start of the new core: the state of the old id gets the new one
+    final c = core();
+    final hello = await c.call('core.hello');
+    expect(hello['migrated'], containsAll(['receipt manager -> settings', 'bar.json manager -> settings']));
+    expect(File(p.join(w.paths.receipts, 'manager.json')).existsSync(), isFalse);
+    expect(jsonDecode(File(p.join(w.paths.receipts, 'settings.json')).readAsStringSync())['id'], 'settings');
+    expect((jsonDecode(File(p.join(w.paths.managerState, 'bar.json')).readAsStringSync()) as Map)['hyprland'].keys, ['wlan', 'settings']);
+    // the old id still names the app
+    expect((await c.call('apps.get', {'id': 'manager'}))['app']['id'], 'settings');
+    // a second start has nothing to do
+    expect((await core().call('core.hello'))['migrated'], isNull);
   });
 
   test('a stage without the core is refused before anything is touched', () async {
@@ -301,7 +390,7 @@ void main() {
 
   test('the Manager is not removed by itself: self_remove names the terminal script', () async {
     final c = core();
-    await expectLater(c.call('jobs.start', {'app': 'manager', 'kind': 'remove'}),
+    await expectLater(c.call('jobs.start', {'app': 'settings', 'kind': 'remove'}),
         throwsA(isA<RouteError>().having((e) => e.code, 'code', 'self_remove').having((e) => e.message, 'message', contains('tools/uninstall-local'))));
     await expectLater(c.call('apps.remove_plan', {'id': 'manager'}), throwsA(isA<RouteError>().having((e) => e.code, 'code', 'self_remove')));
   });

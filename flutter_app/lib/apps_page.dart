@@ -1,4 +1,4 @@
-import 'package:maprisma_manager_core/maprisma_manager_core.dart' show tr, trf;
+import 'package:maprisma_manager_core/maprisma_manager_core.dart' show canonicalAppId, selfApp, tr, trf;
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -169,10 +169,10 @@ class AppsPageState extends State<AppsPage> {
     unawaited(_load());
     if (!mounted) return;
     final r = j.result;
-    if (j.app == 'manager' && r['restart'] == true) {
+    if (canonicalAppId(j.app) == selfApp && r['restart'] == true) {
       // Jobs this window already started finish first (the core starts no new one meanwhile).
       if (widget.jobs.busy) {
-        tell(tr('Maprisma Manager restarts with the new build when the other jobs have finished'));
+        tell(tr('Maprisma Settings restarts with the new build when the other jobs have finished'));
         void waitThem() {
           if (widget.jobs.busy) return;
           widget.jobs.removeListener(waitThem);
@@ -182,7 +182,7 @@ class AppsPageState extends State<AppsPage> {
         widget.jobs.addListener(waitThem);
         return;
       }
-      tell(tr('Maprisma Manager restarts with the new build…'));
+      tell(tr('Maprisma Settings restarts with the new build…'));
       Timer(const Duration(milliseconds: 1500), () => widget.onRestart?.call());
       return;
     }
@@ -534,7 +534,7 @@ class AppsPageState extends State<AppsPage> {
                     marks.fresh,
                   ),
                 if (inst && buildUnknown(a))
-                  _mark(tr('Installed before the Manager: the build is unknown (Reinstall records it)'), Icons.help_outline, scheme.onSurfaceVariant),
+                  _mark(tr('Installed before Maprisma Settings: the build is unknown (Reinstall records it)'), Icons.help_outline, scheme.onSurfaceVariant),
                 if (needsRepair(a))
                   _mark(
                     trf('The last job was interrupted or failed while it changed files: {0}', [(a['job'] as Map?)?['result']?['message'] ?? tr('Repair reinstalls it')]),
@@ -640,7 +640,7 @@ class AppsPageState extends State<AppsPage> {
                   // In a narrow window the title gives way to the toolbar's buttons.
                   Expanded(
                     child: Text(
-                      tr('Apps'),
+                      tr('Maprisma Apps'),
                       key: const ValueKey('apps-title'),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -729,7 +729,7 @@ class AppsPageState extends State<AppsPage> {
                           Padding(
                             padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
                             child: Text(
-                              tr('Found in the projects folder or the maprisma GitHub org. The Manager can install them once they have a catalog entry.'),
+                              tr('Found in the projects folder or the maprisma GitHub org. Maprisma Settings can install them once they have a catalog entry.'),
                               style: Theme.of(context).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
                             ),
                           ),

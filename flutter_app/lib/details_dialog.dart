@@ -145,7 +145,7 @@ class _DetailsDialogState extends State<DetailsDialog> {
                       _line(tr('State'), _text(trf('{0}{1}', [uiLabel(a['state']), missingParts(a).isEmpty ? '' : trf(' (no {0})', [missingParts(a).join(', ')])]))),
                       _line(tr('Version'), _text(trf('{0}{1}', [versions['installed'] ?? tr('unknown'), versions['folder'] != null ? trf('  (folder: {0})', [versions['folder']]) : '']))),
                       if (receipt == null)
-                        _line(tr('Build'), _text(build['error'] != null ? trf('receipt not readable: {0}', [build['error']]) : tr('unknown: installed before the Manager')))
+                        _line(tr('Build'), _text(build['error'] != null ? trf('receipt not readable: {0}', [build['error']]) : tr('unknown: installed before Maprisma Settings')))
                       else ...[
                         _line(tr('Installed'), _text(trf('{0} UTC', ['${receipt['at']}'.replaceFirst('T', ' ').split('.').first]))),
                         for (final i in (receipt['inputs'] as List?) ?? const [])

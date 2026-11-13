@@ -233,7 +233,7 @@ final class AnimationsService {
     return _serial(() async {
       final state = hypr.read();
       final anim = state['animations'] as Map<String, dynamic>;
-      // The config's own curves, from before the Manager's first change.
+      // The config's own curves, from before Maprisma Settings's first change.
       if (anim['base'] is! Map) {
         anim['base'] = baseFrom(await _live());
         final on = await hypr.option('animations.enabled');

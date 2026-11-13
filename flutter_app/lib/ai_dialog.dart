@@ -244,7 +244,7 @@ class AiDialogState extends State<AiDialog> {
                   _helperRow(scheme),
                   const SizedBox(height: 8),
                   Text(
-                    tr('The helper sees the apps\' status and the results, and tells the Manager what to do. The Manager only updates or reinstalls apps and fetches Flutter packages: no code changes, no push, no password. Maprisma and the Manager itself keep their own Update buttons.'),
+                    tr('The helper sees the apps\' status and the results, and tells Maprisma Settings what to do. Maprisma Settings only updates or reinstalls apps and fetches Flutter packages: no code changes, no push, no password. Maprisma and Maprisma Settings itself keep their own Update buttons.'),
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
                   ),
                   if (ready.isEmpty)

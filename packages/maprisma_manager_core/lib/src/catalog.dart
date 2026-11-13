@@ -8,6 +8,7 @@
 library;
 
 import 'catalog_model.dart';
+import 'paths.dart' show selfAppId, legacySelfAppId;
 
 export 'catalog_model.dart';
 
@@ -833,59 +834,75 @@ final List<AppEntry> builtinCatalog = [
     note: 'Its bar is the bar for the others on Hyprland.',
   ),
 
-  // --- the Manager itself ------------------------------------------------------------------
+  // --- the app itself (Maprisma Settings, formerly Maprisma Manager) ------------------------
+  // The old names stay working: id `manager` ([legacySelfAppId], [findApp]), the repo folder
+  // maprisma-manager ([repoFolderAliases]), the programs maprisma-manager{,-core,-applet,-tray}
+  // (links), the hidden com.maprisma.Manager entry and the folders of the old name (links,
+  // [migrateLegacyFolders]). The bar icon keeps its ids (COSMIC applet, tray item `maprisma-manager`,
+  // icon name): the panels and Maprisma Shell's bar.json name it by them.
   const AppEntry(
     id: selfApp,
-    name: 'Maprisma Manager',
+    name: 'Maprisma Settings',
     kind: 'flutter',
     inputs: [Input('maprisma-manager')],
-    appIcon: 'com.maprisma.Manager',
+    appIcon: 'com.maprisma.Settings',
     components: [
       Component(
         id: 'main',
-        name: 'Maprisma Manager',
+        name: 'Maprisma Settings',
         repo: 'maprisma-manager',
         install: ['tools/install-local'],
         flutter: FlutterEnv.path,
         stopsOwnProcesses: true,
         optionalParts: {'bar icon'},
         prerequisites: [Prerequisite('flutter'), Prerequisite('dart'), Prerequisite('bash'), Prerequisite('setsid')],
-        trees: [TreeRoot('{lib}/maprisma-manager', swap: true, note: 'the Flutter bundle with bin/ (core CLI, COSMIC applet, tray); swapped in by the self-update helper once the Manager has quit')],
-        note: 'Updates itself: tools/install-local --stage builds and checks the new bundle, a helper swaps it in after the Manager quit and starts it again.',
+        trees: [TreeRoot('{lib}/maprisma-settings', swap: true, note: 'the Flutter bundle with bin/ (core CLI, COSMIC applet, tray); swapped in by the self-update helper once the app has quit')],
+        note: 'Updates itself: tools/install-local --stage builds and checks the new bundle, a helper swaps it in after the app quit and starts it again.',
         paths: [
-          InstalledPath('{lib}/maprisma-manager/maprisma-manager', PathKind.executable, key: true),
-          InstalledPath('{lib}/maprisma-manager/lib/libapp.so', PathKind.file),
-          InstalledPath('{lib}/maprisma-manager/data/flutter_assets/version.json', PathKind.file),
-          InstalledPath('{lib}/maprisma-manager/bin/maprisma-manager-core', PathKind.executable, note: 'the core CLI'),
-          InstalledPath('{bin}/maprisma-manager', PathKind.link, target: '{lib}/maprisma-manager/maprisma-manager'),
-          InstalledPath('{bin}/maprisma-manager-core', PathKind.link, target: '{lib}/maprisma-manager/bin/maprisma-manager-core'),
-          InstalledPath('{apps}/com.maprisma.Manager.desktop', PathKind.file),
-          InstalledPath('{icons}/com.maprisma.Manager.svg', PathKind.file),
+          InstalledPath('{lib}/maprisma-settings/maprisma-settings', PathKind.executable, key: true),
+          InstalledPath('{lib}/maprisma-settings/lib/libapp.so', PathKind.file),
+          InstalledPath('{lib}/maprisma-settings/data/flutter_assets/version.json', PathKind.file),
+          InstalledPath('{lib}/maprisma-settings/bin/maprisma-settings-core', PathKind.executable, note: 'the core CLI'),
+          InstalledPath('{bin}/maprisma-settings', PathKind.link, target: '{lib}/maprisma-settings/maprisma-settings'),
+          InstalledPath('{bin}/maprisma-settings-core', PathKind.link, target: '{lib}/maprisma-settings/bin/maprisma-settings-core'),
+          // the old names: links in the bundle, and in ~/.local/bin to those
+          InstalledPath('{lib}/maprisma-settings/maprisma-manager', PathKind.link, target: '{lib}/maprisma-settings/maprisma-settings', note: 'the old name'),
+          InstalledPath('{lib}/maprisma-settings/bin/maprisma-manager-core', PathKind.link, target: '{lib}/maprisma-settings/bin/maprisma-settings-core', note: 'the old name'),
+          InstalledPath('{bin}/maprisma-manager', PathKind.link, target: '{lib}/maprisma-settings/maprisma-manager', note: 'the old name'),
+          InstalledPath('{bin}/maprisma-manager-core', PathKind.link, target: '{lib}/maprisma-settings/bin/maprisma-manager-core', note: 'the old name'),
+          InstalledPath('{apps}/com.maprisma.Settings.desktop', PathKind.file),
+          InstalledPath('{apps}/com.maprisma.Manager.desktop', PathKind.file, note: 'the old id: hidden, starts maprisma-settings'),
+          InstalledPath('{icons}/com.maprisma.Settings.svg', PathKind.file),
+          InstalledPath('{icons}/com.maprisma.Manager.svg', PathKind.file, note: 'the old icon name'),
           // installed also without the bar icon (a no-cargo build): it is the bar icon's picture
           InstalledPath('{icons}/${_c}Manager-symbolic.svg', PathKind.file),
           // The bar icon (bar/: Rust; the build leaves it out without cargo).
-          InstalledPath('{lib}/maprisma-manager/bin/maprisma-manager-applet', PathKind.executable, note: 'the COSMIC applet', part: 'bar icon'),
-          InstalledPath('{lib}/maprisma-manager/bin/maprisma-manager-tray', PathKind.executable, note: 'the tray (KDE, Maprisma Shell)', part: 'bar icon'),
-          InstalledPath('{bin}/maprisma-manager-applet', PathKind.link, target: '{lib}/maprisma-manager/bin/maprisma-manager-applet', part: 'bar icon'),
-          InstalledPath('{bin}/maprisma-manager-tray', PathKind.link, target: '{lib}/maprisma-manager/bin/maprisma-manager-tray', part: 'bar icon'),
+          InstalledPath('{lib}/maprisma-settings/bin/maprisma-settings-applet', PathKind.executable, note: 'the COSMIC applet', part: 'bar icon'),
+          InstalledPath('{lib}/maprisma-settings/bin/maprisma-settings-tray', PathKind.executable, note: 'the tray (KDE, Maprisma Shell)', part: 'bar icon'),
+          InstalledPath('{bin}/maprisma-settings-applet', PathKind.link, target: '{lib}/maprisma-settings/bin/maprisma-settings-applet', part: 'bar icon'),
+          InstalledPath('{bin}/maprisma-settings-tray', PathKind.link, target: '{lib}/maprisma-settings/bin/maprisma-settings-tray', part: 'bar icon'),
+          InstalledPath('{lib}/maprisma-settings/bin/maprisma-manager-applet', PathKind.link, target: '{lib}/maprisma-settings/bin/maprisma-settings-applet', note: 'the old name', part: 'bar icon'),
+          InstalledPath('{lib}/maprisma-settings/bin/maprisma-manager-tray', PathKind.link, target: '{lib}/maprisma-settings/bin/maprisma-settings-tray', note: 'the old name', part: 'bar icon'),
+          InstalledPath('{bin}/maprisma-manager-applet', PathKind.link, target: '{lib}/maprisma-settings/bin/maprisma-manager-applet', note: 'the old name', part: 'bar icon'),
+          InstalledPath('{bin}/maprisma-manager-tray', PathKind.link, target: '{lib}/maprisma-settings/bin/maprisma-manager-tray', note: 'the old name', part: 'bar icon'),
           InstalledPath('{apps}/${_c}Manager.desktop', PathKind.file, note: 'the COSMIC applet', part: 'bar icon'),
 
-          InstalledPath('{autostart}/com.maprisma.Manager.Tray.desktop', PathKind.file, note: 'the tray', part: 'bar icon'),
+          InstalledPath('{autostart}/com.maprisma.Settings.Tray.desktop', PathKind.file, note: 'the tray', part: 'bar icon'),
         ],
       ),
     ],
-    data: [DataPath('{config}/maprisma-manager'), DataPath('{state}/maprisma-manager')],
-    processes: [ProcessMatch(MatchKind.exeUnder, '{lib}/maprisma-manager', note: 'app, core, applet, tray')],
+    data: [DataPath('{config}/maprisma-settings'), DataPath('{state}/maprisma-settings')],
+    processes: [ProcessMatch(MatchKind.exeUnder, '{lib}/maprisma-settings', note: 'app, core, applet, tray')],
     bar: BarIcon(
       cosmicApplet: '${_c}Manager',
-      cosmicAppletExe: '{bin}/maprisma-manager-applet',
+      cosmicAppletExe: '{bin}/maprisma-settings-applet',
       kdeId: 'maprisma-manager',
-      kdeAutostart: '{autostart}/com.maprisma.Manager.Tray.desktop',
-      kdeTrayExe: '{lib}/maprisma-manager/bin/maprisma-manager-tray',
+      kdeAutostart: '{autostart}/com.maprisma.Settings.Tray.desktop',
+      kdeTrayExe: '{lib}/maprisma-settings/bin/maprisma-settings-tray',
       iconName: '${_c}Manager-symbolic',
     ),
     version: VersionSource(
-      installedJson: '{lib}/maprisma-manager/data/flutter_assets/version.json',
+      installedJson: '{lib}/maprisma-settings/data/flutter_assets/version.json',
       folderFile: 'flutter_app/pubspec.yaml',
       folderPattern: r'^version: *([0-9.]+)',
     ),
@@ -897,8 +914,16 @@ final List<AppEntry> builtinCatalog = [
   ),
 ];
 
-/// The Manager's own id (its install and update go through the self-update helper).
-const selfApp = 'manager';
+/// The app's own id (its install and update go through the self-update helper): `settings`; the
+/// one of before the rename (`manager`) is accepted by [findApp].
+const selfApp = selfAppId;
+
+/// Old ids → the current ones (ids from before a rename: receipts, jobs, the CLI, other apps).
+const appIdAliases = {legacySelfAppId: selfAppId};
+
+/// Repo folders under another name: a folder of the catalog's name wins, else the first alias
+/// that exists (the user may rename maprisma-manager to maprisma-settings any time).
+const repoFolderAliases = {'maprisma-manager': ['maprisma-settings']};
 
 /// Tests only: another catalog (e.g. the built-in one plus a fake app).
 List<AppEntry>? catalogOverride;
@@ -909,8 +934,12 @@ AppEntry? findApp(String id) {
   for (final a in catalog) {
     if (a.id == id) return a;
   }
-  return null;
+  final now = appIdAliases[id];
+  return now == null ? null : findApp(now);
 }
+
+/// [id] with an old id replaced by its current one.
+String canonicalAppId(String id) => appIdAliases[id] ?? id;
 
 /// Every repo folder the catalog uses (for finding the projects folder).
 Set<String> get catalogRepos => {for (final a in catalog) for (final i in a.inputs) i.repo};

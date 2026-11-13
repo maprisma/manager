@@ -53,7 +53,7 @@ class NativeSection extends StatelessWidget {
       children: [
         SettingsItem(
           title: trf('This is set in {0}', [name]),
-          description: trf('This desktop has its own settings app for {0}; the Manager leaves it to it.', [what]),
+          description: trf('This desktop has its own settings app for {0}; Maprisma Settings leaves it to it.', [what]),
           trailing: links.length == 1
               ? FilledButton.tonal(
                   key: const ValueKey('native-open-0'),

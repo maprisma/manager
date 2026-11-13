@@ -1,7 +1,7 @@
 /// GitHub facts (plan: "GitHub"): where an app's repo is on GitHub, whether it is public, its
 /// default branch and latest release with its assets. Read through `gh api` when gh is installed
 /// and logged in, else the public REST API without a token. Cached in
-/// `~/.local/state/maprisma-manager/github.json` with the time they were checked; refreshed only
+/// `~/.local/state/maprisma-settings/github.json` with the time they were checked; refreshed only
 /// by `github.refresh` (and a release job), at most every [githubInterval] unless forced. Offline:
 /// the last known facts with their age.
 ///
@@ -22,6 +22,7 @@ import 'package:path/path.dart' as p;
 import 'bar_cosmic.dart' show atomicWrite, withStateLock;
 import 'catalog.dart';
 import 'context.dart';
+import 'paths.dart' show appFolder;
 
 /// How long checked facts count as fresh.
 const githubInterval = Duration(minutes: 30);
@@ -31,8 +32,10 @@ const githubOrg = 'maprisma';
 
 /// The org repo names an input repo may have there: `maprisma-theme` → `maprisma-theme`, `theme`.
 List<String> orgNamesFor(String repo) {
-  final r = repo.toLowerCase();
-  return [r, if (r.startsWith('maprisma-') && r.length > 9) r.substring(9)];
+  return [
+    for (final name in [repo, ...?repoFolderAliases[repo]])
+      for (final r in [name.toLowerCase()]) ...[r, if (r.startsWith('maprisma-') && r.length > 9) r.substring(9)],
+  ];
 }
 
 /// The first GitHub slug among a folder's remotes: `origin` first, then by name.
@@ -221,7 +224,7 @@ final class GitHub {
   bool get offline => ctx.environment['MAPRISMA_MANAGER_OFFLINE'] == '1';
 
   String get cacheFile => p.join(ctx.paths.managerState, 'github.json');
-  String get downloads => p.join(ctx.paths.cache, 'maprisma-manager', 'downloads');
+  String get downloads => p.join(ctx.paths.cache, appFolder, 'downloads');
 
   /// GitHub repos of catalog inputs that have none in the catalog, found by [resolveLinks]:
   /// input repo → slug and how (`remote`: a remote of its folder; `org`: the org repo of its name).
@@ -416,7 +419,7 @@ final class GitHub {
       final req = await client.getUrl(uri);
       req.headers
         ..set('Accept', 'application/vnd.github+json')
-        ..set('User-Agent', 'maprisma-manager')
+        ..set('User-Agent', 'maprisma-settings')
         ..set('X-GitHub-Api-Version', '2022-11-28');
       final res = await req.close().timeout(const Duration(seconds: 30));
       final body = await res.transform(utf8.decoder).join().timeout(const Duration(seconds: 30));
@@ -550,7 +553,7 @@ final class GitHub {
     final out = File(dest).openWrite();
     try {
       final req = await client.getUrl(url);
-      req.headers.set('User-Agent', 'maprisma-manager');
+      req.headers.set('User-Agent', 'maprisma-settings');
       final res = await req.close().timeout(const Duration(seconds: 60));
       if (res.statusCode != 200) throw GitHubError(trf('download: HTTP {0}', [res.statusCode]), status: res.statusCode);
       await for (final chunk in res.timeout(const Duration(seconds: 60))) {

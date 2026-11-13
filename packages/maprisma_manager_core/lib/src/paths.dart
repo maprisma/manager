@@ -62,9 +62,11 @@ final class Paths {
   String get autostart => p.join(config, 'autostart');
   String get units => p.join(config, 'systemd/user');
 
-  String get managerState => p.join(state, 'maprisma-manager');
+  /// The app's own folders: `maprisma-settings` (Maprisma Settings was Maprisma Manager; the
+  /// folders of the old name are renamed once and left as links, [migrateLegacyFolders]).
+  String get managerState => p.join(state, appFolder);
   String get receipts => p.join(managerState, 'installed');
-  String get settingsFile => p.join(config, 'maprisma-manager/settings.json');
+  String get settingsFile => p.join(config, appFolder, 'settings.json');
 
   String sys(String absolute) => root == '/' ? absolute : p.join(root, absolute.substring(1));
 
@@ -93,7 +95,129 @@ final class Paths {
   }
 }
 
-/// The user's settings (`~/.config/maprisma-manager/settings.json`); settings routes persist changes.
+/// The folder name of the app's settings, state, data, cache and bundle.
+const appFolder = 'maprisma-settings';
+
+/// The folder name before the rename to Maprisma Settings.
+const legacyAppFolder = 'maprisma-manager';
+
+/// The rename from Maprisma Manager to Maprisma Settings, once (the same rule as tools/procs.sh
+/// `migrate_legacy`, which install-local and the self-update helper run, also for ~/.local/lib):
+/// each folder of the old name (config, state, data, cache) that is a real folder, while none of the
+/// new name exists, is renamed (never copied) and a link of the old name is left pointing to the new
+/// one, so an older build, its self-update helper and other tools that still use the old name find
+/// the same files. Then the state keyed by the app's old id (`manager`) gets its new id
+/// ([migrateLegacyIds]). Returns what it did (for a note), empty when nothing was to do.
+List<String> migrateLegacyFolders(Paths paths) {
+  final done = <String>[];
+  for (final base in {paths.config, paths.state, paths.data, paths.cache}) {
+    final note = migrateFolder(p.join(base, legacyAppFolder), p.join(base, appFolder));
+    if (note != null) done.add(note);
+  }
+  done.addAll(migrateLegacyIds(paths));
+  return done;
+}
+
+/// [old] → [renamed] by rename with a link left at [old] (see [migrateLegacyFolders]); null when
+/// there was nothing to do (no real folder at [old], or [renamed] exists, or another file system).
+String? migrateFolder(String old, String renamed) {
+  if (FileSystemEntity.typeSync(old, followLinks: false) != FileSystemEntityType.directory) return null;
+  if (FileSystemEntity.typeSync(renamed, followLinks: false) != FileSystemEntityType.notFound) return null;
+  try {
+    // a mount point (another device than its parent) can't be renamed: left alone
+    if (_device(old) != _device(p.dirname(old))) return null;
+    Directory(old).renameSync(renamed);
+  } on FileSystemException {
+    return null; // another process did it first, or it can't be renamed: the old one stays in use
+  }
+  try {
+    Link(old).createSync(p.basename(renamed));
+  } on FileSystemException catch (e) {
+    return 'moved $old to $renamed (no link left: ${e.osError?.message ?? e.message})';
+  }
+  return 'moved $old to $renamed (link left)';
+}
+
+int? _device(String path) {
+  try {
+    final r = Process.runSync('stat', ['-c', '%d', '--', path]);
+    return r.exitCode == 0 ? int.tryParse('${r.stdout}'.trim()) : null;
+  } on ProcessException {
+    return null;
+  }
+}
+
+/// The app's id was `manager` before the rename (now [selfAppId]): its receipt, kept record, icon
+/// state, displaced files and the Bar page's wish get the new id. Never over an entry of the new id.
+List<String> migrateLegacyIds(Paths paths) {
+  const old = legacySelfAppId, now = selfAppId;
+  final done = <String>[];
+  final state = paths.managerState;
+  // the receipt names its id inside: rewritten with the new one, then the old file goes
+  final receipt = File(p.join(state, 'installed', '$old.json'));
+  final newReceipt = File(p.join(state, 'installed', '$now.json'));
+  if (receipt.existsSync() && !newReceipt.existsSync()) {
+    try {
+      final data = jsonDecode(receipt.readAsStringSync());
+      if (data is Map<String, dynamic> && data['id'] == old) {
+        data['id'] = now;
+        final tmp = File('${newReceipt.path}.tmp.$pid');
+        tmp.writeAsStringSync(const JsonEncoder.withIndent('  ').convert(data));
+        tmp.renameSync(newReceipt.path);
+        receipt.deleteSync();
+        done.add('receipt $old -> $now');
+      }
+    } on Object {
+      // a broken receipt stays as it is (it is reported as broken under the old id: never trusted)
+    }
+  }
+  for (final (dir, suffix) in [('kept', '.json'), ('icons', ''), ('displaced', '')]) {
+    final from = p.join(state, dir, '$old$suffix'), to = p.join(state, dir, '$now$suffix');
+    if (FileSystemEntity.typeSync(from, followLinks: false) == FileSystemEntityType.notFound) continue;
+    if (FileSystemEntity.typeSync(to, followLinks: false) != FileSystemEntityType.notFound) continue;
+    try {
+      if (FileSystemEntity.isDirectorySync(from)) {
+        Directory(from).renameSync(to);
+      } else {
+        File(from).renameSync(to);
+      }
+      done.add('$dir/$old$suffix -> $now$suffix');
+    } on FileSystemException {
+      // left under the old id
+    }
+  }
+  // the Bar page's wishes: {desktop: {app: …}}
+  final bar = File(p.join(state, 'bar.json'));
+  try {
+    final data = jsonDecode(bar.readAsStringSync());
+    if (data is Map<String, dynamic>) {
+      var changed = false;
+      for (final d in data.values) {
+        if (d is Map && d.containsKey(old)) {
+          final v = d.remove(old);
+          d.putIfAbsent(now, () => v);
+          changed = true;
+        }
+      }
+      if (changed) {
+        final tmp = File('${bar.path}.tmp.$pid');
+        tmp.writeAsStringSync(const JsonEncoder.withIndent('  ').convert(data));
+        tmp.renameSync(bar.path);
+        done.add('bar.json $old -> $now');
+      }
+    }
+  } on Object {
+    // none, or broken: the Bar page treats it as none
+  }
+  return done;
+}
+
+/// The app's own catalog id, and the one it had as Maprisma Manager (accepted everywhere an id is
+/// given: [findApp], jobs of before the rename).
+const selfAppId = 'settings';
+const legacySelfAppId = 'manager';
+
+/// The user's settings (`~/.config/maprisma-settings/settings.json`); settings routes persist changes.
 final class Settings {
   Settings(this.values);
 

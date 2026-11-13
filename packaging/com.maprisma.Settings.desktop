@@ -1,0 +1,24 @@
+[Desktop Entry]
+Type=Application
+Name=Maprisma Settings
+Name[de]=Maprisma Settings
+Name[fr]=Maprisma Settings
+Name[es]=Maprisma Settings
+Name[it]=Maprisma Settings
+Name[pt]=Maprisma Settings
+Name[nl]=Maprisma Settings
+Name[pl]=Maprisma Settings
+Comment=Install, update and remove the Maprisma apps, and place their bar icons
+Comment[de]=Maprisma-Apps installieren, aktualisieren und entfernen und ihre Leistensymbole platzieren
+Comment[fr]=Installer, mettre à jour et supprimer les apps Maprisma et placer leurs icônes dans la barre
+Comment[es]=Instalar, actualizar y eliminar las apps Maprisma y colocar sus iconos en la barra
+Comment[it]=Installa, aggiorna e rimuovi le app Maprisma e posiziona le loro icone nella barra
+Comment[pt]=Instalar, atualizar e remover as apps Maprisma e colocar os seus ícones na barra
+Comment[nl]=Maprisma-apps installeren, bijwerken en verwijderen en hun balkpictogrammen plaatsen
+Comment[pl]=Instaluj, aktualizuj i usuwaj aplikacje Maprisma oraz rozmieszczaj ich ikony na pasku
+Exec=maprisma-settings
+Icon=com.maprisma.Settings
+Terminal=false
+Categories=System;Settings;PackageManager;
+Keywords=maprisma;settings;manager;install;update;applet;panel;bar;
+StartupWMClass=com.maprisma.Settings

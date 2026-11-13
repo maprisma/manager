@@ -8,11 +8,12 @@ import 'animations.dart' show AnimationsService;
 import 'bar_cosmic.dart' show atomicWrite;
 import 'catalog_model.dart' show DesktopId;
 import 'context.dart';
+import 'paths.dart' show appFolder;
 
 /// The Hyprland settings the Manager's Displays, Input and Appearance (animations) pages change. They live in a file of
 /// the Manager's own, `~/.config/hypr/hypr-manager.lua`, loaded last from hypr-user.lua (a
 /// marked line), so it overrides the user's config only where a value was set here. The values
-/// are kept as JSON next to it (`maprisma-manager/hyprland.json`) and the Lua is made from them;
+/// are kept as JSON next to it (`maprisma-settings/hyprland.json`) and the Lua is made from them;
 /// after a write Hyprland reloads its config.
 final class HyprConfig {
   HyprConfig(this.ctx);
@@ -21,9 +22,9 @@ final class HyprConfig {
   String get hyprDir => p.join(ctx.paths.config, 'hypr');
   String get luaFile => p.join(hyprDir, 'hypr-manager.lua');
   String get userFile => p.join(hyprDir, 'hypr-user.lua');
-  String get stateFile => p.join(ctx.paths.config, 'maprisma-manager', 'hyprland.json');
+  String get stateFile => p.join(ctx.paths.config, appFolder, 'hyprland.json');
 
-  static const requireLine = 'pcall(require, "hypr-manager") -- Maprisma Manager: Displays, Input devices, Animations (keep last)';
+  static const requireLine = 'pcall(require, "hypr-manager") -- Maprisma Settings: Displays, Input devices, Animations (keep last)';
 
   void need() {
     if (ctx.desktop != DesktopId.hyprland) throw RouteError('unavailable', tr('Only on Hyprland; this desktop has its own settings'));
@@ -75,7 +76,7 @@ final class HyprConfig {
   /// The Lua for [state]: one hl.monitor per changed monitor, one hl.config with the input, then
   /// the animations (AnimationsService.lua).
   static String lua(Map<String, dynamic> state) {
-    final b = StringBuffer('-- Written by Maprisma Manager (Displays, Input devices, Animations). Changes made here by hand are\n-- replaced on the next change in the Manager; remove a value there instead.\n');
+    final b = StringBuffer('-- Written by Maprisma Settings (Displays, Input devices, Animations). Changes made here by hand are\n-- replaced on the next change in Maprisma Settings; remove a value there instead.\n');
     final monitors = (state['monitors'] as Map?) ?? const {};
     for (final MapEntry(:key, :value) in monitors.entries) {
       final m = value as Map;

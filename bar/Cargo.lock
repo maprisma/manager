@@ -3215,14 +3215,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "maprisma-manager-applet"
+name = "maprisma-settings-applet"
 version = "0.1.0"
 dependencies = [
  "libcosmic",
 ]
 
 [[package]]
-name = "maprisma-manager-tray"
+name = "maprisma-settings-tray"
 version = "0.1.0"
 dependencies = [
  "tokio",

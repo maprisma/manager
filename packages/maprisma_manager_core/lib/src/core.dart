@@ -47,6 +47,9 @@ const _usesLinks = {
 
 /// The core behind the protocol (docs/protocol.md): one JSON frame in, one out.
 final class CoreService {
+  /// What the start moved from the folders of the old name (Maprisma Manager), for `core.hello`.
+  List<String> migrationNotes = const [];
+
   CoreService({
     required Map<String, String> environment,
     Paths? paths,
@@ -55,8 +58,13 @@ final class CoreService {
     DateTime Function()? clock,
     int? uid,
   }) {
+    final real = paths == null;
+    paths ??= Paths.fromEnvironment(environment);
+    // The rename from Maprisma Manager: the folders of the old name, once (the real environment
+    // only; tests call it themselves).
+    if (real) migrationNotes = migrateLegacyFolders(paths);
     ctx = Ctx(
-      paths: paths ?? Paths.fromEnvironment(environment),
+      paths: paths,
       environment: environment,
       desktop: desktop,
       runner: runner,
@@ -72,6 +80,7 @@ final class CoreService {
         'desktop': ctx.desktop.name,
         'projectsDir': ctx.projectsDir,
         'projectsSource': ctx.projectsSource,
+        if (migrationNotes.isNotEmpty) 'migrated': migrationNotes,
       },
       'settings.get': (_) async {
         final settings = Settings.load(ctx.paths);
@@ -380,7 +389,7 @@ final class CoreService {
     final id = params['id'];
     if (id is! String || id.isEmpty) throw RouteError('bad_params', 'id');
     if (findApp(id) == null) throw RouteError('not_found', trf('no app {0}', [id]));
-    return id;
+    return canonicalAppId(id);
   }
 
   /// Fetches the configured upstream's remote of each input repo (of one app with `id`, else all)

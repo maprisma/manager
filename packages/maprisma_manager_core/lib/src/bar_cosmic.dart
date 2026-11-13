@@ -243,7 +243,7 @@ String? _readOrNull(String path) {
 /// Writes [text] to a temporary file next to [path] and renames it over [path].
 void atomicWrite(String path, String text) {
   Directory(p.dirname(path)).createSync(recursive: true);
-  final tmp = File(p.join(p.dirname(path), '.${p.basename(path)}.maprisma-manager.$pid.tmp'));
+  final tmp = File(p.join(p.dirname(path), '.${p.basename(path)}.maprisma-settings.$pid.tmp'));
   final raf = tmp.openSync(mode: FileMode.writeOnly);
   try {
     raf.writeStringSync(text);
@@ -262,7 +262,7 @@ void atomicWrite(String path, String text) {
 /// How many backups of each kind are kept.
 const keepBackups = 20;
 
-/// Copies [files] (a missing one is noted as such) to `<state>/maprisma-manager/backups/<time>-<kind>/`.
+/// Copies [files] (a missing one is noted as such) to `<state>/maprisma-settings/backups/<time>-<kind>/`.
 String backupFiles(Paths paths, String kind, List<String> files) {
   final root = p.join(paths.managerState, 'backups');
   final stamp = DateTime.now().toUtc().toIso8601String().replaceAll(':', '').replaceAll('-', '').replaceAll('.', '');
@@ -315,7 +315,7 @@ Future<T> _locked<T>(Paths paths, Future<T> Function() body) async {
         raf.lockSync(FileLock.exclusive);
         break;
       } on FileSystemException {
-        if (DateTime.now().isAfter(deadline)) throw RouteError('busy', tr('another Maprisma Manager is changing things'));
+        if (DateTime.now().isAfter(deadline)) throw RouteError('busy', tr('another Maprisma Settings window is changing things'));
         await Future<void>.delayed(const Duration(milliseconds: 100));
       }
     }

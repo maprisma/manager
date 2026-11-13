@@ -21,8 +21,8 @@ import 'status.dart';
 import 'trees.dart';
 
 /// Why something stays (shown as such in the plan).
-String get whyChanged => tr('changed since the Manager installed it');
-String get whyForeign => tr('not what the Manager installed');
+String get whyChanged => tr('changed since Maprisma Settings installed it');
+String get whyForeign => tr('not what Maprisma Settings installed');
 String get whyNotInReceipt => tr('not in the receipt');
 
 final class RemovePlan {
@@ -112,7 +112,7 @@ Future<RemovePlan> removePlan(Ctx ctx, AppEntry app, {bool deleteSettings = fals
       if (pathState(path, hash: false)['exists'] == true) stays.add({'path': path, 'why': whyNotInReceipt});
     }
   } else {
-    // No receipt (installed before the Manager, or a broken one): the catalog's paths, marked
+    // No receipt (installed before Maprisma Settings, or a broken one): the catalog's paths, marked
     // unverified; a link goes only when it points where the installer points it.
     for (final MapEntry(key: path, value: ip) in known.entries) {
       if (inTree(path)) continue;
@@ -156,14 +156,14 @@ Future<RemovePlan> removePlan(Ctx ctx, AppEntry app, {bool deleteSettings = fals
     final rec = receipt?.tree(root);
     String? why;
     if (receipt == null) {
-      why = tr('no receipt: the files of this folder are unknown (reinstall through the Manager, then remove)');
-      blocked ??= trf('Reinstall {0} through the Manager first: without a receipt the files of {1} are unknown', [app.name, root]);
+      why = tr('no receipt: the files of this folder are unknown (reinstall through Maprisma Settings, then remove)');
+      blocked ??= trf('Reinstall {0} through Maprisma Settings first: without a receipt the files of {1} are unknown', [app.name, root]);
     } else if (rec == null) {
-      why = tr('its files are not in the receipt (reinstall through the Manager, then remove)');
+      why = tr('its files are not in the receipt (reinstall through Maprisma Settings, then remove)');
     } else if (rec['overflow'] == true) {
       why = trf('too many files to own ({0})', [rec['files']]);
     } else if (rec['preexisting'] == true) {
-      why = trf('it was there before the Manager installed {0} (it may not be only {1}\'s)', [app.name, app.name]);
+      why = trf('it was there before Maprisma Settings installed {0} (it may not be only {1}\'s)', [app.name, app.name]);
     } else if (FileSystemEntity.typeSync(root, followLinks: false) == FileSystemEntityType.link) {
       why = tr('a link, not the folder the installer made');
     } else {
@@ -179,9 +179,9 @@ Future<RemovePlan> removePlan(Ctx ctx, AppEntry app, {bool deleteSettings = fals
     }
     final entries = (rec!['entries'] as List).cast<Map<String, dynamic>>();
     if (exists) {
-      final c = checkTree(root, entries, foreignWhy: (_) => tr('not installed by the Manager (added later)'));
+      final c = checkTree(root, entries, foreignWhy: (_) => tr('not installed by Maprisma Settings (added later)'));
       if (t.wholeOnly && !c.whole) {
-        stays.add({'path': root, 'why': tr('changed since the Manager installed it: the package stays as a whole')});
+        stays.add({'path': root, 'why': tr('changed since Maprisma Settings installed it: the package stays as a whole')});
         stays.addAll(c.stays);
         keptTrees.add(root);
       } else {
@@ -212,7 +212,7 @@ Future<RemovePlan> removePlan(Ctx ctx, AppEntry app, {bool deleteSettings = fals
     final wasKept = k != null && ((k['sha256'] != null && k['sha256'] == g['sha256']) || (k['link'] != null && k['link'] == g['link']));
     if (unsafe != null || wasKept) {
       goes.remove(g);
-      stays.add({'path': path, 'why': unsafe ?? tr('kept by an earlier remove (not the Manager\'s)')});
+      stays.add({'path': path, 'why': unsafe ?? tr('kept by an earlier remove (not from Maprisma Settings)')});
     }
   }
 

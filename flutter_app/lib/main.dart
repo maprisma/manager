@@ -9,7 +9,7 @@ import 'backend.dart';
 import 'window.dart';
 import 'window_size.dart';
 
-/// `maprisma-manager`: the window. With MAPRISMA_MANAGER_READY (the self-update helper started this
+/// `maprisma-settings` (or its old name `maprisma-manager`): the window. With MAPRISMA_MANAGER_READY (the self-update helper started this
 /// build) the file gets this process' pid after the first frame: the helper keeps the new build then.
 Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();

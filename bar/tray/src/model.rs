@@ -55,7 +55,7 @@ pub fn menu() -> Item {
         ..item(id, "", None)
     };
     let mut root = item(0, "", None);
-    root.children.push(item(1, "Open Maprisma Manager", Some(Action::Open(None))));
+    root.children.push(item(1, "Open Maprisma Settings", Some(Action::Open(None))));
     root.children.push(separator(2));
     for (i, (key, label)) in PAGES.iter().enumerate() {
         root.children.push(item(10 + i as i32, label, Some(Action::Open(Some(key)))));

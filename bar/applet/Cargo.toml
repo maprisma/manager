@@ -1,9 +1,9 @@
 [package]
-name = "maprisma-manager-applet"
+name = "maprisma-settings-applet"
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
-description = "COSMIC panel applet: open or hide Maprisma Manager"
+description = "COSMIC panel applet: open or hide Maprisma Settings"
 
 [dependencies]
 

@@ -141,7 +141,7 @@ List<Helper> get ownHelpers => [
     files: ['.claude/.credentials.json'],
     env: ['ANTHROPIC_API_KEY'],
     login: 'claude auth login',
-    note: tr("No tools: it only reads what Maprisma Manager sends."),
+    note: tr("No tools: it only reads what Maprisma Settings sends."),
     jail: null,
     web: (off: ['--tools', ''], on: ['--tools', 'WebSearch,WebFetch', '--allowedTools', 'WebSearch,WebFetch']),
     catalog: null,
@@ -937,7 +937,7 @@ final class AskRunner {
     // A catalog helper takes the prompt as one argument (unless its entry says stdin).
     final promptInArgv = catalog != null && !catalog.stdin;
     if (promptInArgv && utf8.encode(prompt).length > argvPromptMax) throw AskError(tr("the question is too long for this helper"));
-    final work = Directory.systemTemp.createTempSync('maprisma-manager-ask-').path;
+    final work = Directory.systemTemp.createTempSync('maprisma-settings-ask-').path;
     chmodPath(work, 448);
     final answerFile = p.join(work, 'answer.txt');
     Process? process;

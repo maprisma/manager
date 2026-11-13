@@ -121,7 +121,7 @@ class _RemoveDialogState extends State<RemoveDialog> {
                       ),
                     if (p['receipt'] != 'valid')
                       Text(
-                        tr('Installed before the Manager (no record of its files): only the files its installer writes go.'),
+                        tr('Installed before Maprisma Settings (no record of its files): only the files its installer writes go.'),
                         style: TextStyle(color: scheme.onSurfaceVariant),
                       ),
                     if (steps.isNotEmpty) ...[

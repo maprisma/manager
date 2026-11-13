@@ -171,7 +171,7 @@ final class NetworkService {
     // file only this user can read (0600, never through a link).
     final runtime = ctx.environment['XDG_RUNTIME_DIR'];
     final base = runtime != null && runtime.startsWith('/') && Directory(runtime).existsSync() ? runtime : Directory.systemTemp.path;
-    final dir = Directory('$base/maprisma-manager-wifi-$pid-${DateTime.now().microsecondsSinceEpoch}');
+    final dir = Directory('$base/maprisma-settings-wifi-$pid-${DateTime.now().microsecondsSinceEpoch}');
     try {
       final folder = PrivateFolder.open(dir.path);
       try {

@@ -91,7 +91,7 @@ class ManagerHomeState extends State<ManagerHome> {
   };
 
   static String name(Section s) => switch (s) {
-    Section.apps => tr('Apps'),
+    Section.apps => tr('Maprisma Apps'),
     Section.network => tr('Network & Wireless'),
     Section.bluetooth => tr('Bluetooth'),
     Section.appearance => tr('Appearance'),

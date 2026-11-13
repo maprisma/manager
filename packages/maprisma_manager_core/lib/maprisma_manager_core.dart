@@ -1,4 +1,4 @@
-/// Maprisma Manager's core: the catalog, status, git provenance and the routes.
+/// Maprisma Settings' (formerly Maprisma Manager) core: the catalog, status, git provenance and the routes.
 library;
 
 export 'src/about.dart';

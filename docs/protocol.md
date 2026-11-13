@@ -1,4 +1,4 @@
-# Maprisma Manager core: protocol
+# Maprisma Settings core: protocol
 
 The UI talks to `packages/maprisma_manager_core` the way Maprisma Theme does: one JSON object per
 request, one per answer (`CoreService.handleAsync`), or `CoreService.call(method, params)` in-process.
@@ -30,7 +30,7 @@ self-update job results add `bad_stage` (the staged build isn't complete; nothin
 
 Writes: `git.fetch` (remote-tracking refs, when asked), `github.refresh` (`github.json`), the `bar.*`
 changes, `icons.set`/`icons.reset` (the app's icon file, `icons/<app>/`), and the jobs (`jobs.start`: install, update, reinstall, remove, release; a job may clone a
-missing folder from GitHub and download release assets into `~/.cache/maprisma-manager/downloads/`). `apps.list` / `apps.get` / `jobs.*` reads mark
+missing folder from GitHub and download release assets into `~/.cache/maprisma-settings/downloads/`). `apps.list` / `apps.get` / `jobs.*` reads mark
 an unfinished job of a Manager that is gone as `interrupted` in its state file.
 
 ## Environment
@@ -45,7 +45,7 @@ an unfinished job of a Manager that is gone as `interrupted` in its state file.
 | `MAPRISMA_MANAGER_ROOT`, `MAPRISMA_MANAGER_PROC` | Tests only: the system root for `/usr`, `/etc` and the `/proc` to read. |
 | `MAPRISMA_MANAGER_OFFLINE`, `MAPRISMA_MANAGER_GH` | Tests only: `1` = the built-in GitHub reads and downloads refuse (no network) and gh is used only when `MAPRISMA_MANAGER_GH` names it (a fake). |
 
-The projects folder: `MAPRISMA_PROJECTS`, else `projectsDir` in `~/.config/maprisma-manager/settings.json`,
+The projects folder: `MAPRISMA_PROJECTS`, else `projectsDir` in `~/.config/maprisma-settings/settings.json`,
 else the first of `~/Projects`, `/mnt/Data/Projects` that holds a known repo, else the first that
 exists, else `~/Projects`. Flutter: the `flutter` setting, `MAPRISMA_FLUTTER`, `PATH`,
 `<projects folder>/../flutter`, `~/flutter`.
@@ -54,8 +54,8 @@ exists, else `~/Projects`. Flutter: the `flutter` setting, `MAPRISMA_FLUTTER`, `
 
 ### `core.hello`
 
-`{version, protocol, desktop, projectsDir, projectsSource}`; `projectsSource` is `env`, `settings`,
-`found` or `default`.
+`{version, protocol, desktop, projectsDir, projectsSource, migrated?}`; `projectsSource` is `env`, `settings`,
+`found` or `default`; `migrated` lists what this start moved from the folders and id of the old name.
 
 ### `desktop.look`
 
@@ -78,8 +78,8 @@ slider tracks and progress bars at most 4 px; Square squares everything, the sli
 14 px square.
 
 **F12** (no Ctrl, Shift, Alt or Super; also in a dialog) saves a picture the window draws of itself
-(no screenshot program, nothing uploaded) to `<XDG_PICTURES_DIR or ~/Pictures>/Maprisma Manager/`
-`maprisma-manager-<date>-<time>.png`, then asks for an optional note (at most 4000 characters), saved
+(no screenshot program, nothing uploaded) to `<XDG_PICTURES_DIR or ~/Pictures>/Maprisma Settings/`
+`maprisma-settings-<date>-<time>.png`, then asks for an optional note (at most 4000 characters), saved
 next to it as `.txt` when the dialog closes (Done, Enter, Esc). Private: the folder is made 0700 and
 used only when it is a real folder of yours that others cannot write to (checked on its opened
 handle; a link in its place is refused); every file is new (O_EXCL|O_NOFOLLOW, 0600, never over an
@@ -170,7 +170,7 @@ api` when `gh` is installed and `gh auth status` succeeds, else the public REST 
 `force`. A failure keeps the last known facts and records `error`/`lastTry`; offline (no connection,
 also when gh says so) or rate limited
 (403/429 with `x-ratelimit-remaining: 0`, the reset time in the message) stops the refresh, the rest
-is `skipped: offline` / `rate limited …`. Cached in `~/.local/state/maprisma-manager/github.json`
+is `skipped: offline` / `rate limited …`. Cached in `~/.local/state/maprisma-settings/github.json`
 (`{schema: 1, repos: {"org/name": {checked, via, facts: {url, public, defaultBranch, release}} | {…, lastTry, error}}}`,
 written under the state lock). `apps.list` only reads this cache (no network).
 
@@ -261,7 +261,7 @@ and `reload` (below); KDE `widget, area?, index?, hidden` (read back from Plasma
 changed/unchanged/missing`.
 
 How it writes: COSMIC: under the state lock, both files are read again and compared with what was read
-(`changed` otherwise), copied to `~/.local/state/maprisma-manager/backups/<time>-cosmic-<panel>/` (20 kept),
+(`changed` otherwise), copied to `~/.local/state/maprisma-settings/backups/<time>-cosmic-<panel>/` (20 kept),
 then each changed file is checked once more and written atomically (temp file + rename), the one that
 loses an entry first; only changed lists are rewritten, in the file's own style, comments and unknown ids
 kept. `reload`: `{panel, reacted: true}` when cosmic-panel started applets again (cosmic-panel 1.11 does
@@ -271,11 +271,11 @@ writes `zoneLeft/zoneCenter/zoneRight/hidden` as string lists (`currentConfigGro
 `writeConfig`), each id in one zone only; the answer is read back and checked. Autostart files are backed
 up and written atomically. Starting and stopping KDE trays comes with the job engine (step 3).
 
-Every change of one of our icons is recorded in `~/.local/state/maprisma-manager/bar.json`:
+Every change of one of our icons is recorded in `~/.local/state/maprisma-settings/bar.json`:
 `{"cosmic": {"wlan": {"placed": true, "area": "center", "index": 4}, "home": {"placed": true, "area": "center", "index": 1, "panel": "Dock"}}, "kde": {"launcher": {"placed": false}}}`.
 `panel` / `widget` are kept when the change named one; without, the default panel/widget (and, for a
 removal on COSMIC, every panel). A whole change (read, write, bar.json) holds the state lock
-(`~/.local/state/maprisma-manager/lock`, plus an in-process queue).
+(`~/.local/state/maprisma-settings/lock`, plus an in-process queue).
 
 ### `bar.apply` `{}`
 
@@ -363,7 +363,7 @@ backup's sha256 still matches.
 ## Jobs
 
 One job at a time: a queue in the core process and an fcntl lock on
-`~/.local/state/maprisma-manager/jobs/lock` held while the queue runs, so a second Manager or the CLI
+`~/.local/state/maprisma-settings/jobs/lock` held while the queue runs, so a second Manager or the CLI
 gets `busy`. Every job's state is `jobs/<id>.json`, its log `logs/<id>.log` (100 finished jobs kept).
 
 ```
@@ -439,13 +439,13 @@ installs one component (Launcher: `app`) from a GitHub release instead of buildi
 installer's folder is cloned when missing, the release is read (the tag asked for from GitHub, else the
 latest from the cache, refreshed when older than 30 minutes; `no_release`, `github_failed`), its tarball
 asset (`maprisma-launcher-<version>-x86_64.tar.gz`) and that name plus `.sha256` must exist (`no_asset`,
-`no_checksum`), both are downloaded into `~/.cache/maprisma-manager/downloads/<org>_<name>/<tag>/`
+`no_checksum`), both are downloaded into `~/.cache/maprisma-settings/downloads/<org>_<name>/<tag>/`
 (`.part`, renamed when complete; cancellable; `download_failed`), and the tarball's sha256 must be
 the `.sha256` file's (whose file name, if any, must be the asset; `bad_checksum`, `checksum_mismatch`:
 the download is deleted, nothing installed). Then the snapshot as above, the tarball is placed in the
 repo's `dist/` with an mtime newer than every other `maprisma-launcher-*-x86_64.tar.gz` there (so the
 script's `ls -t … | head -1` picks it; copied to a `.part` name and renamed; a different file of
-that name is moved aside to `.<asset>.maprisma-manager-<job>`, recorded in the job's `dist` until it
+that name is moved aside to `.<asset>.maprisma-settings-<job>`, recorded in the job's `dist` until it
 is back), and **build** runs `tools/install-local --no-build`; afterwards (also on failure, and at once
 when placing fails) a copy placed by the job is removed only while it is still that file (its sha256),
 a moved one is put back only where the name is free (else both stay and the log says where), a reused
@@ -477,7 +477,7 @@ receipt dropped).
    runs `python3 tools/build-release.py --addons <maprisma-addons>` (**build**, cancellable; it replaces
    `dist/maprisma-<version>-x86_64.tar.gz` and its `.sha256`, as the script always does) and takes the
    new tarball (its `.sha256` must match).
-3. **build** (cancellable): the recipe `~/.cache/maprisma-manager/pkg/<version>/PKGBUILD` (the folder is
+3. **build** (cancellable): the recipe `~/.cache/maprisma-settings/pkg/<version>/PKGBUILD` (the folder is
    made afresh; never through a link) modelled on aur-maprisma-bin: the same name, files,
    dependencies, provides/conflicts; `source=("maprisma-$pkgver-x86_64.tar.gz::file://<the archive>")`
    (an archive path with other characters is copied into the folder first), its sha256, `pkgver` = the
@@ -546,19 +546,19 @@ The Manager's install/update/reinstall (`jobs_self.dart`) never touches the bund
 
 1. **prepare** as for any app (an update pulls; nothing new → `up_to_date`); refused (`busy`) while the
    helper of an earlier self-update still runs.
-2. **build** (cancellable): `tools/install-local --stage ~/.local/state/maprisma-manager/self-update/<job>`
+2. **build** (cancellable): `tools/install-local --stage ~/.local/state/maprisma-settings/self-update/<job>`
    builds the Flutter bundle and the core CLI and copies them with `tools/install-local`,
    `tools/self-update` and the desktop entry and icon into that stage; nothing is installed.
 3. The stage is checked: the bundle's program, `lib/libapp.so`, `lib/libflutter_linux_gtk.so`,
-   `data/icudtl.dat`, `data/flutter_assets/version.json` (with a version), `bin/maprisma-manager-core`,
+   `data/icudtl.dat`, `data/flutter_assets/version.json` (with a version), `bin/maprisma-settings-core`,
    the scripts and the packaging files; `ldd` finds every library; the new core answers `version`.
    Anything missing: `bad_stage`, the stage is deleted, nothing changed.
 4. **commit**: the helper is copied to `self-update/helper` and started detached (`setsid`) with the
    pids (and start times) of the running Manager windows (`/proc/<pid>/exe` is the installed
-   `maprisma-manager`). It writes `self-update/<job>.status` (`waiting|swapping|starting <pid>`, then
+   `maprisma-settings`). It writes `self-update/<job>.status` (`waiting|swapping|starting <pid>`, then
    `done`, `rolled back: …`, `failed: …`, `aborted: …`) and logs to `self-update/<job>.log`. It waits
    for those windows to quit (10 minutes, then `aborted`, nothing changed), copies the stage's bundle
-   next to the installed one and swaps it in by rename (the old one kept as `maprisma-manager.old.*`),
+   next to the installed one and swaps it in by rename (the old one kept as `maprisma-settings.old.*`),
    keeps copies of the desktop entry and icon and runs the stage's `install-local --integrate` (links,
    entry, icon). Then:
    - a window was open (`restart`): it starts the new Manager with `MAPRISMA_MANAGER_READY=<state>/<job>.ready`;
@@ -566,12 +566,35 @@ The Manager's install/update/reinstall (`jobs_self.dart`) never touches the bund
      processes are ended, the old bundle, entry and icon come back and the old Manager is started again.
      The job itself has already ended (`succeeded`, `result: {restart: true, selfUpdate: {state:
      waiting, waitFor, log}}`; the window that ran it quits after 1.5 s); the helper then runs
-     `maprisma-manager-core self-update-done <job>` of the installed core (the new one: verify, receipt,
+     `maprisma-settings-core self-update-done <job>` of the installed core (the new one: verify, receipt,
      `selfUpdate.state: done`) or, after a rollback, `self-update-done <job> --failed <why>` (the old one:
      the job becomes `failed`, `self_update_failed`).
    - no window (the CLI, a first install): the new core must answer `version` (else the rollback); the
      job waits for the helper and does **verify** and **finish** (receipt) itself.
 5. The old bundle and the stage are deleted once the new one is ready.
+
+### The rename from Maprisma Manager (2026-11-13)
+
+Maprisma Settings was Maprisma Manager. The old names keep working:
+
+| Old | New | How the old one keeps working |
+| --- | --- | --- |
+| `maprisma-manager`, `maprisma-manager-core`, `-applet`, `-tray` | `maprisma-settings`, `maprisma-settings-core`, … | links in the bundle and in `~/.local/bin`; the core answers `version` with the name it was started by |
+| `com.maprisma.Manager` (app id, desktop entry, icon) | `com.maprisma.Settings` | a hidden (`NoDisplay`) `com.maprisma.Manager.desktop` that starts `maprisma-settings`; the old icon name is installed too |
+| `~/.config`, `~/.local/state`, `~/.local/share`, `~/.cache`, `~/.local/lib` `/maprisma-manager` | `…/maprisma-settings` | renamed once (never copied) and a link of the old name left (`migrateLegacyFolders` at the core's start; `tools/procs.sh migrate_legacy` in install-local, uninstall-local and the self-update helper); when both exist the new one is used and the old one is left alone |
+| catalog id `manager` | `settings` | `findApp`/`canonicalAppId` accept it (CLI, jobs, AI steps, old job files); the receipt, kept record, icon state, displaced files and `bar.json` wishes of the old id are moved to the new one once |
+| repo folder `maprisma-manager` | may be renamed to `maprisma-settings` | `repoFolderAliases`: the catalog's folder name wins while it exists |
+| `com.maprisma.Manager.Tray.desktop` (autostart) | `com.maprisma.Settings.Tray.desktop` | install-local replaces it, keeping a `Hidden=true` |
+
+Kept as they were (ids other configs name): the bar icon's COSMIC applet id and icon name
+(`io.github.ubruckhaus.CosmicMaprismaManager`), the tray's item id `maprisma-manager` (Maprisma Shell's
+`bar.json`, the KDE widget), the `MAPRISMA_MANAGER_*` variables, the Dart packages
+(`maprisma_manager_core`, `maprisma_manager`) and the window channel `maprisma-manager/window`.
+
+A Manager from before the rename updates itself into this build: the stage has the old names it checks
+(`bundle/maprisma-manager`, `bundle/bin/maprisma-manager-core`, `packaging/com.maprisma.Manager.*`), and
+the new helper, started with `--lib ~/.local/lib/maprisma-manager`, renames the folders first and swaps
+the bundle in under the new name.
 
 The receipt is the usual one (the bundle as an owned folder, the links, the entry and icon); a job
 finished by the helper is read from its file (`jobs.get` prefers the file for a finished job).
@@ -608,7 +631,7 @@ DOCTYPE/entities, processing instructions, `script`, `foreignObject`, `image`, `
 backslash in a style or attribute), and every `href` and `url(…)` must point inside the file (`#id`):
 else `bad_icon` (nothing is changed). Refused while any job runs (`busy`: the change holds the jobs'
 lock, so no job starts meanwhile) and for an app that isn't installed (`not_installed`). Under the state lock, each step
-saved before the next: the file as it is now is kept as `~/.local/state/maprisma-manager/icons/<app>/original.svg`
+saved before the next: the file as it is now is kept as `~/.local/state/maprisma-settings/icons/<app>/original.svg`
 unless it is ours (the recorded choice or `chosen.svg`) or already the original; then the choice goes to
 `chosen.svg` and `icon.json`; then atomically over the app's file; and the receipt's entry for the file follows (so a remove still takes it). Then
 `gtk-update-icon-cache -q -t <data>/icons/hicolor` and the bar icon: COSMIC: when the applet is in a
@@ -657,7 +680,7 @@ Refused: any other step, unknown apps, apps not installed or not for this deskto
 itself (it has to quit to update) and pacman apps (Maprisma: they need the password). At most 5
 answers, 6 steps per answer, 20 steps per run; the same step at most twice. Stop ends the helper,
 a running `pub get` group and a job that can still be cancelled. Each run is saved as
-`$XDG_STATE_HOME/maprisma-manager/ai/<id>.json`.
+`$XDG_STATE_HOME/maprisma-settings/ai/<id>.json`.
 
 - `ai.helpers` → `{helpers: [{id, name, installed, signed_in, local, login, note, verified}], helper, auto, chosen, fallback, file, enabled, busy, web_search, web_search_supported, web_search_reason}`:
   `helper` the shared choice (`"auto"` or an id), `auto` the first ready helper, `chosen` the one
@@ -775,23 +798,23 @@ dictation keys" are added to this page when the service has them; none is shown 
 ## CLI
 
 ```
-maprisma-manager-core status [--json] [--desktop cosmic|kde|other] [<id>]
-maprisma-manager-core sources [--json]
-maprisma-manager-core fetch [--force] [<id>]
-maprisma-manager-core github [--force] [<id>]
-maprisma-manager-core new [--json]
-maprisma-manager-core clone-new <org/repo>
-maprisma-manager-core bar [--json] [--panel <name>]
-maprisma-manager-core bar <id> left|center|right|out [--index <n>] [--panel <name>]
-maprisma-manager-core bar apply
-maprisma-manager-core install|update|reinstall <id> [--force] [--source release|folder]
-maprisma-manager-core release <id> [<tag>]
-maprisma-manager-core remove <id> [--delete-settings] [--yes]
-maprisma-manager-core icon <id> [<name>|<file>|--reset] [--search <text>] [--json]
-maprisma-manager-core jobs [<app>]
-maprisma-manager-core log <job>
-maprisma-manager-core version
-maprisma-manager-core self-update-done <job> [--failed <why>]
+maprisma-settings-core status [--json] [--desktop cosmic|kde|other] [<id>]
+maprisma-settings-core sources [--json]
+maprisma-settings-core fetch [--force] [<id>]
+maprisma-settings-core github [--force] [<id>]
+maprisma-settings-core new [--json]
+maprisma-settings-core clone-new <org/repo>
+maprisma-settings-core bar [--json] [--panel <name>]
+maprisma-settings-core bar <id> left|center|right|out [--index <n>] [--panel <name>]
+maprisma-settings-core bar apply
+maprisma-settings-core install|update|reinstall <id> [--force] [--source release|folder]
+maprisma-settings-core release <id> [<tag>]
+maprisma-settings-core remove <id> [--delete-settings] [--yes]
+maprisma-settings-core icon <id> [<name>|<file>|--reset] [--search <text>] [--json]
+maprisma-settings-core jobs [<app>]
+maprisma-settings-core log <job>
+maprisma-settings-core version
+maprisma-settings-core self-update-done <job> [--failed <why>]
 ```
 
 `install`/`update`/`reinstall` run the job in the CLI process and print its output; Ctrl-C cancels
@@ -814,7 +837,7 @@ prints `icons.get` (40 choices, `--search` filters), `icon <id> <name|file>` run
 
 ## Receipts (written by install jobs after verify)
 
-`~/.local/state/maprisma-manager/installed/<id>.json`:
+`~/.local/state/maprisma-settings/installed/<id>.json`:
 
 ```json
 {"schema": 1, "id": "wlan", "at": "2026-11-09T10:00:00Z", "version": "…", "manager": "0.1.0",

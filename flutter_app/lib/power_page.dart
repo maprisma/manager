@@ -174,7 +174,7 @@ class PowerPageState extends State<PowerPage> {
     children: [
       SettingsItem(
         title: trf('Power is set in {0}', [n['name']]),
-        description: tr('This desktop has its own settings app for the power mode, screen blanking and suspend; the Manager leaves them to it.'),
+        description: tr('This desktop has its own settings app for the power mode, screen blanking and suspend; Maprisma Settings leaves them to it.'),
         trailing: FilledButton.tonal(
           key: const ValueKey('power-open-native'),
           onPressed: n['available'] == true ? () => _call('power.open_native', const {}) : null,

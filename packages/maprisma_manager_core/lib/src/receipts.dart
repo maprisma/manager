@@ -21,7 +21,7 @@ final class ReceiptInput {
 }
 
 /// What an install through the Manager recorded (plan: "Ownership"):
-/// `~/.local/state/maprisma-manager/installed/<id>.json`
+/// `~/.local/state/maprisma-settings/installed/<id>.json`
 /// `{"schema":1, "id", "at", "version"?, "inputs":[{repo, commit, dirty, fingerprint?}],
 ///   "paths":[{path, sha256} | {path, link} | {path, dir:true}], "displaced":[{path, backup}]}`.
 /// Read here only; written by the job engine (step 3).

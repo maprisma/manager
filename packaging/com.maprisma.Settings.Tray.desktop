@@ -1,8 +1,8 @@
 [Desktop Entry]
 Type=Application
-Name=Maprisma Manager Tray
-Comment=Maprisma Manager's icon in the KDE and Maprisma Shell tray
-Exec=maprisma-manager-tray
+Name=Maprisma Settings Tray
+Comment=Maprisma Settings' icon in the KDE and Maprisma Shell tray
+Exec=maprisma-settings-tray
 Icon=io.github.ubruckhaus.CosmicMaprismaManager-symbolic
 Terminal=false
 OnlyShowIn=KDE;Hyprland;

@@ -74,7 +74,17 @@ final class Ctx {
   /// When this core last tried to fetch a repo (an offline fetch leaves FETCH_HEAD old).
   final Map<String, DateTime> fetchAttempts = {};
 
-  String repoFolder(String repo) => p.join(projectsDir, repo);
+  /// The folder of a catalog repo; a renamed folder ([repoFolderAliases]) is used while the
+  /// catalog's name has none.
+  String repoFolder(String repo) {
+    final main = p.join(projectsDir, repo);
+    if (FileSystemEntity.typeSync(main) != FileSystemEntityType.notFound) return main;
+    for (final alias in repoFolderAliases[repo] ?? const <String>[]) {
+      final other = p.join(projectsDir, alias);
+      if (FileSystemEntity.typeSync(other) != FileSystemEntityType.notFound) return other;
+    }
+    return main;
+  }
 
   /// The flutter executable: the `flutter` setting (executable or its folder), MAPRISMA_FLUTTER,
   /// PATH, then `<projects folder>/../flutter`, ~/flutter.

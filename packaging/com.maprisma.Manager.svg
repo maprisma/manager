@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <!-- Maprisma Manager: Maprisma's frame and colours; a list of apps, one getting its update. -->
+  <!-- The old icon name of Maprisma Settings (formerly Maprisma Manager), kept for old entries: Maprisma's frame and colours; a list of apps, one getting its update. -->
   <rect x="4" y="4" width="56" height="56" rx="14" fill="#1a2234"/>
   <g fill="none" stroke="#4dd6c8" stroke-width="3" stroke-linecap="round">
     <rect x="13" y="13" width="9" height="9" rx="2.5"/>

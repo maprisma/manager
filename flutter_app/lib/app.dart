@@ -18,7 +18,7 @@ import 'theme.dart';
 import 'window.dart';
 import 'window_size.dart';
 
-/// Maprisma Manager's window: the list page in the desktop's colours (`desktop.look`, read as
+/// Maprisma Settings' (formerly Maprisma Manager) window: the list page in the desktop's colours (`desktop.look`, read as
 /// Maprisma Launcher reads them).
 class ManagerApp extends StatefulWidget {
   const ManagerApp({super.key, required this.core, this.look = const {}, this.onRestart, this.checkOnStart = true, this.jobs, this.screenshots, this.settings = const {}, this.page, this.relook = const Duration(seconds: 5)});
@@ -38,7 +38,7 @@ class ManagerApp extends StatefulWidget {
   /// Tests pass their own (a shorter poll).
   final JobsModel? jobs;
 
-  /// Where F12 saves its pictures (tests); null: ~/Pictures/Maprisma Manager.
+  /// Where F12 saves its pictures (tests); null: ~/Pictures/Maprisma Settings.
   final String? screenshots;
 
   /// `settings.get` as main read it before the first frame (the corners from the start).
@@ -220,7 +220,7 @@ class _ManagerAppState extends State<ManagerApp> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final radius = cornerRadius(cornersSetting, look['rounding'] as int?);
     return MaterialApp(
-      title: tr('Maprisma Manager'),
+      title: tr('Maprisma Settings'),
       navigatorKey: _navigator,
       scaffoldMessengerKey: _messenger,
       navigatorObservers: [_esc],

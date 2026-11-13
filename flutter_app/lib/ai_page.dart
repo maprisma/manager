@@ -96,7 +96,7 @@ class AiPageState extends State<AiPage> with RoutePage {
             SettingsChoice<String>(
               key: const ValueKey('ai-page-helper'),
               title: tr('AI helper for all Maprisma apps'),
-              description: tr('Launcher, Theme, Playground, Notifier (Check with AI) and the Manager\'s AI updates use it. Automatic picks the first installed helper that can do the job.'),
+              description: tr('Launcher, Theme, Playground, Notifier (Check with AI) and the AI updates of Maprisma Settings use it. Automatic picks the first installed helper that can do the job.'),
               value: shown(d),
               choices: choices(d),
               onChanged: working || list.isEmpty ? null : (v) => _set('helper', v),
@@ -128,7 +128,7 @@ class AiPageState extends State<AiPage> with RoutePage {
             SettingsToggle(
               key: const ValueKey('ai-updates'),
               title: tr('Let AI do the updates'),
-              description: tr('An installed, signed-in AI helper (Claude Code, Codex, pi, Hermes or a local model) decides what to update; the Manager checks each step and does it. Off until you turn it on; it runs only when you click the AI button.'),
+              description: tr('An installed, signed-in AI helper (Claude Code, Codex, pi, Hermes or a local model) decides what to update; Maprisma Settings checks each step and does it. Off until you turn it on; it runs only when you click the AI button.'),
               value: d['enabled'] == true,
               onChanged: working || (list.isEmpty && d['enabled'] != true) ? null : (v) => _set('ai_updates', v),
             ),

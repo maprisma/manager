@@ -505,7 +505,7 @@ void main() {
     await settle(tester, 12);
     expect(find.text('The WLAN Monitor needs its packages.'), findsOneWidget);
     expect(find.textContaining('Fetch Flutter packages · Maprisma WLAN Monitor — done'), findsOneWidget);
-    expect(find.textContaining('Update · Maprisma Manager — not done'), findsOneWidget);
+    expect(find.textContaining('Update · Maprisma Settings — not done'), findsOneWidget);
     expect(find.text('All done.'), findsOneWidget);
     expect(find.text('Finished'), findsOneWidget);
     await shot(tester, 'ai-900');
@@ -522,7 +522,7 @@ void main() {
     expect(find.text('Where it exists'), findsOneWidget);
     expect(find.text('https://github.com/maprisma/wlan-monitor'), findsOneWidget);
     expect(find.text('Installed build'), findsOneWidget);
-    expect(find.textContaining('unknown: installed before the Manager'), findsOneWidget);
+    expect(find.textContaining('unknown: installed before Maprisma Settings'), findsOneWidget);
     expect(find.text('What it installs'), findsOneWidget);
     expect(find.text('Prerequisites'), findsOneWidget);
     await shot(tester, 'details-900');
@@ -573,7 +573,7 @@ void main() {
     addTearDown(jobs.dispose);
     await tester.pumpWidget(ManagerApp(core: call(), checkOnStart: false, jobs: jobs, onRestart: () => restarted = true));
     await settle(tester);
-    final j = JobView(id: 'x', app: 'manager', name: 'Maprisma Manager', kind: 'update')
+    final j = JobView(id: 'x', app: 'settings', name: 'Maprisma Settings', kind: 'update')
       ..data = {'state': 'succeeded', 'result': {'ok': true, 'restart': true}};
     jobs.onFinished!(j);
     await tester.pump(const Duration(milliseconds: 1600));

@@ -1,5 +1,5 @@
 name: maprisma_manager_core
-description: Maprisma Manager's core in pure Dart (catalog, status, install jobs, bar icons).
+description: Maprisma Settings' (formerly Maprisma Manager) core in pure Dart (catalog, status, install jobs, bar icons).
 publish_to: none
 version: 0.3.1
 environment:

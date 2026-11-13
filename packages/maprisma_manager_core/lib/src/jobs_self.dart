@@ -1,17 +1,23 @@
-// The Manager updates itself (plan: "Self-update", docs/protocol.md "Self-update").
+// Maprisma Settings (formerly Maprisma Manager) updates itself (plan: "Self-update",
+// docs/protocol.md "Self-update").
 //
 // A running Flutter app maps its code from its bundle, so the Manager never replaces the bundle it
 // runs from. The job builds into a stage (`tools/install-local --stage <dir>`: the bundle, the
 // install script, the helper and the packaging files), checks it (the files a bundle needs, no
 // missing libraries, the new core answers `version`), copies the helper to
-// `~/.local/state/maprisma-manager/self-update/helper` and starts it detached (`setsid`). The helper
+// `~/.local/state/maprisma-settings/self-update/helper` and starts it detached (`setsid`). The helper
 // waits until every running Manager window has quit, swaps the bundle in (the old one kept aside),
 // writes the links, desktop entry and icon (`install-local --integrate` from the stage), starts the
 // new Manager and waits for its ready file (written after its first frame); no ready file within
 // the timeout (20 s) → the new one is ended, the old bundle and files come back and the old Manager
 // is started again. It reports through `<job>.status` and, when the job ended before the swap (a
-// Manager window was waiting for it), through `maprisma-manager-core self-update-done <job>` of
-// whichever core is installed then, which writes the receipt or marks the job failed.
+// Manager window was waiting for it), through `maprisma-settings-core self-update-done <job>` of
+// whichever core is installed then (`maprisma-manager-core` of a build from before the rename),
+// which writes the receipt or marks the job failed.
+//
+// Across the rename: the bundle keeps the old names as links (maprisma-manager,
+// bin/maprisma-manager-core), so a Manager from before it accepts this build as its update, and the
+// helper renames the folders of the old name (tools/procs.sh migrate_legacy).
 part of 'jobs.dart';
 
 /// Where the self-update keeps its stage, helper, status and log files.
@@ -52,14 +58,20 @@ String selfUpdateDir(Paths paths) => p.join(paths.managerState, 'self-update');
 
 /// What a stage needs (relative to the stage folder) before the helper may swap it in.
 const _stageFiles = {
-  'bundle/maprisma-manager': true,
+  'bundle/maprisma-settings': true,
   'bundle/lib/libapp.so': false,
   'bundle/lib/libflutter_linux_gtk.so': false,
   'bundle/data/icudtl.dat': false,
   'bundle/data/flutter_assets/version.json': false,
+  'bundle/bin/maprisma-settings-core': true,
+  // the old names (links) a Manager from before the rename looks for
+  'bundle/maprisma-manager': true,
   'bundle/bin/maprisma-manager-core': true,
   'tools/install-local': true,
   'tools/self-update': true,
+  'tools/procs.sh': false,
+  'packaging/com.maprisma.Settings.desktop': false,
+  'packaging/com.maprisma.Settings.svg': false,
   'packaging/com.maprisma.Manager.desktop': false,
   'packaging/com.maprisma.Manager.svg': false,
 };
@@ -104,12 +116,12 @@ extension _SelfUpdate on JobEngine {
       if (newVersion == null) problems.add(tr('version.json has no version'));
       final ldd = ctx.runner.which('ldd');
       if (ldd != null) {
-        final l = await ctx.runner.run([ldd, p.join(stage, 'bundle/maprisma-manager')], timeout: const Duration(seconds: 20));
+        final l = await ctx.runner.run([ldd, p.join(stage, 'bundle/maprisma-settings')], timeout: const Duration(seconds: 20));
         final missing = [for (final line in l.stdout.split('\n')) if (line.contains(tr('not found'))) line.trim()];
         if (missing.isNotEmpty) problems.add(trf('missing libraries: {0}', [missing.join(', ')]));
       }
-      final core = await ctx.runner.run([p.join(stage, 'bundle/bin/maprisma-manager-core'), 'version'], timeout: const Duration(seconds: 20));
-      if (!core.ok || !core.stdout.startsWith('maprisma-manager-core ')) {
+      final core = await ctx.runner.run([p.join(stage, 'bundle/bin/maprisma-settings-core'), 'version'], timeout: const Duration(seconds: 20));
+      if (!core.ok || !core.stdout.startsWith('maprisma-settings-core ')) {
         problems.add(trf('the new core doesn\'t answer `version` ({0})', [core.ok ? core.stdout.trim() : core.stderr.trim()]));
       } else {
         r.log.note(trf('the new core: {0}', [core.stdout.trim()]));
@@ -122,12 +134,12 @@ extension _SelfUpdate on JobEngine {
       _dropStage(stage);
       throw JobFailure('bad_stage', trf('the new build isn\'t complete: {0}', [problems.first]));
     }
-    r.log.note(trf('stage checked: Maprisma Manager {0} in {1}', [newVersion, stage]));
+    r.log.note(trf('stage checked: Maprisma Settings {0} in {1}', [newVersion, stage]));
 
     // the Manager windows the helper waits for (this one, when the job runs in the app)
     // As written and as /proc reports it (a symlinked HOME or ~/.local/lib).
-    final gui = p.join(paths.lib, 'maprisma-manager', 'maprisma-manager');
-    final guis = {gui, p.join(_canonical(p.dirname(gui)), 'maprisma-manager')};
+    final gui = p.join(paths.lib, appFolder, 'maprisma-settings');
+    final guis = {gui, p.join(_canonical(p.dirname(gui)), 'maprisma-settings')};
     final waitFor = [
       for (final pr in ctx.processes())
         if (guis.contains(pr.exe) && (ctx.uid == null || pr.uid == ctx.uid) && pr.startTicks != null) {'pid': pr.pid, 'start': pr.startTicks},
@@ -150,7 +162,7 @@ extension _SelfUpdate on JobEngine {
       helper,
       '--job', r.id,
       '--stage', stage,
-      '--lib', p.join(paths.lib, 'maprisma-manager'),
+      '--lib', p.join(paths.lib, appFolder),
       '--state', dir,
       '--proc', paths.proc,
       for (final w in waitFor) ...['--wait', '${w['pid']}:${w['start']}'],
@@ -182,7 +194,7 @@ extension _SelfUpdate on JobEngine {
     r.log.note(trf('the helper logs to {0}', [helperLog]));
 
     if (restart) {
-      r.log.note(trf('the helper waits for the Manager (pid {0}) to quit, ', [waitFor.map((w) => w['pid']).join(', ')]) +
+      r.log.note(trf('the helper waits for Maprisma Settings (pid {0}) to quit, ', [waitFor.map((w) => w['pid']).join(', ')]) +
           trf('swaps the new build in and starts it; without a ready signal in {0} s the old one comes back', [selfReadyTimeout.inSeconds]));
       return {
         'restart': true,
@@ -310,7 +322,7 @@ void _writeSelfReceipt(AppEntry app, Component c, List inputs, String job, Strin
   if (kept.existsSync()) kept.deleteSync();
 }
 
-/// `maprisma-manager-core self-update-done <job> [--failed <why>]`, run by the helper once the new
+/// `maprisma-settings-core self-update-done <job> [--failed <why>]`, run by the helper once the new
 /// build is ready (by the new core: the receipt) or rolled back (by the old one: the job failed).
 Map<String, dynamic> finishSelfUpdate(Paths paths, String id, {String? failed}) {
   if (!validJobId(id)) throw RouteError('bad_params', 'job');
@@ -320,7 +332,8 @@ Map<String, dynamic> finishSelfUpdate(Paths paths, String id, {String? failed}) 
   final su = job['selfUpdate'];
   // The window may have been closed before the job wrote its result (it is `interrupted` then):
   // what counts is the self-update that waits.
-  if (job['app'] != selfApp || su is! Map || su['state'] != 'waiting') {
+  // a job of before the rename names the app `manager`
+  if (canonicalAppId('${job['app']}') != selfApp || su is! Map || su['state'] != 'waiting') {
     throw RouteError('finished', trf('job {0} has no self-update waiting', [id]));
   }
   final result = job['result'] is Map ? job['result'] as Map : const {};

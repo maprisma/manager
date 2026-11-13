@@ -58,7 +58,7 @@ Map<String, dynamic>? parseAnswer(String text) {
 
 /// Why the AI may not touch [app] here, or null when it may.
 String? aiBlocked(AppEntry app, Map<String, dynamic> status) {
-  if (app.id == 'manager') return tr('the Manager updates itself from its own Update button');
+  if (app.id == selfApp) return tr('Maprisma Settings updates itself from its own Update button');
   if (app.components.any((c) => c.kind == InstallKind.pacman)) return tr('it is installed with pacman and needs your password');
   if (status['supportedHere'] != true) return tr('not for this desktop');
   if (status['state'] == 'absent') return tr('not installed');
@@ -103,7 +103,7 @@ Map<String, dynamic> appFacts(Map<String, dynamic> a) {
 String buildPrompt(List<Map<String, dynamic>> apps, List<Map<String, dynamic>> done, String language) {
   final facts = const JsonEncoder.withIndent(' ').convert(apps);
   final history = done.isEmpty ? 'nothing yet' : const JsonEncoder.withIndent(' ').convert(done);
-  return '''You are the update assistant of Maprisma Manager, which installs and updates the Maprisma apps on this Linux desktop. Bring the installed apps up to date.
+  return '''You are the update assistant of Maprisma Settings, which installs and updates the Maprisma apps on this Linux desktop. Bring the installed apps up to date.
 
 You cannot run anything yourself. Answer with ONE JSON object and nothing else:
 {"say": "<one or two short sentences for the user, in $language>", "actions": [<steps>], "done": <true|false>}
@@ -350,7 +350,9 @@ final class AiUpdater {
 
   /// A step from the answer, checked: `{kind: action, do, app, name}` or with `ok: false, message`.
   Map<String, dynamic> _check(Object? raw, List<Map<String, dynamic>> apps) {
-    final what = raw is Map ? raw['do'] : null, id = raw is Map ? raw['app'] : null;
+    final what = raw is Map ? raw['do'] : null;
+    // an old id (`manager`) names the app it is now
+    final id = raw is Map && raw['app'] is String ? canonicalAppId(raw['app'] as String) : (raw is Map ? raw['app'] : null);
     final step = <String, dynamic>{'kind': 'action', 'do': '$what', 'app': '$id'};
     if (what is! String || !aiActions.contains(what)) return {...step, 'ok': false, 'message': tr('not a step the AI may take')};
     final app = id is String ? findApp(id) : null;

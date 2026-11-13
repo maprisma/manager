@@ -259,10 +259,11 @@ final class JobEngine {
   // ---------- routes ----------
 
   Map<String, dynamic> start(Map<String, dynamic> params) {
-    final appId = params['app'];
-    if (appId is! String || appId.isEmpty) throw RouteError('bad_params', 'app');
-    final app = findApp(appId);
-    if (app == null) throw RouteError('not_found', trf('no app {0}', [appId]));
+    final given = params['app'];
+    if (given is! String || given.isEmpty) throw RouteError('bad_params', 'app');
+    final app = findApp(given);
+    if (app == null) throw RouteError('not_found', trf('no app {0}', [given]));
+    final appId = app.id;
     final kindName = params['kind'];
     final kind = JobKind.values.where((k) => k.name == kindName).firstOrNull;
     if (kind == null) throw RouteError('bad_params', tr('kind (install, update, reinstall, remove, release)'));
@@ -316,7 +317,7 @@ final class JobEngine {
     // for it would leave the job behind).
     final pending = pendingSelfUpdate(paths);
     if (pending != null) {
-      throw RouteError('busy', trf('the Manager\'s update {0} waits to be put in place (helper pid {1}): close Maprisma Manager to finish it', [pending.job, pending.pid]));
+      throw RouteError('busy', trf('the update {0} of Maprisma Settings waits to be put in place (helper pid {1}): close Maprisma Settings to finish it', [pending.job, pending.pid]));
     }
     if (_runs.values.any((r) => r.job['app'] == appId && r.job['finished'] != true)) {
       throw RouteError('busy', trf('a job for {0} is already queued or running', [app.name]));
@@ -358,7 +359,7 @@ final class JobEngine {
     final limit = params['limit'] ?? 50;
     if (app != null && app is! String) throw RouteError('bad_params', 'app');
     if (limit is! int || limit < 1) throw RouteError('bad_params', 'limit');
-    final jobs = [for (final j in loadJobs(paths)) if (app == null || j['app'] == app) j];
+    final jobs = [for (final j in loadJobs(paths)) if (app == null || canonicalAppId('${j['app']}') == canonicalAppId(app as String)) j];
     return {
       'jobs': [
         for (final j in jobs.take(limit))
@@ -420,7 +421,7 @@ final class JobEngine {
     if (run == null) {
       final job = _job(id);
       if (job['finished'] == true) throw RouteError('finished', tr('the job has ended'));
-      throw RouteError('not_owner', trf('the job runs in another Maprisma Manager (pid {0})', [(job['owner'] as Map?)?['pid']]));
+      throw RouteError('not_owner', trf('the job runs in another Maprisma Settings window (pid {0})', [(job['owner'] as Map?)?['pid']]));
     }
     final job = run.job;
     if (job['finished'] == true) throw RouteError('finished', tr('the job has ended'));
@@ -519,7 +520,7 @@ final class JobEngine {
     } on FileSystemException {
       raf.closeSync();
       final other = loadJobs(paths).where((j) => j['finished'] != true).firstOrNull;
-      throw RouteError('busy', other == null ? tr('another Maprisma Manager runs a job') : trf('another Maprisma Manager runs {0} {1} ({2})', [other['kind'], other['app'], other['id']]));
+      throw RouteError('busy', other == null ? tr('another Maprisma Settings window runs a job') : trf('another Maprisma Settings window runs {0} {1} ({2})', [other['kind'], other['app'], other['id']]));
     }
     _lock = raf;
     _holders[lockPath] = this;
@@ -881,13 +882,13 @@ final class JobEngine {
       if (ours) continue;
       final e = displaced.add(path, st,
           restore: receipt != null,
-          reason: receipt == null ? tr('before the Manager') : (owned == null ? tr('not in the receipt') : tr('changed since the install')),
+          reason: receipt == null ? tr('before Maprisma Settings') : (owned == null ? tr('not in the receipt') : tr('changed since the install')),
           job: r.id,
           at: at);
       if (e != null) r.newBackups.add(e);
     }
     displaced.save();
-    if (r.newBackups.isNotEmpty) r.log.note(trf('backed up {0} file(s) that weren\'t the Manager\'s', [r.newBackups.length]));
+    if (r.newBackups.isNotEmpty) r.log.note(trf('backed up {0} file(s) that weren\'t from Maprisma Settings', [r.newBackups.length]));
     r.signatures = signatures([for (final (_, path) in cat) path]);
     _checkCancel(r);
 
@@ -1240,7 +1241,7 @@ final class JobEngine {
         if (type(target) == FileSystemEntityType.file && await sha256OfFile(target) == sha) {
           reusedMtime = File(target).statSync().modified;
         } else {
-          final to = p.join(dist, '.$asset.maprisma-manager-${r.id}');
+          final to = p.join(dist, '.$asset.maprisma-settings-${r.id}');
           r.job['dist'] = {'target': target, 'aside': to};
           _persist(r.job);
           type(target) == FileSystemEntityType.link ? Link(target).renameSync(to) : File(target).renameSync(to);
@@ -1249,7 +1250,7 @@ final class JobEngine {
         }
       }
       if (reusedMtime == null) {
-        final tmp = p.join(dist, '.$asset.maprisma-manager-${r.id}.part');
+        final tmp = p.join(dist, '.$asset.maprisma-settings-${r.id}.part');
         File(file).copySync(tmp);
         File(tmp).renameSync(target);
         placed = true;
@@ -1762,7 +1763,7 @@ final class JobEngine {
   /// A job for [app] that hasn't ended (in this process or another Manager).
   bool activeFor(String app) =>
       _runs.values.any((r) => r.job['app'] == app && r.job['finished'] != true) ||
-      loadJobs(paths).any((j) => j['app'] == app && j['finished'] != true);
+      loadJobs(paths).any((j) => canonicalAppId('${j['app']}') == canonicalAppId(app) && j['finished'] != true);
 
   /// Starts a program in its own session, detached from this one (KDE trays).
   Future<bool> startDetached(String exe, [List<String> args = const []]) async {
@@ -1896,7 +1897,7 @@ final class JobEngine {
       if (e == null || e['restore'] != true || unsafeReach(e['path'] as String, reach) != null) continue;
       if (displaced.restoreEntry(e)) {
         restored.add(e['path'] as String);
-        r.log.note(trf('restored {0} (it was there before the Manager installed {1})', [e['path'], app.name]));
+        r.log.note(trf('restored {0} (it was there before Maprisma Settings installed {1})', [e['path'], app.name]));
         displaced.drop(e);
       }
     }
@@ -2034,7 +2035,7 @@ Map<String, dynamic>? loadJob(Paths paths, String id) {
     ..['result'] = {
       'ok': false,
       'code': 'interrupted',
-      'message': trf('the Manager that ran it ended in the {0} phase{1}', [job['phase'], orphan ? trf('; {0} still runs (pid {1})', [job['pkexec'] != null ? 'pkexec/pacman' : tr('its script'), ((job['pkexec'] ?? script) as Map)['pid']]) : '']),
+      'message': trf('the Maprisma Settings window that ran it ended in the {0} phase{1}', [job['phase'], orphan ? trf('; {0} still runs (pid {1})', [job['pkexec'] != null ? 'pkexec/pacman' : tr('its script'), ((job['pkexec'] ?? script) as Map)['pid']]) : '']),
       'repair': job['phase'] != 'queued',
       'committed': committed,
       if (orphan) 'orphan': true,
@@ -2083,7 +2084,8 @@ Map<String, Map<String, dynamic>> latestJobs(Paths paths) {
   final out = <String, Map<String, dynamic>>{};
   for (final j in loadJobs(paths)) {
     final app = j['app'];
-    if (app is String) out.putIfAbsent(app, () => summary(j));
+    // jobs of before a rename count for the app's id now
+    if (app is String) out.putIfAbsent(canonicalAppId(app), () => summary(j));
   }
   return out;
 }

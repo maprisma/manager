@@ -36,7 +36,7 @@ void main() {
     return {};
   }
 
-  String shots() => '${home.path}/Pictures/Maprisma Manager';
+  String shots() => '${home.path}/Pictures/Maprisma Settings';
   List<String> files() => Directory(shots()).existsSync()
       ? (Directory(shots()).listSync().map((f) => f.uri.pathSegments.last).toList()..sort())
       : <String>[];
@@ -66,7 +66,7 @@ void main() {
       await press(tester);
       final saved = files();
       expect(saved, hasLength(1));
-      expect(saved.single, matches(RegExp(r'^maprisma-manager-\d{8}-\d{6}\.png$')));
+      expect(saved.single, matches(RegExp(r'^maprisma-settings-\d{8}-\d{6}\.png$')));
       final png = File('${shots()}/${saved.single}');
       expect(png.readAsBytesSync().take(4), [0x89, 0x50, 0x4e, 0x47]);
       expect(FileStat.statSync(png.path).mode & 0x1ff, 0x180);

@@ -8,7 +8,7 @@ void main() {
     expect(catalog, hasLength(18));
     final ids = {for (final a in catalog) a.id};
     expect(ids, hasLength(18));
-    expect(ids, containsAll(['maprisma', 'control', 'launcher', 'theme', 'playground', 'bluetooth', 'home', 'hue', 'llm', 'wlan', 'narrator', 'video', 'tiling', 'icons', 'shell', 'manager', 'notifier', 'dictation']));
+    expect(ids, containsAll(['maprisma', 'control', 'launcher', 'theme', 'playground', 'bluetooth', 'home', 'hue', 'llm', 'wlan', 'narrator', 'video', 'tiling', 'icons', 'shell', 'settings', 'notifier', 'dictation']));
     for (final a in catalog) {
       for (final c in a.components) {
         expect(c.paths.where((p) => p.key), hasLength(1), reason: '${a.id}/${c.id}');

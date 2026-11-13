@@ -61,7 +61,7 @@ void main() {
     });
 
     test('the settings file is read', () {
-      w.writeFile(p.join(w.paths.config, 'maprisma-manager/settings.json'), jsonEncode({'projectsDir': '/somewhere'}));
+      w.writeFile(p.join(w.paths.config, 'maprisma-settings/settings.json'), jsonEncode({'projectsDir': '/somewhere'}));
       final core = CoreService(environment: {...w.env()}..remove('MAPRISMA_PROJECTS'), uid: 1000);
       expect(core.ctx.projectsDir, '/somewhere');
       expect(core.ctx.projectsSource, 'settings');

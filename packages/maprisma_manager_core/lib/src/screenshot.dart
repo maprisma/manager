@@ -5,9 +5,9 @@ import 'package:path/path.dart' as p;
 
 import 'private_files.dart';
 
-/// F12: a picture of Maprisma Manager's window, for telling what is wrong (as Maprisma Playground's
-/// screenshot.dart). The picture goes to ~/Pictures/Maprisma Manager/
-/// `maprisma-manager-<date>-<time>.png` (never over an older one); the window then names the file
+/// F12: a picture of Maprisma Settings' window, for telling what is wrong (as Maprisma Playground's
+/// screenshot.dart). The picture goes to ~/Pictures/Maprisma Settings/
+/// `maprisma-settings-<date>-<time>.png` (never over an older one); the window then names the file
 /// and takes an optional note, written next to it as a .txt with the picture's name. In Settings,
 /// "F12 saves a screenshot" turns the key off. Nothing is uploaded and no other program is started:
 /// the window draws itself into the picture.
@@ -16,7 +16,7 @@ import 'private_files.dart';
 const screenshotNoteLimit = 4000;
 
 /// The pictures folder (XDG_PICTURES_DIR from user-dirs.dirs, else ~/Pictures) with
-/// "Maprisma Manager" in it.
+/// "Maprisma Settings" in it (pictures of before the rename stay in "Maprisma Manager").
 String screenshotFolder([Map<String, String>? environment]) {
   final env = environment ?? Platform.environment;
   final home = env['HOME'] ?? '/';
@@ -36,7 +36,7 @@ String screenshotFolder([Map<String, String>? environment]) {
   } on Object {
     // no user-dirs.dirs: ~/Pictures
   }
-  return p.join(pictures, 'Maprisma Manager');
+  return p.join(pictures, 'Maprisma Settings');
 }
 
 /// `<date>-<time>` of a screenshot's name: 20261110-120000.
@@ -46,13 +46,13 @@ String screenshotStamp(DateTime at) {
       '${two(at.hour)}${two(at.minute)}${two(at.second)}';
 }
 
-/// `maprisma-manager-<stamp>.png`, or -2, -3 … when a picture or a note already has that name
+/// `maprisma-settings-<stamp>.png`, or -2, -3 … when a picture or a note already has that name
 /// in the folder (also a link that points nowhere).
 String freeScreenshotName(PrivateFolder folder, String stamp) {
-  var name = 'maprisma-manager-$stamp.png';
+  var name = 'maprisma-settings-$stamp.png';
   var n = 2;
   while (folder.taken(name) || folder.taken(p.setExtension(name, '.txt'))) {
-    name = 'maprisma-manager-$stamp-$n.png';
+    name = 'maprisma-settings-$stamp-$n.png';
     n++;
   }
   return name;

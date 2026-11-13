@@ -6,29 +6,35 @@ import 'context.dart';
 import 'core.dart';
 import 'jobs.dart' show finishSelfUpdate;
 
-const usage = '''usage: maprisma-manager-core status [--json] [--desktop cosmic|kde|other] [<id>]
-       maprisma-manager-core sources [--json]
-       maprisma-manager-core fetch [--force] [<id>]
-       maprisma-manager-core github [--force] [<id>]
-       maprisma-manager-core new [--json]                 (Maprisma apps the catalog doesn't know)
-       maprisma-manager-core clone-new <org/repo>         (clone a new GitHub-only one into the projects folder)
-       maprisma-manager-core bar [--json] [--panel <name>]
-       maprisma-manager-core bar <id> left|center|right|out [--index <n>] [--panel <name>]
-       maprisma-manager-core bar apply
-       maprisma-manager-core install|update|reinstall <id> [--force] [--source release|folder]
+const usage = '''usage: maprisma-settings-core status [--json] [--desktop cosmic|kde|other] [<id>]
+       maprisma-settings-core sources [--json]
+       maprisma-settings-core fetch [--force] [<id>]
+       maprisma-settings-core github [--force] [<id>]
+       maprisma-settings-core new [--json]                 (Maprisma apps the catalog doesn't know)
+       maprisma-settings-core clone-new <org/repo>         (clone a new GitHub-only one into the projects folder)
+       maprisma-settings-core bar [--json] [--panel <name>]
+       maprisma-settings-core bar <id> left|center|right|out [--index <n>] [--panel <name>]
+       maprisma-settings-core bar apply
+       maprisma-settings-core install|update|reinstall <id> [--force] [--source release|folder]
                              (--force: Launcher's install-local --force; --source: Maprisma's archive)
-       maprisma-manager-core release <id> [<tag>]
-       maprisma-manager-core remove <id> [--delete-settings] [--yes]
-       maprisma-manager-core icon <id> [<name>|<file>|--reset] [--search <text>] [--json]
-       maprisma-manager-core ai-helpers                   (the AI helpers for "Let AI do the updates")
-       maprisma-manager-core ai-update [<helper>]         (let the AI update the apps; the AI page must allow it)
-       maprisma-manager-core jobs [<id>]
-       maprisma-manager-core log <job>
-       maprisma-manager-core version
-       maprisma-manager-core self-update-done <job> [--failed <why>]   (the self-update helper)''';
+       maprisma-settings-core release <id> [<tag>]
+       maprisma-settings-core remove <id> [--delete-settings] [--yes]
+       maprisma-settings-core icon <id> [<name>|<file>|--reset] [--search <text>] [--json]
+       maprisma-settings-core ai-helpers                   (the AI helpers for "Let AI do the updates")
+       maprisma-settings-core ai-update [<helper>]         (let the AI update the apps; the AI page must allow it)
+       maprisma-settings-core jobs [<id>]
+       maprisma-settings-core log <job>
+       maprisma-settings-core version
+       maprisma-settings-core self-update-done <job> [--failed <why>]   (the self-update helper)''';
 
-/// `maprisma-manager-core <command>`: a human table by default, JSON with --json.
-Future<int> runCli(List<String> args, {CoreService? service, IOSink? out}) async {
+/// The name this program was started by: `maprisma-settings-core`, or `maprisma-manager-core` when
+/// started through the old name (a Manager from before the rename checks a new build's `version`
+/// answer for its own name).
+String cliName([String? executable]) =>
+    (executable ?? Platform.executable).split('/').last == 'maprisma-manager-core' ? 'maprisma-manager-core' : 'maprisma-settings-core';
+
+/// `maprisma-settings-core <command>`: a human table by default, JSON with --json.
+Future<int> runCli(List<String> args, {CoreService? service, IOSink? out, String? executable}) async {
   final sink = out ?? stdout;
   var json = false, force = false, yes = false, deleteSettings = false, reset = false;
   String? desktop, panel, source, search, failed;
@@ -68,7 +74,7 @@ Future<int> runCli(List<String> args, {CoreService? service, IOSink? out}) async
     }
   }
   if (rest case ['version']) {
-    sink.writeln('maprisma-manager-core $coreVersion');
+    sink.writeln('${cliName(executable)} $coreVersion');
     return 0;
   }
   final CoreService core;
@@ -301,13 +307,13 @@ Future<int> _runJob(CoreService core, IOSink sink, Map<String, dynamic> params) 
     sink.writeln('${job['kind']} ${job['app']}: done${result['partial'] != null ? ' (partly: no ${(result['partial'] as List).join(', ')})' : ''}');
     if (result['restart'] == true) {
       final su = result['selfUpdate'] as Map? ?? const {};
-      sink.writeln('The new build is staged and checked: close Maprisma Manager (pid ${(su['waitFor'] as List?)?.join(', ')}) to finish; '
+      sink.writeln('The new build is staged and checked: close Maprisma Settings (pid ${(su['waitFor'] as List?)?.join(', ')}) to finish; '
           'the helper swaps it in and starts it again (log: ${su['log']})');
     }
     return 0;
   }
   sink.writeln('${job['kind']} ${job['app']}: ${job['state']} (${result['code']}${result['message'] == null ? '' : ': ${result['message']}'})'
-      '${result['repair'] == true ? '. Repair: maprisma-manager-core reinstall ${job['app']}' : ''}');
+      '${result['repair'] == true ? '. Repair: maprisma-settings-core reinstall ${job['app']}' : ''}');
   sink.writeln('log: ${job['log']}');
   return job['state'] == 'cancelled' ? 130 : 1;
 }

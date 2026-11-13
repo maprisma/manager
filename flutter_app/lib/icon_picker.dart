@@ -66,7 +66,7 @@ class _IconPickerState extends State<IconPicker> {
       changed = true;
       if (mounted) Navigator.pop(context, true);
     } on ServiceError catch (e) {
-      if (mounted) setState(() => error = '${e.code == 'bad_icon' ? tr('Not an icon the Manager writes') : e.code}: ${e.reason ?? ''}');
+      if (mounted) setState(() => error = '${e.code == 'bad_icon' ? tr('Not an icon Maprisma Settings writes') : e.code}: ${e.reason ?? ''}');
     } finally {
       if (mounted) setState(() => working = false);
     }

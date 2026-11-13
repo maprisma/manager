@@ -84,7 +84,7 @@ class ManagerSettingsPageState extends State<ManagerSettingsPage> {
             SettingsToggle(
               key: const ValueKey('settings-screenshot-key'),
               title: tr('F12 saves a screenshot'),
-              description: tr('A picture of this window goes to ~/Pictures/Maprisma Manager; then you can add a note about what is wrong, saved next to it.'),
+              description: tr('A picture of this window goes to ~/Pictures/Maprisma Settings; then you can add a note about what is wrong, saved next to it.'),
               value: widget.screenshotKey,
               onChanged: (v) => _set('screenshot_key', v),
             ),

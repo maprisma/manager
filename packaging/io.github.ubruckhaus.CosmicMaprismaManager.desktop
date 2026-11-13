@@ -1,8 +1,8 @@
 [Desktop Entry]
-Name=Maprisma Manager
+Name=Maprisma Settings
 Comment=Install, update and set up the Maprisma apps and the desktop
 Type=Application
-Exec=maprisma-manager-applet
+Exec=maprisma-settings-applet
 Terminal=false
 Categories=COSMIC;
 Keywords=COSMIC;Applet;Maprisma;Manager;Settings;

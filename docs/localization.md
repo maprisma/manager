@@ -1,6 +1,6 @@
 # Interface languages
 
-Maprisma Manager supports English, Deutsch, Français, Español, Italiano,
+Maprisma Settings (formerly Maprisma Manager) supports English, Deutsch, Français, Español, Italiano,
 Português, Nederlands and Polski. The globe button in the main toolbar opens
 **Language**. **System (<name>)** follows the first nonempty LC_ALL,
 LC_MESSAGES or LANG. Region, encoding and modifiers are ignored; unsupported
@@ -8,8 +8,8 @@ languages use English. An explicit choice overrides the environment.
 
 The choice takes effect immediately in the UI and core isolate and is saved as
 `language` (`auto` or a supported code) in
-`$XDG_CONFIG_HOME/maprisma-manager/settings.json` (default
-`~/.config/maprisma-manager/settings.json`). Other settings are preserved.
+`$XDG_CONFIG_HOME/maprisma-settings/settings.json` (default
+`~/.config/maprisma-settings/settings.json`). Other settings are preserved.
 Previously recorded logs retain the language in which they were produced.
 
 English is the translation key: `tr('Close')` and
@@ -26,7 +26,7 @@ belong to its base catalog. Catalog technical notes used only by the CLI remain
 English. Notes that actually appear in the interface are translated through the
 presentation mapping in `translations.dart`, keeping catalog data intact.
 Desktop Name and Comment also have all seven localized entries; the product
-name remains Maprisma Manager.
+name remains Maprisma Settings, untranslated like the other Maprisma app names.
 
 Run `tools/gen-translations` after changing a catalog. It uses only Python's
 standard library and embeds all catalogs in
@@ -93,7 +93,7 @@ Changed files:
 - `packages/maprisma_manager_core/lib/src/translations_generated.dart`
 - `packages/maprisma_manager_core/lib/src/trees.dart`
 - `packages/maprisma_manager_core/test/translations_test.dart`
-- `packaging/com.maprisma.Manager.desktop`
+- `packaging/com.maprisma.Settings.desktop`
 - `tools/gen-translations`
 - `tools/install-local`
 - `translations/de.json`

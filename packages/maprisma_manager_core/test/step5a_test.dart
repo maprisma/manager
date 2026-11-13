@@ -314,7 +314,7 @@ exit 0''');
       expect({for (final s in c.stays) p.relative(s['path'] as String, from: root): s['why']}, {
         'l': 'the link points elsewhere now',
         'mine.txt': 'foreign',
-        'sub/b': 'changed since the Manager installed it',
+        'sub/b': 'changed since Maprisma Settings installed it',
         'sub/__pycache__/other.cpython-314.pyc': 'foreign',
       });
       expect(c.whole, isFalse);
@@ -395,8 +395,8 @@ exit 0''');
       final trees = (plan['goes'] as List).where((g) => g['kind'] == 'tree').toList();
       expect(trees.map((t) => t['path']), unorderedEquals([lib, old]));
       expect(trees.firstWhere((t) => t['path'] == lib)['files'], 6);
-      expect(stayOf(plan, p.join(lib, 'data/icudtl.dat'))!['why'], 'changed since the Manager installed it');
-      expect(stayOf(plan, p.join(lib, 'notes.txt'))!['why'], contains('not installed by the Manager'));
+      expect(stayOf(plan, p.join(lib, 'data/icudtl.dat'))!['why'], 'changed since Maprisma Settings installed it');
+      expect(stayOf(plan, p.join(lib, 'notes.txt'))!['why'], contains('not installed by Maprisma Settings'));
       expect(stayOf(plan, foreign)!['why'], contains('interrupted install'));
       // the catalog's sample paths inside the bundle are the tree's, not entries of their own
       expect((plan['goes'] as List).where((g) => g['kind'] != 'tree').map((g) => g['path']), isNot(contains(p.join(lib, 'lib/libapp.so'))));
@@ -429,7 +429,7 @@ exit 0''');
     });
   });
 
-  test('theme: reinstall over an install from before the Manager; FLUTTER is the folder; owned and removed', () async {
+  test('theme: reinstall over an install from before Maprisma Settings; FLUTTER is the folder; owned and removed', () async {
     w.install('theme');
     final repo = w.repo('maprisma-theme');
     w.writeFile(p.join(repo, 'tools/install-local'), _themeInstall, mode: '755');
@@ -441,7 +441,7 @@ exit 0''');
     expect(log(job), contains('FLUTTER=${w.fakeBin}\n'));
     final lib = home('.local/lib/maprisma-theme');
     expect((receipt('theme')['trees'] as List).single['root'], lib);
-    // files before the Manager outside the bundle were backed up; none inside it
+    // files before Maprisma Settings outside the bundle were backed up; none inside it
     final index = jsonDecode(File(p.join(w.paths.managerState, 'displaced/theme/index.json')).readAsStringSync()) as Map;
     final backed = [for (final e in index['entries'] as List) e['path'] as String];
     expect(backed, isNotEmpty);
@@ -649,7 +649,7 @@ printf '[Theme]\nname=%s\n' "$1" > "${XDG_CONFIG_HOME:-$HOME/.config}/plasmarc"'
         'kwriteconfig6 --file kwinrc --group Script-maprisma-tiling --key build --delete',
       ]);
       expect(stayOf(plan, backup)!['why'], contains('tar -xzf'));
-      expect(stayOf(plan, p.join(scripts, 'omarchy-navigation'))!['why'], contains('before the Manager'));
+      expect(stayOf(plan, p.join(scripts, 'omarchy-navigation'))!['why'], contains('before Maprisma Settings'));
       expect((plan['data'] as List).single['goes'], isFalse);
 
       File(p.join(ctl, 'order.log')).writeAsStringSync('');

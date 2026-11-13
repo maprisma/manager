@@ -33,7 +33,10 @@ String cloneFolderFor(Ctx ctx, String name) =>
 /// description, linkedBy: remote|name|org}|null, cloneTo?: path|null, cloneBlocked?: why}]}`, by name. [GitHub.resolveLinks] first.
 Future<Map<String, dynamic>> discover(Ctx ctx) async {
   final gh = ctx.github;
-  final knownRepos = {for (final a in catalog) for (final i in a.inputs) i.repo.toLowerCase()};
+  final knownRepos = {
+    for (final a in catalog)
+      for (final i in a.inputs) ...[i.repo.toLowerCase(), for (final alias in repoFolderAliases[i.repo] ?? const <String>[]) alias.toLowerCase()],
+  };
   final knownSlugs = {for (final a in catalog) for (final i in a.inputs) ?gh.slugOf(i)?.toLowerCase()};
   final found = <String, Map<String, dynamic>>{};
 

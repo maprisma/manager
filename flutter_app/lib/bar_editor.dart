@@ -353,7 +353,7 @@ class BarEditorPageState extends State<BarEditorPage> {
     if (b == null) {
       body = error != null ? Center(child: Text(error!, style: TextStyle(color: scheme.error))) : const Center(child: CircularProgressIndicator());
     } else if (kind == 'none') {
-      body = Center(child: Text(tr('This desktop has no bar the Manager can edit.')));
+      body = Center(child: Text(tr('This desktop has no bar Maprisma Settings can edit.')));
     } else if (kind == 'systemTray') {
       final trays = ((b['trays'] as List?) ?? const []).cast<Map>();
       body = ListView(

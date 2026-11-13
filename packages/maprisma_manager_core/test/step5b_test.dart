@@ -269,9 +269,9 @@ void main() {
       expect(start, greaterThan(pk));
       expect(File(t('unit-active')).existsSync(), isTrue);
       // the recipe: in the cache, for this archive
-      final recipe = File(p.join(w.paths.cache, 'maprisma-manager/pkg/0.14.2/PKGBUILD')).readAsStringSync();
+      final recipe = File(p.join(w.paths.cache, 'maprisma-settings/pkg/0.14.2/PKGBUILD')).readAsStringSync();
       expect(recipe, contains("sha256sums=('$hash')"));
-      expect(recipe, contains('::file://${p.join(w.paths.cache, 'maprisma-manager/downloads/maprisma_maprisma/v0.14.2/maprisma-0.14.2-x86_64.tar.gz')}"'));
+      expect(recipe, contains('::file://${p.join(w.paths.cache, 'maprisma-settings/downloads/maprisma_maprisma/v0.14.2/maprisma-0.14.2-x86_64.tar.gz')}"'));
       expect(recipe, contains('pkgrel=1\n'));
       expect(text, contains('makepkg --nodeps --noconfirm --cleanbuild --force --noprogressbar'));
       final rec = receipt('maprisma');

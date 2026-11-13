@@ -1,7 +1,9 @@
-// Maprisma Manager's icon in the system tray of KDE and Maprisma Shell (a StatusNotifierItem
-// with a dbusmenu). A click opens Maprisma Manager when it is closed or hidden and hides it when
-// it is shown (`maprisma-manager --toggle`); the menu opens it on a page (`--page <page>`). Its
-// title starts with "Maprisma", so the Maprisma Icons panel widget shows it among the others.
+// Maprisma Settings' (formerly Maprisma Manager) icon in the system tray of KDE and Maprisma Shell
+// (a StatusNotifierItem with a dbusmenu). A click opens Maprisma Settings when it is closed or
+// hidden and hides it when it is shown (`maprisma-settings --toggle`); the menu opens it on a page
+// (`--page <page>`). Its title starts with "Maprisma", so the Maprisma Icons panel widget shows it
+// among the others. Its item id ("maprisma-manager"), icon name and D-Bus name stay as they were:
+// Maprisma Shell's bar.json and the KDE widget's lists name the icon by them.
 mod model;
 use model::Action;
 use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Duration};
@@ -11,7 +13,7 @@ use zbus::{
     zvariant::{OwnedObjectPath, OwnedValue, Value as Variant},
 };
 
-const TITLE: &str = "Maprisma Manager";
+const TITLE: &str = "Maprisma Settings";
 const ICON: &str = "io.github.ubruckhaus.CosmicMaprismaManager-symbolic";
 const BUS_NAME: &str = "io.github.ubruckhaus.CosmicMaprismaManager.Tray";
 
@@ -246,19 +248,26 @@ impl Tray {
     async fn new_tool_tip(emitter: &SignalEmitter<'_>) -> zbus::Result<()>;
 }
 /// MAPRISMA_MANAGER, the app next to this tray (the installed bundle's bin/), the link in
-/// ~/.local/bin, or one on PATH.
+/// ~/.local/bin (the old name of an earlier install too), or one on PATH.
 fn manager_bin() -> PathBuf {
     if let Some(path) = std::env::var_os("MAPRISMA_MANAGER") {
         return PathBuf::from(path);
     }
     if let Some(bundle) = std::env::current_exe().ok().and_then(|e| e.parent()?.parent().map(|p| p.to_path_buf())) {
-        let app = bundle.join("maprisma-manager");
-        if app.is_file() {
-            return app;
+        for name in ["maprisma-settings", "maprisma-manager"] {
+            let app = bundle.join(name);
+            if app.is_file() {
+                return app;
+            }
         }
     }
-    let local = PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".local/bin/maprisma-manager");
-    if local.exists() { local } else { PathBuf::from("maprisma-manager") }
+    let bin = PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".local/bin");
+    for name in ["maprisma-settings", "maprisma-manager"] {
+        if bin.join(name).exists() {
+            return bin.join(name);
+        }
+    }
+    PathBuf::from("maprisma-settings")
 }
 
 fn execute(action: Action) {

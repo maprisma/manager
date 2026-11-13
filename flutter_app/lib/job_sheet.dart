@@ -88,7 +88,7 @@ class _JobSheetState extends State<JobSheet> {
         final message = !j.finished
             ? null
             : restart
-            ? tr('The new build is checked: Maprisma Manager restarts with it now.')
+            ? tr('The new build is checked: Maprisma Settings restarts with it now.')
             : ok
             ? (result['up_to_date'] == true ? tr('Nothing new: the installed build is the folder\'s.') : tr('Done.'))
             : '${result['message'] ?? result['code'] ?? j.state}';

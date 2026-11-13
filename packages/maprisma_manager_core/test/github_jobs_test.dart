@@ -305,7 +305,7 @@ void main() {
     expect(File(p.join(w.paths.bin, 'mm-gh-daemon')).readAsStringSync(), contains('release 0.2.0'));
     // the placed copy is gone, the old one untouched; the download stays in the cache
     expect(Directory(dist).listSync().map((e) => p.basename(e.path)).toList(), ['mm-gh-0.1.0-x86_64.tar.gz']);
-    expect(File(p.join(w.paths.cache, 'maprisma-manager/downloads/test_mm-gh/v0.2.0/mm-gh-0.2.0-x86_64.tar.gz')).existsSync(), isTrue);
+    expect(File(p.join(w.paths.cache, 'maprisma-settings/downloads/test_mm-gh/v0.2.0/mm-gh-0.2.0-x86_64.tar.gz')).existsSync(), isTrue);
     final rec = jsonDecode(File(receiptFile()).readAsStringSync());
     expect(rec['source'], {
       'kind': 'release',
@@ -357,7 +357,7 @@ void main() {
     expect(log(job), isNot(contains('phase: build')));
     expect(File(p.join(w.paths.bin, 'mm-gh-daemon')).existsSync(), isFalse);
     expect(File(receiptFile()).existsSync(), isFalse);
-    expect(File(p.join(w.paths.cache, 'maprisma-manager/downloads/test_mm-gh/v0.2.0/mm-gh-0.2.0-x86_64.tar.gz')).existsSync(), isFalse);
+    expect(File(p.join(w.paths.cache, 'maprisma-settings/downloads/test_mm-gh/v0.2.0/mm-gh-0.2.0-x86_64.tar.gz')).existsSync(), isFalse);
     // the folder was cloned first (the script is in it)
     expect(log(job), contains('git clone $github'));
 

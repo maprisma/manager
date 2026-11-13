@@ -1,4 +1,8 @@
-# Maprisma Manager: plan
+# Maprisma Settings (formerly Maprisma Manager): plan
+
+> Renamed to Maprisma Settings on 2026-11-13 (id `settings`, `maprisma-settings`, com.maprisma.Settings;
+> the old names keep working, see protocol.md "The rename from Maprisma Manager"). The plan below keeps
+> the names it was written with.
 
 Asked 2026-11-09: "a Flutter app Maprisma Manager, which allows to manage our Maprisma apps on COSMIC
 or KDE desktops: install, update, remove, together with bar icon installation and bar icon

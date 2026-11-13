@@ -5,8 +5,10 @@
 
 #include "flutter/generated_plugin_registrant.h"
 
-// Maprisma Manager's window: one instance (com.maprisma.Manager; a second start shows the
-// first window), a header bar titled "Maprisma Manager", and the "maprisma-manager/window"
+// Maprisma Settings' window (formerly Maprisma Manager): one instance (com.maprisma.Settings; a
+// second start shows the first window, whether it was started as maprisma-settings or through the
+// compat name maprisma-manager: both are the same program), a header bar titled
+// "Maprisma Settings", and the "maprisma-manager/window" (an internal name, kept)
 // channel: "titlebar" (dark or light and the header's colours, as the desktop's palette, also
 // when the theme changes while the window is open) and, to Dart, "open" with a
 // second start's words (`--page <page>`). `--toggle` (the bar icon) hides the window when it is
@@ -186,10 +188,10 @@ static void my_application_activate(GApplication* application) {
       GTK_WINDOW(gtk_application_window_new(GTK_APPLICATION(application)));
   GtkHeaderBar* header_bar = GTK_HEADER_BAR(gtk_header_bar_new());
   gtk_widget_show(GTK_WIDGET(header_bar));
-  gtk_header_bar_set_title(header_bar, "Maprisma Manager");
+  gtk_header_bar_set_title(header_bar, "Maprisma Settings");
   gtk_header_bar_set_show_close_button(header_bar, TRUE);
   gtk_window_set_titlebar(window, GTK_WIDGET(header_bar));
-  gtk_window_set_title(window, "Maprisma Manager");
+  gtk_window_set_title(window, "Maprisma Settings");
   gtk_window_set_default_size(window, 900, 680);
   gtk_window_set_icon_name(window, APPLICATION_ID);
 
