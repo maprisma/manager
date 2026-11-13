@@ -690,6 +690,55 @@ Notifications: the crash reports' helper is no longer a Notifier setting on this
 (`notifications.get` has no `ai_helpers`, `notifications.set` refuses `ai_helper`); *Check with
 AI* uses the shared helper.
 
+## Voice (`voice.*`)
+
+The **Voice** page (sidebar after AI, `--page voice`): Maprisma Dictation's voice service
+`maprisma-voice` (catalog id `dictation`, repo `maprisma/dictation`, installed by its
+`install.sh`; no bar icon). The Manager talks to it only through its command line
+(`lib/src/voice.dart`): `~/.local/bin/maprisma-voice`, else the one on PATH, run with an argv
+list (never a shell), at most 256 KB of output and a time limit (10 s; a download 2 h, a try its
+length + 90 s). The service checks every value, so the rules live in one place
+(maprisma-dictation's `docs/protocol.md`, settings in `~/.config/maprisma-voice/settings.json`).
+
+- `voice.get` → `{installed, binary, install_url, status, status_error, models, settings, microphones, tasks}`:
+  `status` is `maprisma-voice status --json` (null when the service doesn't answer; then
+  `status_error` says why), `models` is `models --json` (`catalog`, `models`, `active`, `folder`),
+  `settings` is `get` (only the keys that are set), `microphones` is `{default, sources: [{name,
+  description}]}` from `pactl -f json` (monitors left out; empty without pactl). Without the
+  binary only `installed: false`, `install_url`, `microphones` and `tasks`.
+- `voice.set` `{key, value}` → `maprisma-voice set KEY <value as JSON>`; `key` is one of
+  `enabled`, `engine`, `model`, `language`, `microphone`, `unload_minutes`, `preload` (booleans,
+  0–1440, strings up to 200 characters, else `bad_params`); the service's refusal (exit 2) is
+  `bad_params` with its message, another failure `failed`; `not_installed` without the binary.
+- `voice.unset` `{key}` → `unset KEY` (back to the default; Model › Automatic).
+- `voice.download` `{model}` → `{task}`: `model download NAME` in the background (a catalog id;
+  names `^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$`); the percent comes from curl's progress bar on
+  stderr, the path from stdout. One download at a time (`busy`).
+- `voice.remove` `{model}` → `model remove NAME` (only the service's own models; refused with
+  `busy` while that model downloads).
+- `voice.try` `{seconds?}` → `{task}`: `dictate --seconds N` (1–30, default 5) in the
+  background; stderr lines `… text` are the partial text, stdout the final text; exit 3 (no
+  speech) and other failures end it `failed` with the service's last line. One try at a time.
+- `voice.tasks` → `{download, dictate}`, each null before the first, else `{kind, state:
+  running|succeeded|failed|cancelled, model?, seconds?, started, ended?, progress (download),
+  partial and text (dictate), path?, message?}`; the page polls it while one runs.
+- `voice.cancel` `{kind}` (`download` or `dictate`) → SIGTERM to the command (the service's curl
+  dies with it and a leftover `.part` is removed with `model remove`; a try's session is
+  cancelled by the service when its client leaves); `finished` when nothing runs.
+
+The page: Status (ready or the service's reason, engine and model in use; when it is missing,
+Install through the Apps page's job and the GitHub link), Dictation (on/off, Engine: Automatic and
+the five engines, those the service can't use disabled with why; Language: Automatic, the eight
+languages, another Whisper code; Microphone: Default and the PipeWire inputs; Free GPU memory
+after: never/5/10/30/60 minutes; Load the model at start), Models (Automatic, the catalog with
+Download/progress/Cancel, Use, Remove after asking, other installed models with Use only) and
+Try it (5 s, the partial and the final text, shown only).
+
+TODO (Maprisma Dictation steps 4 and 5): the overlay's key and mode (hold/toggle), its
+animation, the Assistant options (key, speak answers, history and private mode, action levels,
+the action log), Speech (Kokoro voice and speed) and "Use Maprisma Dictation for Omarchy's
+dictation keys" are added to this page when the service has them; none is shown before.
+
 ## CLI
 
 ```
