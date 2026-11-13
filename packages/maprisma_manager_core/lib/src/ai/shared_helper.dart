@@ -8,6 +8,10 @@
 /// Writes keep every other key, go through a temporary file in the same folder and a rename;
 /// the folder is 0700, the file 0600. When the file doesn't exist yet, the Manager seeds it once
 /// from its old `ai_helper` setting ([seedSharedHelper]).
+///
+/// `web_search` (a boolean, missing or invalid = false): when an app can't find something (e.g.
+/// an app to install), the helper may search the web and read pages — nothing else. Only helpers
+/// with a web-only mode can do it ([webSearchHelpers]); the app checks every result itself.
 library;
 
 import 'dart:convert';
@@ -16,6 +20,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import '../paths.dart';
+import 'ask_ai.dart';
 import 'posix.dart';
 
 const sharedAiDir = 'maprisma-ai';
@@ -56,11 +61,26 @@ bool sharedHelperExists(Paths paths) =>
 /// Saves [helper] ("auto" or an id) and keeps every other key of the file.
 void writeSharedHelper(Paths paths, String helper) {
   if (!validSharedHelper(helper)) throw ArgumentError.value(helper, 'helper', '"auto" or a helper id');
+  _writeKey(paths, 'helper', helper);
+}
+
+/// Whether the helper may search the web (missing or not a boolean → false).
+bool readSharedWebSearch(Paths paths) => _readObject(sharedAiFile(paths))?['web_search'] == true;
+
+/// Saves `web_search` and keeps every other key of the file.
+void writeSharedWebSearch(Paths paths, bool on) => _writeKey(paths, 'web_search', on);
+
+/// Whether [helper] (a resolved helper id, or null when none is ready) can search the web: it has
+/// a web-only mode (only the tools that search the web and read pages, ask_ai.dart's
+/// `Helper.web`). Only Claude Code for now (`--tools WebSearch,WebFetch`, nothing else).
+bool helperCanSearchWeb(String? helper) => helper != null && canSearchWeb(helper);
+
+void _writeKey(Paths paths, String key, Object value) {
   final path = sharedAiFile(paths);
   final dir = Directory(p.dirname(path));
   dir.createSync(recursive: true);
   chmodPath(dir.path, 0x1c0); // 0700
-  final values = {...?_readObject(path), 'helper': helper};
+  final values = {...?_readObject(path), key: value};
   final tmp = File(p.join(dir.path, '.settings.json.$pid.${DateTime.now().microsecondsSinceEpoch}.tmp'));
   try {
     final raf = tmp.openSync(mode: FileMode.writeOnly);

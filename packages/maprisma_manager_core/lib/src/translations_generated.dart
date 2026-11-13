@@ -1242,7 +1242,13 @@ const catalogs = <String, Map<String, String>>{
     "Check with AI on a crash opens it in a terminal.": "Check with AI on a crash opens it in a terminal.",
     " (untested)": " (untested)",
     "No helper ready: install a coding agent (Claude Code, Codex, Gemini CLI, pi, Hermes …) and sign in, or connect pi or Hermes to a local model.": "No helper ready: install a coding agent (Claude Code, Codex, Gemini CLI, pi, Hermes …) and sign in, or connect pi or Hermes to a local model.",
-    "the question is too long for this helper": "the question is too long for this helper"
+    "the question is too long for this helper": "the question is too long for this helper",
+    "Web search": "Web search",
+    "Let the AI helper search the web": "Let the AI helper search the web",
+    "When an app can't find something, for example an app to install, the helper may search the web and read pages, nothing else. The app checks the results before it offers anything. Used by Maprisma Launcher's Ask AI; more apps later. Off until you turn it on.": "When an app can't find something, for example an app to install, the helper may search the web and read pages, nothing else. The app checks the results before it offers anything. Used by Maprisma Launcher's Ask AI; more apps later. Off until you turn it on.",
+    "Where the questions go": "Where the questions go",
+    "With web search on, the question and the helper's searches go to the helper's provider, and the pages it reads are fetched from the web. It gets no other tools: no commands, no files.": "With web search on, the question and the helper's searches go to the helper's provider, and the pages it reads are fetched from the web. It gets no other tools: no commands, no files.",
+    "Works with Claude Code; {0} can't search the web here": "Works with Claude Code; {0} can't search the web here"
   },
   "de": {
     "Waiting": "Wartet",
@@ -2486,7 +2492,13 @@ const catalogs = <String, Map<String, String>>{
     "Check with AI on a crash opens it in a terminal.": "„Mit KI prüfen“ bei einem Absturz öffnet ihn in einem Terminal.",
     " (untested)": " (ungetestet)",
     "No helper ready: install a coding agent (Claude Code, Codex, Gemini CLI, pi, Hermes …) and sign in, or connect pi or Hermes to a local model.": "Kein Helfer bereit: einen Coding-Agenten (Claude Code, Codex, Gemini CLI, pi, Hermes …) installieren und anmelden, oder pi bzw. Hermes mit einem lokalen Modell verbinden.",
-    "the question is too long for this helper": "die Frage ist zu lang für diesen Helfer"
+    "the question is too long for this helper": "die Frage ist zu lang für diesen Helfer",
+    "Web search": "Websuche",
+    "Let the AI helper search the web": "Den KI-Helfer im Web suchen lassen",
+    "When an app can't find something, for example an app to install, the helper may search the web and read pages, nothing else. The app checks the results before it offers anything. Used by Maprisma Launcher's Ask AI; more apps later. Off until you turn it on.": "Wenn eine App etwas nicht findet, zum Beispiel eine App zum Installieren, darf der Helfer im Web suchen und Seiten lesen, sonst nichts. Die App prüft die Ergebnisse, bevor sie etwas anbietet. Genutzt von „Frag die KI“ in Maprisma Launcher; weitere Apps folgen. Aus, bis du es einschaltest.",
+    "Where the questions go": "Wohin die Fragen gehen",
+    "With web search on, the question and the helper's searches go to the helper's provider, and the pages it reads are fetched from the web. It gets no other tools: no commands, no files.": "Mit Websuche gehen die Frage und die Suchen des Helfers an den Anbieter des Helfers, und die Seiten, die er liest, werden aus dem Web geladen. Er bekommt keine anderen Werkzeuge: keine Befehle, keine Dateien.",
+    "Works with Claude Code; {0} can't search the web here": "Geht mit Claude Code; {0} kann hier nicht im Web suchen"
   },
   "fr": {
     "Waiting": "En attente",
@@ -3730,7 +3742,13 @@ const catalogs = <String, Map<String, String>>{
     "Check with AI on a crash opens it in a terminal.": "« Vérifier avec l'IA » sur un plantage l'ouvre dans un terminal.",
     " (untested)": " (non testé)",
     "No helper ready: install a coding agent (Claude Code, Codex, Gemini CLI, pi, Hermes …) and sign in, or connect pi or Hermes to a local model.": "Aucun assistant prêt : installez un agent de code (Claude Code, Codex, Gemini CLI, pi, Hermes …) et connectez-vous, ou reliez pi ou Hermes à un modèle local.",
-    "the question is too long for this helper": "la question est trop longue pour cet assistant"
+    "the question is too long for this helper": "la question est trop longue pour cet assistant",
+    "Web search": "Recherche web",
+    "Let the AI helper search the web": "Laisser l'assistant IA chercher sur le web",
+    "When an app can't find something, for example an app to install, the helper may search the web and read pages, nothing else. The app checks the results before it offers anything. Used by Maprisma Launcher's Ask AI; more apps later. Off until you turn it on.": "Quand une app ne trouve pas quelque chose, par exemple une app à installer, l'assistant peut chercher sur le web et lire des pages, rien d'autre. L'app vérifie les résultats avant de proposer quoi que ce soit. Utilisé par « Demander à l'IA » de Maprisma Launcher ; d'autres apps suivront. Désactivé tant que vous ne l'activez pas.",
+    "Where the questions go": "Où vont les questions",
+    "With web search on, the question and the helper's searches go to the helper's provider, and the pages it reads are fetched from the web. It gets no other tools: no commands, no files.": "Avec la recherche web, la question et les recherches de l'assistant vont au fournisseur de l'assistant, et les pages qu'il lit sont chargées depuis le web. Il n'a aucun autre outil : ni commandes, ni fichiers.",
+    "Works with Claude Code; {0} can't search the web here": "Fonctionne avec Claude Code ; {0} ne peut pas chercher sur le web ici"
   },
   "es": {
     "Waiting": "En espera",
@@ -4974,7 +4992,13 @@ const catalogs = <String, Map<String, String>>{
     "Check with AI on a crash opens it in a terminal.": "«Revisar con IA» en un bloqueo lo abre en un terminal.",
     " (untested)": " (sin probar)",
     "No helper ready: install a coding agent (Claude Code, Codex, Gemini CLI, pi, Hermes …) and sign in, or connect pi or Hermes to a local model.": "Ningún ayudante listo: instala un agente de programación (Claude Code, Codex, Gemini CLI, pi, Hermes …) e inicia sesión, o conecta pi o Hermes a un modelo local.",
-    "the question is too long for this helper": "la pregunta es demasiado larga para este ayudante"
+    "the question is too long for this helper": "la pregunta es demasiado larga para este ayudante",
+    "Web search": "Búsqueda web",
+    "Let the AI helper search the web": "Dejar que el asistente de IA busque en la web",
+    "When an app can't find something, for example an app to install, the helper may search the web and read pages, nothing else. The app checks the results before it offers anything. Used by Maprisma Launcher's Ask AI; more apps later. Off until you turn it on.": "Cuando una app no encuentra algo, por ejemplo una app para instalar, el asistente puede buscar en la web y leer páginas, nada más. La app comprueba los resultados antes de ofrecer nada. Lo usa «Preguntar a la IA» de Maprisma Launcher; más apps después. Desactivado hasta que lo actives.",
+    "Where the questions go": "Adónde van las preguntas",
+    "With web search on, the question and the helper's searches go to the helper's provider, and the pages it reads are fetched from the web. It gets no other tools: no commands, no files.": "Con la búsqueda web, la pregunta y las búsquedas del asistente van al proveedor del asistente, y las páginas que lee se descargan de la web. No tiene otras herramientas: ni comandos ni archivos.",
+    "Works with Claude Code; {0} can't search the web here": "Funciona con Claude Code; {0} no puede buscar en la web aquí"
   },
   "it": {
     "Waiting": "In attesa",
@@ -6218,7 +6242,13 @@ const catalogs = <String, Map<String, String>>{
     "Check with AI on a crash opens it in a terminal.": "«Verifica con l'IA» su un arresto anomalo lo apre in un terminale.",
     " (untested)": " (non testato)",
     "No helper ready: install a coding agent (Claude Code, Codex, Gemini CLI, pi, Hermes …) and sign in, or connect pi or Hermes to a local model.": "Nessun assistente pronto: installa un agente di programmazione (Claude Code, Codex, Gemini CLI, pi, Hermes …) e accedi, oppure collega pi o Hermes a un modello locale.",
-    "the question is too long for this helper": "la domanda è troppo lunga per questo assistente"
+    "the question is too long for this helper": "la domanda è troppo lunga per questo assistente",
+    "Web search": "Ricerca web",
+    "Let the AI helper search the web": "Lascia che l'assistente IA cerchi sul web",
+    "When an app can't find something, for example an app to install, the helper may search the web and read pages, nothing else. The app checks the results before it offers anything. Used by Maprisma Launcher's Ask AI; more apps later. Off until you turn it on.": "Quando un'app non trova qualcosa, per esempio un'app da installare, l'assistente può cercare sul web e leggere pagine, nient'altro. L'app controlla i risultati prima di proporre qualcosa. Usato da «Chiedi all'IA» di Maprisma Launcher; altre app in seguito. Spento finché non lo attivi.",
+    "Where the questions go": "Dove vanno le domande",
+    "With web search on, the question and the helper's searches go to the helper's provider, and the pages it reads are fetched from the web. It gets no other tools: no commands, no files.": "Con la ricerca web, la domanda e le ricerche dell'assistente vanno al fornitore dell'assistente, e le pagine che legge vengono scaricate dal web. Non ha altri strumenti: niente comandi, niente file.",
+    "Works with Claude Code; {0} can't search the web here": "Funziona con Claude Code; {0} qui non può cercare sul web"
   },
   "pt": {
     "Waiting": "Em espera",
@@ -7462,7 +7492,13 @@ const catalogs = <String, Map<String, String>>{
     "Check with AI on a crash opens it in a terminal.": "«Verificar com IA» numa falha abre-o num terminal.",
     " (untested)": " (não testado)",
     "No helper ready: install a coding agent (Claude Code, Codex, Gemini CLI, pi, Hermes …) and sign in, or connect pi or Hermes to a local model.": "Nenhum assistente pronto: instale um agente de programação (Claude Code, Codex, Gemini CLI, pi, Hermes …) e inicie sessão, ou ligue pi ou Hermes a um modelo local.",
-    "the question is too long for this helper": "a pergunta é demasiado longa para este assistente"
+    "the question is too long for this helper": "a pergunta é demasiado longa para este assistente",
+    "Web search": "Pesquisa na web",
+    "Let the AI helper search the web": "Deixar o assistente de IA pesquisar na web",
+    "When an app can't find something, for example an app to install, the helper may search the web and read pages, nothing else. The app checks the results before it offers anything. Used by Maprisma Launcher's Ask AI; more apps later. Off until you turn it on.": "Quando uma app não encontra algo, por exemplo uma app para instalar, o assistente pode pesquisar na web e ler páginas, mais nada. A app verifica os resultados antes de oferecer qualquer coisa. Usado por «Perguntar à IA» do Maprisma Launcher; mais apps depois. Desligado até o ligar.",
+    "Where the questions go": "Para onde vão as perguntas",
+    "With web search on, the question and the helper's searches go to the helper's provider, and the pages it reads are fetched from the web. It gets no other tools: no commands, no files.": "Com a pesquisa na web, a pergunta e as pesquisas do assistente vão para o fornecedor do assistente, e as páginas que lê são obtidas da web. Não tem outras ferramentas: nem comandos, nem ficheiros.",
+    "Works with Claude Code; {0} can't search the web here": "Funciona com o Claude Code; {0} não pode pesquisar na web aqui"
   },
   "nl": {
     "Waiting": "Wachten",
@@ -8706,7 +8742,13 @@ const catalogs = <String, Map<String, String>>{
     "Check with AI on a crash opens it in a terminal.": "‘Controleren met AI’ bij een crash opent hem in een terminal.",
     " (untested)": " (niet getest)",
     "No helper ready: install a coding agent (Claude Code, Codex, Gemini CLI, pi, Hermes …) and sign in, or connect pi or Hermes to a local model.": "Geen helper klaar: installeer een codeeragent (Claude Code, Codex, Gemini CLI, pi, Hermes …) en meld je aan, of koppel pi of Hermes aan een lokaal model.",
-    "the question is too long for this helper": "de vraag is te lang voor deze helper"
+    "the question is too long for this helper": "de vraag is te lang voor deze helper",
+    "Web search": "Zoeken op het web",
+    "Let the AI helper search the web": "De AI-helper op het web laten zoeken",
+    "When an app can't find something, for example an app to install, the helper may search the web and read pages, nothing else. The app checks the results before it offers anything. Used by Maprisma Launcher's Ask AI; more apps later. Off until you turn it on.": "Als een app iets niet vindt, bijvoorbeeld een app om te installeren, mag de helper op het web zoeken en pagina's lezen, verder niets. De app controleert de resultaten voordat ze iets aanbiedt. Gebruikt door ‘Vraag de AI’ in Maprisma Launcher; later meer apps. Uit totdat je het aanzet.",
+    "Where the questions go": "Waar de vragen naartoe gaan",
+    "With web search on, the question and the helper's searches go to the helper's provider, and the pages it reads are fetched from the web. It gets no other tools: no commands, no files.": "Met zoeken op het web gaan de vraag en de zoekopdrachten van de helper naar de aanbieder van de helper, en de pagina's die hij leest worden van het web gehaald. Hij krijgt geen ander gereedschap: geen opdrachten, geen bestanden.",
+    "Works with Claude Code; {0} can't search the web here": "Werkt met Claude Code; {0} kan hier niet op het web zoeken"
   },
   "pl": {
     "Waiting": "Oczekiwanie",
@@ -9950,6 +9992,12 @@ const catalogs = <String, Map<String, String>>{
     "Check with AI on a crash opens it in a terminal.": "„Sprawdź z AI” przy awarii otwiera go w terminalu.",
     " (untested)": " (nieprzetestowany)",
     "No helper ready: install a coding agent (Claude Code, Codex, Gemini CLI, pi, Hermes …) and sign in, or connect pi or Hermes to a local model.": "Brak gotowego pomocnika: zainstaluj agenta programistycznego (Claude Code, Codex, Gemini CLI, pi, Hermes …) i zaloguj się albo połącz pi lub Hermes z modelem lokalnym.",
-    "the question is too long for this helper": "pytanie jest za długie dla tego pomocnika"
+    "the question is too long for this helper": "pytanie jest za długie dla tego pomocnika",
+    "Web search": "Wyszukiwanie w sieci",
+    "Let the AI helper search the web": "Pozwól pomocnikowi AI szukać w sieci",
+    "When an app can't find something, for example an app to install, the helper may search the web and read pages, nothing else. The app checks the results before it offers anything. Used by Maprisma Launcher's Ask AI; more apps later. Off until you turn it on.": "Gdy aplikacja czegoś nie znajdzie, na przykład aplikacji do zainstalowania, pomocnik może szukać w sieci i czytać strony, nic więcej. Aplikacja sprawdza wyniki, zanim cokolwiek zaproponuje. Używa tego „Zapytaj AI” w Maprisma Launcher; więcej aplikacji później. Wyłączone, dopóki tego nie włączysz.",
+    "Where the questions go": "Dokąd trafiają pytania",
+    "With web search on, the question and the helper's searches go to the helper's provider, and the pages it reads are fetched from the web. It gets no other tools: no commands, no files.": "Przy wyszukiwaniu w sieci pytanie i wyszukiwania pomocnika trafiają do dostawcy pomocnika, a strony, które czyta, są pobierane z sieci. Nie dostaje innych narzędzi: żadnych poleceń, żadnych plików.",
+    "Works with Claude Code; {0} can't search the web here": "Działa z Claude Code; {0} nie może tu szukać w sieci"
   }
 };

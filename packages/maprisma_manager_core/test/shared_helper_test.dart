@@ -114,6 +114,73 @@ void main() {
     });
   });
 
+  group('web_search', () {
+    test('missing, broken or not a boolean reads as false', () {
+      expect(readSharedWebSearch(w.paths), isFalse);
+      for (final text in ['', '{broken', '[]', '{}', '{"web_search": "true"}', '{"web_search": 1}', '{"web_search": null}', '{"web_search": false}']) {
+        w.writeFile(file(), text);
+        expect(readSharedWebSearch(w.paths), isFalse, reason: text);
+      }
+      w.writeFile(file(), '{"web_search": true}');
+      expect(readSharedWebSearch(w.paths), isTrue);
+    });
+
+    test('write keeps the helper and unknown keys; the helper write keeps web_search', () {
+      w.writeFile(file(), jsonEncode({'helper': 'codex', 'future': {'x': 1}}));
+      writeSharedWebSearch(w.paths, true);
+      expect(stored(), {'helper': 'codex', 'future': {'x': 1}, 'web_search': true});
+      expect(mode(file()), 0x180);
+      expect(mode(p.dirname(file())), 0x1c0);
+      writeSharedHelper(w.paths, 'claude');
+      expect(stored(), {'helper': 'claude', 'future': {'x': 1}, 'web_search': true});
+      writeSharedWebSearch(w.paths, false);
+      expect(stored(), {'helper': 'claude', 'future': {'x': 1}, 'web_search': false});
+      expect(readSharedWebSearch(w.paths), isFalse);
+    });
+
+    test('only helpers with a web-only mode can do it (Claude Code)', () {
+      expect(helperCanSearchWeb('claude'), isTrue);
+      for (final other in [null, 'codex', 'pi:ollama/qwen3', 'hermes', 'nobody']) {
+        expect(helperCanSearchWeb(other), isFalse, reason: '$other');
+      }
+    });
+
+    test('ai.set_web_search writes it, ai.helpers returns it; bad values refused; the old helper is seeded first', () async {
+      w.writeFile(managerSettings(), jsonEncode({'ai_helper': 'codex'}));
+      final core = w.core();
+      var h = await core.call('ai.helpers');
+      expect(h['web_search'], isFalse);
+      h = await core.call('ai.set_web_search', {'on': true});
+      expect(h['web_search'], isTrue);
+      expect(stored(), {'helper': 'codex', 'web_search': true});
+      for (final bad in [null, 'true', 1]) {
+        await expectLater(core.call('ai.set_web_search', {'on': bad}), throwsA(isA<RouteError>()), reason: '$bad');
+      }
+      h = await core.call('ai.set_web_search', {'on': false});
+      expect(h['web_search'], isFalse);
+      expect(stored(), {'helper': 'codex', 'web_search': false});
+    });
+
+    test('ai.helpers: whether the resolved helper can search the web, with a reason when not', () async {
+      final core = w.core();
+      var h = await core.call('ai.helpers');
+      expect(h['chosen'], isNull);
+      expect(h['web_search_supported'], isFalse);
+      expect(h['web_search_reason'], isA<String>());
+      w.fake('claude', 'exit 0');
+      w.writeFile(p.join(w.home, '.claude/.credentials.json'), '{}');
+      h = await core.call('ai.helpers');
+      expect(h['chosen'], 'claude');
+      expect(h['web_search_supported'], isTrue);
+      expect(h['web_search_reason'], isNull);
+      w.fake('cursor-agent', 'exit 0');
+      h = await core.call('ai.set_helper', {'helper': 'cursor-agent'});
+      expect(h['chosen'], 'cursor-agent');
+      expect(h['web_search_supported'], isFalse);
+      expect(h['web_search_reason'], contains('Claude Code'));
+    });
+  });
+
   test('fallback to auto: a chosen helper that isn\'t ready', () {
     expect(resolveHelper('auto', ['claude', 'codex']), 'claude');
     expect(resolveHelper('codex', ['claude', 'codex']), 'codex');

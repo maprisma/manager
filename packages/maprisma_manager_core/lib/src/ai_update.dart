@@ -163,12 +163,21 @@ final class AiUpdater {
     final list = await helperList();
     final ready = [for (final h in list) if (h['signed_in'] == true) h['id'] as String];
     final shared = sharedHelper(ctx.paths);
+    final chosen = resolveHelper(shared, ready);
+    final canSearch = helperCanSearchWeb(chosen);
     return {
       'helpers': list,
       'helper': shared,
       'auto': ready.firstOrNull,
-      'chosen': resolveHelper(shared, ready),
+      'chosen': chosen,
       'fallback': shared != sharedAuto && !ready.contains(shared),
+      'web_search': readSharedWebSearch(ctx.paths),
+      'web_search_supported': canSearch,
+      'web_search_reason': canSearch
+          ? null
+          : chosen == null
+          ? tr('No AI helper is installed and signed in')
+          : trf('Works with Claude Code; {0} can\'t search the web here', [_name(list, chosen)]),
       'file': sharedAiFile(ctx.paths),
       'enabled': settings.values['ai_updates'] == true,
       'busy': running,
@@ -182,6 +191,22 @@ final class AiUpdater {
     sharedHelper(ctx.paths); // the old setting can't come back over the new choice
     try {
       writeSharedHelper(ctx.paths, helper as String);
+    } on FileSystemException catch (e) {
+      throw RouteError('write_failed', trf('{0} could not be saved: {1}', [sharedAiFile(ctx.paths), e.message]));
+    }
+    return helpers();
+  }
+
+  static String _name(List<Map<String, dynamic>> list, String id) =>
+      '${list.where((h) => h['id'] == id).firstOrNull?['name'] ?? id}';
+
+  /// `ai.set_web_search` `{on}`: whether the shared helper may search the web, for every app.
+  Future<Map<String, dynamic>> setWebSearch(Map<String, dynamic> params) async {
+    final on = params['on'];
+    if (on is! bool) throw RouteError('bad_params', 'on (true or false)');
+    sharedHelper(ctx.paths); // seed first, so the old helper setting isn't lost
+    try {
+      writeSharedWebSearch(ctx.paths, on);
     } on FileSystemException catch (e) {
       throw RouteError('write_failed', trf('{0} could not be saved: {1}', [sharedAiFile(ctx.paths), e.message]));
     }

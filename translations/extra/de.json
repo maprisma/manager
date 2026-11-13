@@ -69,5 +69,11 @@
   "Automatic ({0})": "Automatisch ({0})",
   " (untested)": " (ungetestet)",
   "No helper ready: install a coding agent (Claude Code, Codex, Gemini CLI, pi, Hermes …) and sign in, or connect pi or Hermes to a local model.": "Kein Helfer bereit: einen Coding-Agenten (Claude Code, Codex, Gemini CLI, pi, Hermes …) installieren und anmelden, oder pi bzw. Hermes mit einem lokalen Modell verbinden.",
-  "the question is too long for this helper": "die Frage ist zu lang für diesen Helfer"
+  "the question is too long for this helper": "die Frage ist zu lang für diesen Helfer",
+  "Web search": "Websuche",
+  "Let the AI helper search the web": "Den KI-Helfer im Web suchen lassen",
+  "When an app can't find something, for example an app to install, the helper may search the web and read pages, nothing else. The app checks the results before it offers anything. Used by Maprisma Launcher's Ask AI; more apps later. Off until you turn it on.": "Wenn eine App etwas nicht findet, zum Beispiel eine App zum Installieren, darf der Helfer im Web suchen und Seiten lesen, sonst nichts. Die App prüft die Ergebnisse, bevor sie etwas anbietet. Genutzt von „Frag die KI“ in Maprisma Launcher; weitere Apps folgen. Aus, bis du es einschaltest.",
+  "Where the questions go": "Wohin die Fragen gehen",
+  "With web search on, the question and the helper's searches go to the helper's provider, and the pages it reads are fetched from the web. It gets no other tools: no commands, no files.": "Mit Websuche gehen die Frage und die Suchen des Helfers an den Anbieter des Helfers, und die Seiten, die er liest, werden aus dem Web geladen. Er bekommt keine anderen Werkzeuge: keine Befehle, keine Dateien.",
+  "Works with Claude Code; {0} can't search the web here": "Geht mit Claude Code; {0} kann hier nicht im Web suchen"
 }

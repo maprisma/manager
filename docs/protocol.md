@@ -659,13 +659,18 @@ answers, 6 steps per answer, 20 steps per run; the same step at most twice. Stop
 a running `pub get` group and a job that can still be cancelled. Each run is saved as
 `$XDG_STATE_HOME/maprisma-manager/ai/<id>.json`.
 
-- `ai.helpers` → `{helpers: [{id, name, installed, signed_in, local, login, note, verified}], helper, auto, chosen, fallback, file, enabled, busy}`:
+- `ai.helpers` → `{helpers: [{id, name, installed, signed_in, local, login, note, verified}], helper, auto, chosen, fallback, file, enabled, busy, web_search, web_search_supported, web_search_reason}`:
   `helper` the shared choice (`"auto"` or an id), `auto` the first ready helper, `chosen` the one
   an AI update uses (the shared choice when it is ready, else `auto`), `fallback` true when a chosen
-  helper isn't ready (so `auto` is used), `file` the shared file
+  helper isn't ready (so `auto` is used), `file` the shared file; `web_search` the shared
+  `web_search` key, `web_search_supported` whether `chosen` can search the web (it has a web-only
+  mode; only Claude Code for now), `web_search_reason` why not (null when it can)
 - `ai.set_helper` `{helper}` → as `ai.helpers`; `helper` is `"auto"` or an id matching
   `^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,160}$` (else `bad_params`; a write error: `write_failed`).
   The AI dialog's Helper: [name ▾] writes it too: there is one choice for all apps
+- `ai.set_web_search` `{on}` → as `ai.helpers`; `on` a boolean (else `bad_params`; a write error:
+  `write_failed`). Writes the shared `web_search` key (the AI page's *Let the AI helper search the
+  web* switch)
 - `ai.start` `{helper?}` → `{run}`; refused with `off`, `busy` or `unavailable` (no helper ready)
 - `ai.get` → `{run}` (null before the first): `{id, helper, helperName, state: running|succeeded|failed|cancelled, phase: checking|asking|working|done, round, steps: [{kind: say|note|action, …}], message?}`
 - `ai.cancel` → `{run}`
@@ -685,6 +690,14 @@ go through a temporary file in the same folder and a rename; the folder is 0700,
 (`lib/src/ai/shared_helper.dart`). Migration: while the file doesn't exist, the Manager seeds it
 once from its old `ai_helper` setting when that is set and valid (the old key is no longer
 written or offered; `settings.set` refuses it).
+
+`"web_search"` (a boolean; missing or anything else means `false`, the default): whether the shared
+helper may search the web when an app can't find something (Maprisma Launcher's Ask AI, e.g. an
+app to install; more apps later). Only a helper with a web-only mode may do it: Claude Code with
+only its WebSearch and WebFetch tools (`--tools WebSearch,WebFetch`, nothing else; `Helper.web` in
+`lib/src/ai/ask_ai.dart`). Any other helper keeps no tools and the app doesn't search. The app
+checks every result itself before it offers anything; the question and the helper's searches go to
+the helper's provider. Written with the same atomic, key-keeping write as `helper`.
 
 Notifications: the crash reports' helper is no longer a Notifier setting on this page
 (`notifications.get` has no `ai_helpers`, `notifications.set` refuses `ai_helper`); *Check with

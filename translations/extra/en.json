@@ -69,5 +69,11 @@
   "Automatic ({0})": "Automatic ({0})",
   " (untested)": " (untested)",
   "No helper ready: install a coding agent (Claude Code, Codex, Gemini CLI, pi, Hermes …) and sign in, or connect pi or Hermes to a local model.": "No helper ready: install a coding agent (Claude Code, Codex, Gemini CLI, pi, Hermes …) and sign in, or connect pi or Hermes to a local model.",
-  "the question is too long for this helper": "the question is too long for this helper"
+  "the question is too long for this helper": "the question is too long for this helper",
+  "Web search": "Web search",
+  "Let the AI helper search the web": "Let the AI helper search the web",
+  "When an app can't find something, for example an app to install, the helper may search the web and read pages, nothing else. The app checks the results before it offers anything. Used by Maprisma Launcher's Ask AI; more apps later. Off until you turn it on.": "When an app can't find something, for example an app to install, the helper may search the web and read pages, nothing else. The app checks the results before it offers anything. Used by Maprisma Launcher's Ask AI; more apps later. Off until you turn it on.",
+  "Where the questions go": "Where the questions go",
+  "With web search on, the question and the helper's searches go to the helper's provider, and the pages it reads are fetched from the web. It gets no other tools: no commands, no files.": "With web search on, the question and the helper's searches go to the helper's provider, and the pages it reads are fetched from the web. It gets no other tools: no commands, no files.",
+  "Works with Claude Code; {0} can't search the web here": "Works with Claude Code; {0} can't search the web here"
 }

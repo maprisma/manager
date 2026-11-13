@@ -12,7 +12,7 @@ import 'page_shots.dart';
 
 const _dark = {'background': '#1a2234', 'foreground': '#cdd6ee', 'accent': '#4dd6c8', 'muted': '#a0a9c0'};
 
-Map<String, dynamic> _helpers({String helper = 'auto', bool fallback = false, bool none = false}) => {
+Map<String, dynamic> _helpers({String helper = 'auto', bool fallback = false, bool none = false, bool web = false}) => {
   'helpers': [
     {'id': 'claude', 'name': 'Claude Code', 'installed': !none, 'signed_in': !none, 'local': false, 'verified': true},
     {'id': 'codex', 'name': 'Codex', 'installed': false, 'signed_in': false, 'local': false, 'verified': true},
@@ -26,6 +26,8 @@ Map<String, dynamic> _helpers({String helper = 'auto', bool fallback = false, bo
   'file': '/home/u/.config/maprisma-ai/settings.json',
   'enabled': false,
   'busy': false,
+  'web_search': web,
+  'web_search_supported': !none && (helper == 'auto' || helper == 'claude' || fallback),
 };
 
 void main() {
@@ -44,6 +46,7 @@ void main() {
         'apps.list' => {'apps': <Object>[], 'desktop': 'cosmic'},
         'ai.helpers' => answer,
         'ai.set_helper' => {...answer, 'helper': params['helper']},
+        'ai.set_web_search' => {...answer, 'web_search': params['on']},
         'settings.set' => {'key': params['key'], 'value': params['value']},
         'jobs.list' => {'jobs': <Object>[]},
         _ => {},
@@ -113,5 +116,52 @@ void main() {
     await tester.pumpAndSettle();
     expect(calls.where((c) => c.$1 == 'settings.set').single.$2, {'key': 'ai_updates', 'value': true});
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('web search: off by default, the switch writes the shared setting, a privacy note', (tester) async {
+    final calls = await open(tester, _helpers());
+    expect(find.text('Let the AI helper search the web'), findsOneWidget);
+    expect(find.textContaining("Maprisma Launcher's Ask AI"), findsOneWidget);
+    expect(find.byKey(const ValueKey('ai-web-privacy')), findsOneWidget);
+    expect(find.textContaining("go to the helper's provider"), findsOneWidget);
+    expect(find.textContaining("can't search the web here"), findsNothing);
+    final sw = find.descendant(of: find.byKey(const ValueKey('ai-web-search')), matching: find.byType(Switch));
+    expect(tester.widget<Switch>(sw).value, isFalse);
+    await tester.ensureVisible(find.byKey(const ValueKey('ai-web-search')));
+    await tester.tap(find.byKey(const ValueKey('ai-web-search')));
+    await tester.pumpAndSettle();
+    expect(calls.where((c) => c.$1 == 'ai.set_web_search').single.$2, {'on': true});
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('web search with a helper that can\'t: a note naming it; off can\'t be turned on', (tester) async {
+    final calls = await open(tester, _helpers(helper: 'gemini'));
+    expect(find.text("Works with Claude Code; Gemini CLI can't search the web here"), findsOneWidget);
+    final sw = find.descendant(of: find.byKey(const ValueKey('ai-web-search')), matching: find.byType(Switch));
+    expect(tester.widget<Switch>(sw).onChanged, isNull);
+    await tester.ensureVisible(find.byKey(const ValueKey('ai-web-search')));
+    await tester.tap(find.byKey(const ValueKey('ai-web-search')));
+    await tester.pumpAndSettle();
+    expect(calls.where((c) => c.$1 == 'ai.set_web_search'), isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('web search on with a helper that can\'t: it can still be turned off', (tester) async {
+    final calls = await open(tester, _helpers(helper: 'gemini', web: true));
+    expect(find.text("Works with Claude Code; Gemini CLI can't search the web here"), findsOneWidget);
+    final sw = find.descendant(of: find.byKey(const ValueKey('ai-web-search')), matching: find.byType(Switch));
+    expect(tester.widget<Switch>(sw).value, isTrue);
+    expect(tester.widget<Switch>(sw).onChanged, isNotNull);
+    await tester.ensureVisible(find.byKey(const ValueKey('ai-web-search')));
+    await tester.tap(find.byKey(const ValueKey('ai-web-search')));
+    await tester.pumpAndSettle();
+    expect(calls.where((c) => c.$1 == 'ai.set_web_search').single.$2, {'on': false});
+    expect(tester.takeException(), isNull);
+  });
+
+  test('webSearchNote: none when it can or when no helper is ready', () {
+    expect(AiPageState.webSearchNote(_helpers()), isNull);
+    expect(AiPageState.webSearchNote(_helpers(none: true)), isNull);
+    expect(AiPageState.webSearchNote(_helpers(helper: 'pi:ollama/qwen3')), "Works with Claude Code; pi · qwen3 can't search the web here");
   });
 }

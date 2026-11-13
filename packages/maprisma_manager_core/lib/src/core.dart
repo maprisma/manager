@@ -117,6 +117,8 @@ final class CoreService {
       'ai.helpers': (_) async => ai.helpers(),
       // The AI page: the helper every Maprisma app uses (maprisma-ai/settings.json).
       'ai.set_helper': (params) => ai.setHelper(params),
+      // The AI page: may the shared helper search the web (maprisma-ai/settings.json web_search).
+      'ai.set_web_search': (params) => ai.setWebSearch(params),
       'ai.start': (params) async => ai.start(params),
       'ai.get': (_) async => ai.get(),
       'ai.cancel': (_) => ai.cancel(),

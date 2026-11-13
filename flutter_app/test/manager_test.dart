@@ -488,6 +488,8 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('nav-ai')));
     await settle(tester, 4);
     expect(find.text('Automatic (Claude Code)'), findsOneWidget);
+    await tester.ensureVisible(find.byKey(const ValueKey('ai-updates'))); // under Web search
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('ai-updates')));
     await settle(tester, 3);
     expect(Settings.load(w.paths).values['ai_updates'], isTrue);
