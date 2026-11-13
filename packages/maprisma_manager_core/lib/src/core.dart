@@ -195,9 +195,9 @@ final class CoreService {
       'voice.get': (_) => voice.get(),
       'voice.set': (params) => voice.set(params),
       'voice.unset': (params) => voice.unset(params),
-      'voice.download': (params) async => voice.download(params),
+      'voice.download': (params) => voice.download(params),
       'voice.remove': (params) => voice.remove(params),
-      'voice.try': (params) async => voice.tryIt(params),
+      'voice.try': (params) => voice.tryIt(params),
       'voice.tasks': (_) async => voice.tasks(),
       'voice.cancel': (params) => voice.cancel(params),
       // Displays and Input devices on Hyprland (hypr-manager.lua, hypr_config.dart).

@@ -205,33 +205,70 @@ final class VoiceService {
     return {'model': model, 'removed': true};
   }
 
+  /// The service's own model folder (`model download` writes `<file>.part` there, then renames).
+  String get modelsDir => p.join(ctx.paths.data, 'maprisma-voice', 'models');
+
+  static final _modelFile = RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.bin$');
+
   /// `voice.download` {model}: `model download NAME` in the background (curl's progress bar on
-  /// stderr gives the percent; the path on stdout when done).
-  Map<String, dynamic> download(Map<String, dynamic> params) {
+  /// stderr gives the percent; the path on stdout when done). Only a catalog model that is not
+  /// installed yet: so a Cancel can never take a model that was already there.
+  Future<Map<String, dynamic>> download(Map<String, dynamic> params) async {
     final model = _model(params);
     final exe = _need();
     if (_running('download')) throw RouteError('busy', tr('a model is already being downloaded'));
-    final task = _tasks['download'] = VoiceTask('download', ctx.clock(), model: model);
+    final listing = await _json(exe, ['models', '--json']);
+    final catalog = listing is Map && listing['catalog'] is List ? listing['catalog'] as List : const [];
+    final entry = catalog.whereType<Map>().where((c) => c['id'] == model).firstOrNull;
+    final file = entry?['file'];
+    if (entry == null || file is! String || !_modelFile.hasMatch(file) || file.contains('..')) {
+      throw RouteError('bad_params', tr('not a model the voice service can download'));
+    }
+    if (entry['installed'] == true) throw RouteError('exists', tr('the model is already installed'));
+    // checked again after the wait: one download at a time
+    if (_running('download')) throw RouteError('busy', tr('a model is already being downloaded'));
+    final task = _tasks['download'] = VoiceTask('download', ctx.clock(), model: model)..file = file;
     unawaited(_follow(task, exe, ['model', 'download', model], downloadTimeout));
     return {'task': task.toJson()};
+  }
+
+  /// After a cancelled download: only this download's `<file>.part` in the service's folder (a
+  /// regular file, never through a link); a finished model is left alone.
+  void _removePart(String file) {
+    final dir = modelsDir;
+    final part = p.join(dir, '$file.part');
+    if (!p.isWithin(dir, part) || p.dirname(part) != dir) return;
+    if (FileSystemEntity.typeSync(dir, followLinks: false) != FileSystemEntityType.directory) return;
+    if (FileSystemEntity.typeSync(part, followLinks: false) != FileSystemEntityType.file) return;
+    try {
+      File(part).deleteSync();
+    } on FileSystemException {
+      // gone already
+    }
   }
 
   // --- try it --------------------------------------------------------------------------------
 
   /// `voice.try` {seconds?}: `dictate --seconds N` (1–30, default 5) in the background; the
-  /// partial text comes on stderr as "… text", the final text on stdout.
-  Map<String, dynamic> tryIt(Map<String, dynamic> params) {
+  /// partial text comes on stderr as "… text", the final text on stdout. Only with an engine
+  /// that hands the text back: one that types it itself (status `typed_by_engine`: Voxtype,
+  /// Superwhisper, Omarchy) would type into whatever window has the focus.
+  Future<Map<String, dynamic>> tryIt(Map<String, dynamic> params) async {
     final seconds = params['seconds'] ?? 5;
     if (seconds is! int || seconds < 1 || seconds > 30) throw RouteError('bad_params', 'seconds (1–30)');
     final exe = _need();
+    if (_running('dictate')) throw RouteError('busy', tr('a try is already running'));
+    final status = await _json(exe, ['status', '--json']);
+    if (status is! Map) throw RouteError('unavailable', tr('the voice service gave no readable answer'));
+    if (status['typed_by_engine'] != false) throw RouteError('unavailable', tr('This engine types the text itself, into the window that has the focus, so it can\'t be tried here.'));
     if (_running('dictate')) throw RouteError('busy', tr('a try is already running'));
     final task = _tasks['dictate'] = VoiceTask('dictate', ctx.clock(), seconds: seconds);
     unawaited(_follow(task, exe, ['dictate', '--seconds', '$seconds'], Duration(seconds: seconds + 90)));
     return {'task': task.toJson()};
   }
 
-  /// `voice.cancel` {kind}: ends a running download (the service's curl dies with it; a
-  /// leftover `.part` is removed) or try (the service cancels a session whose client left).
+  /// `voice.cancel` {kind}: ends a running download (the service's curl dies with it; this
+  /// download's leftover `.part` is removed) or try (the service cancels a session whose client left).
   Future<Map<String, dynamic>> cancel(Map<String, dynamic> params) async {
     final kind = params['kind'];
     if (kind != 'download' && kind != 'dictate') throw RouteError('bad_params', 'kind (download or dictate)');
@@ -299,10 +336,9 @@ final class VoiceService {
     final stdout = utf8.decode(out.takeBytes(), allowMalformed: true).trim();
     final said = lines.lastOrNull;
     if (task.cancelled) {
-      if (task.kind == 'download' && task.model != null) {
-        // a .part left behind by the killed curl (nothing else: the model wasn't there)
-        await _run(exe, ['model', 'remove', task.model!], timeout: const Duration(seconds: 20));
-      }
+      // a .part left behind by the killed curl, nothing else (never `model remove`: the
+      // download may have just finished)
+      if (task.kind == 'download' && task.file != null) _removePart(task.file!);
       task.finish('cancelled', ctx.clock());
     } else if (code == null) {
       task.finish('failed', ctx.clock(), message: tr('it took too long and was stopped'));
@@ -339,6 +375,9 @@ final class VoiceTask {
   String partial = '';
   String text = '';
   String? path, message;
+
+  /// A download's file name in the service's folder (from its catalog).
+  String? file;
   Process? process;
   bool cancelled = false;
 

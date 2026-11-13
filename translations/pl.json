@@ -1087,5 +1087,8 @@
   "nothing is running": "nic nie jest uruchomione",
   "the model is being downloaded": "model jest właśnie pobierany",
   "the voice service gave no readable answer": "usługa głosowa nie dała czytelnej odpowiedzi",
-  "{0} · not installed by Maprisma Dictation, so it is not removed here": "{0} · nie zainstalowany przez Maprisma Dictation, więc nie jest tu usuwany"
+  "{0} · not installed by Maprisma Dictation, so it is not removed here": "{0} · nie zainstalowany przez Maprisma Dictation, więc nie jest tu usuwany",
+  "not a model the voice service can download": "to nie jest model, który usługa głosowa może pobrać",
+  "the model is already installed": "model jest już zainstalowany",
+  "This engine types the text itself, into the window that has the focus, so it can't be tried here.": "Ten silnik sam wpisuje tekst do aktywnego okna, więc nie można go tu wypróbować."
 }

@@ -16,7 +16,7 @@ const _dark = {'background': '#1a2234', 'foreground': '#cdd6ee', 'accent': '#4dd
 Map<String, dynamic> _status({bool ready = true, List<String> engines = const ['whisper']}) => {
   'enabled': true, 'ready': ready, 'why_not': ready ? '' : 'no_model', 'message': ready ? 'Ready' : 'No Whisper model is installed.',
   'engine': 'whisper', 'engine_setting': 'auto', 'engines': engines, 'model': 'ggml-large-v3-turbo-q5_0.bin',
-  'language': 'auto', 'microphone': 'default', 'state': 'idle', 'version': '0.1.0',
+  'language': 'auto', 'microphone': 'default', 'state': 'idle', 'version': '0.1.0', 'typed_by_engine': false,
 };
 
 Map<String, dynamic> _models() => {
@@ -264,6 +264,14 @@ void main() {
     expect(find.text('No Whisper model is installed.'), findsOneWidget);
     expect(tester.widget<FilledButton>(find.byKey(const ValueKey('voice-try'))).onPressed, isNull);
     expect(find.text('Dictation has to be ready first.'), findsOneWidget);
+  });
+
+  testWidgets('an engine that types itself (Omarchy): Try it is off and the note says why', (tester) async {
+    final fake = await open(tester, _get(status: {..._status(engines: ['whisper', 'omarchy']), 'engine': 'omarchy', 'typed_by_engine': true}));
+    expect(tester.widget<FilledButton>(find.byKey(const ValueKey('voice-try'))).onPressed, isNull);
+    expect(find.text('This engine types the text itself, into the window that has the focus, so it can\'t be tried here.'), findsOneWidget);
+    expect(find.text('Dictation has to be ready first.'), findsNothing);
+    expect(fake.of('voice.try'), isEmpty);
   });
 
   testWidgets('not installed: Install and the GitHub link', (tester) async {

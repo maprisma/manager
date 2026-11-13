@@ -1087,5 +1087,8 @@
   "nothing is running": "nothing is running",
   "the model is being downloaded": "the model is being downloaded",
   "the voice service gave no readable answer": "the voice service gave no readable answer",
-  "{0} · not installed by Maprisma Dictation, so it is not removed here": "{0} · not installed by Maprisma Dictation, so it is not removed here"
+  "{0} · not installed by Maprisma Dictation, so it is not removed here": "{0} · not installed by Maprisma Dictation, so it is not removed here",
+  "not a model the voice service can download": "not a model the voice service can download",
+  "the model is already installed": "the model is already installed",
+  "This engine types the text itself, into the window that has the focus, so it can't be tried here.": "This engine types the text itself, into the window that has the focus, so it can't be tried here."
 }

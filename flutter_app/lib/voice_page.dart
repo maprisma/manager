@@ -437,6 +437,8 @@ class VoicePageState extends State<VoicePage> with RoutePage {
     final t = tasks['dictate'] as Map?;
     final running = _running('dictate');
     final ready = s?['ready'] == true;
+    // Voxtype, Superwhisper and Omarchy type the text themselves, into the focused window
+    final typesItself = s?['typed_by_engine'] == true;
     Widget? result;
     if (t != null) {
       final state = t['state'];
@@ -470,7 +472,11 @@ class VoicePageState extends State<VoicePage> with RoutePage {
     }
     return SettingsSection(
       title: tr('Try it'),
-      note: s != null && !ready ? tr('Dictation has to be ready first.') : null,
+      note: s != null && !ready
+          ? tr('Dictation has to be ready first.')
+          : typesItself
+          ? tr('This engine types the text itself, into the window that has the focus, so it can\'t be tried here.')
+          : null,
       children: [
         SettingsItem(
           title: tr('Try dictation'),
@@ -479,7 +485,7 @@ class VoicePageState extends State<VoicePage> with RoutePage {
               ? OutlinedButton(key: const ValueKey('voice-try-stop'), onPressed: () => _cancel('dictate'), child: Text(tr('Stop')))
               : FilledButton(
                   key: const ValueKey('voice-try'),
-                  onPressed: ready ? () => _start('voice.try', {'seconds': trySeconds}) : null,
+                  onPressed: ready && !typesItself ? () => _start('voice.try', {'seconds': trySeconds}) : null,
                   child: Text(tr('Try it')),
                 ),
         ),

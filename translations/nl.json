@@ -1087,5 +1087,8 @@
   "nothing is running": "er loopt niets",
   "the model is being downloaded": "het model wordt gedownload",
   "the voice service gave no readable answer": "de spraakdienst gaf geen leesbaar antwoord",
-  "{0} · not installed by Maprisma Dictation, so it is not removed here": "{0} · niet door Maprisma Dictation geïnstalleerd, dus het wordt hier niet verwijderd"
+  "{0} · not installed by Maprisma Dictation, so it is not removed here": "{0} · niet door Maprisma Dictation geïnstalleerd, dus het wordt hier niet verwijderd",
+  "not a model the voice service can download": "geen model dat de spraakdienst kan downloaden",
+  "the model is already installed": "het model is al geïnstalleerd",
+  "This engine types the text itself, into the window that has the focus, so it can't be tried here.": "Deze engine typt de tekst zelf, in het venster met de focus, dus hij kan hier niet worden uitgeprobeerd."
 }

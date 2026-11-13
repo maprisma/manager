@@ -13,7 +13,9 @@ import 'fakes.dart';
 import 'support.dart';
 
 /// The fake: answers from `$HOME/voice/*`, every call logged to `$HOME/voice.log` (one JSON
-/// argv per line). `$HOME/voice/slow` makes a download wait for `$HOME/voice/go`.
+/// argv per line). `$HOME/voice/slow` makes a download wait for `$HOME/voice/go`; a download
+/// writes `<file>.part` in the service's model folder and renames it when done (`race`: done
+/// before it exits).
 const _fake = r'''#!/usr/bin/python3 -I
 import json, os, sys, time
 home = os.environ['HOME']
@@ -42,12 +44,25 @@ if a[:1] == ['unset']:
 if a[:2] == ['model', 'download']:
     if a[2] == 'bad':
         sys.stderr.write('##   3.0%\rthe download failed (exit status: 22)\n'); sys.exit(1)
+    models = os.path.join(home, '.local/share/maprisma-voice/models')
+    dest = os.path.join(models, 'ggml-' + a[2] + '.bin')
+    os.makedirs(models, exist_ok=True)
+    open(dest + '.part', 'w').write('partial')
     for pct in ('10.0', '45.5'):
         sys.stderr.write('#' * int(float(pct) / 5) + ' ' + pct + '%\r'); sys.stderr.flush(); time.sleep(0.05)
+    if os.path.exists(os.path.join(d, 'race')):
+        os.rename(dest + '.part', dest)  # done, but not exited yet when Cancel comes
     while os.path.exists(os.path.join(d, 'slow')) and not os.path.exists(os.path.join(d, 'go')):
         time.sleep(0.05)
-    print(os.path.join(home, '.local/share/maprisma-voice/models/ggml-' + a[2] + '.bin')); sys.exit(0)
+    if os.path.exists(dest + '.part'):
+        os.rename(dest + '.part', dest)
+    print(dest); sys.exit(0)
 if a[:2] == ['model', 'remove']:
+    # as the service does it: the model and its .part
+    dest = os.path.join(home, '.local/share/maprisma-voice/models', 'ggml-' + a[2] + '.bin')
+    for path in (dest, dest + '.part'):
+        if os.path.exists(path):
+            os.remove(path)
     sys.exit(0)
 if a[:1] == ['dictate']:
     sys.stderr.write('Listening for ' + a[2] + ' s…\n'); sys.stderr.flush()
@@ -64,7 +79,19 @@ sys.exit(2)
 const _status = {
   'enabled': true, 'ready': true, 'why_not': '', 'message': 'Ready', 'engine': 'whisper', 'engine_setting': 'auto',
   'engines': ['whisper'], 'model': 'ggml-base.bin', 'models': ['ggml-base.bin'], 'language': 'auto', 'microphone': 'default',
-  'state': 'idle', 'version': '0.1.0',
+  'state': 'idle', 'version': '0.1.0', 'typed_by_engine': false,
+};
+
+/// The service's catalog: base installed, the others not.
+const _models = {
+  'active': 'ggml-base.bin',
+  'catalog': [
+    {'id': 'base', 'file': 'ggml-base.bin', 'installed': true},
+    {'id': 'small', 'file': 'ggml-small.bin', 'installed': false},
+    {'id': 'turbo', 'file': 'ggml-turbo.bin', 'installed': false},
+    {'id': 'bad', 'file': 'ggml-bad.bin', 'installed': false},
+  ],
+  'models': [],
 };
 
 void main() {
@@ -81,6 +108,8 @@ void main() {
     final f = File(p.join(w.home, 'voice.log'));
     return f.existsSync() ? [for (final l in f.readAsLinesSync()) (jsonDecode(l) as List).cast<String>()] : const [];
   }
+
+  String modelsDir() => p.join(w.home, '.local/share/maprisma-voice/models');
 
   Matcher refused(String code) => throwsA(isA<RouteError>().having((e) => e.code, 'code', code));
 
@@ -192,6 +221,7 @@ void main() {
 
   test('a download runs in the background with its percent and ends with the path', () async {
     installFake();
+    answer('models.json', _models);
     answer('slow', '');
     final core = w.core();
     final started = await core.call('voice.download', {'model': 'small'});
@@ -208,13 +238,14 @@ void main() {
     expect(t['state'], 'succeeded');
     expect(t['progress'], 100);
     expect(t['path'], endsWith('ggml-small.bin'));
-    expect(calls(), [
+    expect(calls().where((c) => c[0] == 'model'), [
       ['model', 'download', 'small'],
     ]);
   });
 
   test('a failed download says why; bad names are refused', () async {
     installFake();
+    answer('models.json', _models);
     final core = w.core();
     await core.call('voice.download', {'model': 'bad'});
     final t = await settle(core, 'download');
@@ -225,18 +256,58 @@ void main() {
     await expectLater(core.call('voice.remove', {'model': 'a b'}), refused('bad_params'));
   });
 
-  test('Cancel ends a download and removes what it left', () async {
+  test('Cancel ends a download and removes only its .part (never `model remove`)', () async {
     installFake();
+    answer('models.json', _models);
     answer('slow', '');
+    // another model, and a stranger's .part, stay
+    w.writeFile(p.join(modelsDir(), 'ggml-base.bin'), 'model');
+    w.writeFile(p.join(modelsDir(), 'ggml-small.bin.part'), 'other');
     final core = w.core();
     await core.call('voice.download', {'model': 'turbo'});
-    await Future<void>.delayed(const Duration(milliseconds: 200));
+    final part = File(p.join(modelsDir(), 'ggml-turbo.bin.part'));
+    for (var i = 0; i < 100 && !part.existsSync(); i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    }
+    expect(part.existsSync(), isTrue);
     await core.call('voice.cancel', {'kind': 'download'});
     final t = await settle(core, 'download');
     expect(t['state'], 'cancelled');
-    expect(calls().last, ['model', 'remove', 'turbo']);
+    expect(part.existsSync(), isFalse);
+    expect(File(p.join(modelsDir(), 'ggml-base.bin')).readAsStringSync(), 'model');
+    expect(File(p.join(modelsDir(), 'ggml-small.bin.part')).readAsStringSync(), 'other');
+    expect(calls().where((c) => c[0] == 'model' && c[1] == 'remove'), isEmpty);
     await expectLater(core.call('voice.cancel', {'kind': 'download'}), refused('finished'));
     await expectLater(core.call('voice.cancel', {'kind': 'x'}), refused('bad_params'));
+  });
+
+  test('Cancel just after the model was renamed into place keeps the model', () async {
+    installFake();
+    answer('models.json', _models);
+    answer('slow', '');
+    answer('race', '');
+    final core = w.core();
+    await core.call('voice.download', {'model': 'turbo'});
+    final model = File(p.join(modelsDir(), 'ggml-turbo.bin'));
+    for (var i = 0; i < 100 && !model.existsSync(); i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    }
+    expect(model.existsSync(), isTrue);
+    await core.call('voice.cancel', {'kind': 'download'});
+    expect((await settle(core, 'download'))['state'], 'cancelled');
+    expect(model.readAsStringSync(), 'partial');
+  });
+
+  test('an installed model or one outside the catalog is not downloaded', () async {
+    installFake();
+    answer('models.json', _models);
+    final core = w.core();
+    await expectLater(core.call('voice.download', {'model': 'base'}), refused('exists'));
+    await expectLater(core.call('voice.download', {'model': 'medium'}), refused('bad_params'));
+    answer('models.json', {'catalog': [{'id': 'evil', 'file': '../../x.bin', 'installed': false}]});
+    await expectLater(core.call('voice.download', {'model': 'evil'}), refused('bad_params'));
+    expect(calls().where((c) => c[0] == 'model'), isEmpty);
+    expect((await core.call('voice.tasks'))['download'], isNull);
   });
 
   test('remove goes to the service', () async {
@@ -247,6 +318,7 @@ void main() {
 
   test('Try it: partial text while listening, then the final text', () async {
     installFake();
+    answer('status.json', _status);
     answer('slow', '');
     final core = w.core();
     await core.call('voice.try', {});
@@ -268,6 +340,7 @@ void main() {
 
   test('Try it without speech: the service\'s reason', () async {
     installFake();
+    answer('status.json', _status);
     answer('nospeech', '');
     final core = w.core();
     await core.call('voice.try', {'seconds': 3});
@@ -279,12 +352,26 @@ void main() {
 
   test('a try can be cancelled', () async {
     installFake();
+    answer('status.json', _status);
     answer('slow', '');
     final core = w.core();
     await core.call('voice.try', {});
     await Future<void>.delayed(const Duration(milliseconds: 200));
     await core.call('voice.cancel', {'kind': 'dictate'});
     expect((await settle(core, 'dictate'))['state'], 'cancelled');
+  });
+
+  test('Try it is refused with an engine that types itself, or without a status', () async {
+    installFake();
+    final core = w.core();
+    await expectLater(core.call('voice.try', {}), refused('unavailable'));
+    answer('status.json', {..._status, 'engine': 'voxtype', 'typed_by_engine': true});
+    await expectLater(core.call('voice.try', {}), refused('unavailable'));
+    // an older service without the field: not tried either
+    answer('status.json', {..._status}..remove('typed_by_engine'));
+    await expectLater(core.call('voice.try', {}), refused('unavailable'));
+    expect(calls().where((c) => c[0] == 'dictate'), isEmpty);
+    expect((await core.call('voice.tasks'))['dictate'], isNull);
   });
 
   test('microphones: no monitors; without pactl none', () async {
