@@ -629,7 +629,16 @@ written again over the installer's new file, which becomes the kept original (lo
 Settings › AI › **Let AI do the updates** (`ai_updates`, off by default; it can only be switched
 on while a helper is ready) and **Helper** (`ai_helper`; null = the first ready one). The helpers
 are Maprisma Theme's Ask AI helpers (`lib/src/ai/ask_ai.dart`, copied): Claude Code, Codex, pi,
-Hermes and pi's local models, each shown when installed and signed in. The toolbar's ✦ button
+Hermes and pi's local models, each shown when installed and signed in, and every other agent of
+Maprisma's helpers catalog (`lib/src/ai/helpers_catalog.dart`: `data/helpers.json`, or Maprisma's
+`/usr/lib/maprisma/data/helpers.json` when it is at least as new) with an `ask` whose program is
+installed (PATH, `~/.local/bin`, `~/.npm-global/bin`, else `mise which` for a command mise has a
+shim for), in the catalog's order. Such an agent runs by the catalog's `ask` argv (the prompt as
+one argument, its stdout the answer, the same folder, limits and time); its sign-in can't be told
+(it counts as ready), and one with `verified: false` is labelled "(untested)" (`verified` in
+`ai.helpers`). A saved helper that is unknown or no longer ready falls back to the first ready one.
+After a newer Maprisma catalog: copy it to `packages/maprisma_manager_core/data/` and run
+`tools/gen-helpers`. The toolbar's ✦ button
 opens the AI dialog (Helper: [name ▾], Start/Stop, what the AI said and did).
 
 The helper gets no tools (Codex: its read-only sandbox in a bubblewrap jail). Each round it gets

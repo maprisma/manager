@@ -66,5 +66,8 @@
   "A notification when one of your programs crashes, with its details.": "Una notificación cuando uno de tus programas se bloquea, con sus detalles.",
   "AI helper": "Asistente de IA",
   "Check with AI on a crash opens it in a terminal.": "«Revisar con IA» en un bloqueo lo abre en un terminal.",
-  "Automatic ({0})": "Automático ({0})"
+  "Automatic ({0})": "Automático ({0})",
+  " (untested)": " (sin probar)",
+  "No helper ready: install a coding agent (Claude Code, Codex, Gemini CLI, pi, Hermes …) and sign in, or connect pi or Hermes to a local model.": "Ningún ayudante listo: instala un agente de programación (Claude Code, Codex, Gemini CLI, pi, Hermes …) e inicia sesión, o conecta pi o Hermes a un modelo local.",
+  "the question is too long for this helper": "la pregunta es demasiado larga para este ayudante"
 }

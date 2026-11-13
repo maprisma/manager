@@ -18,6 +18,10 @@
 ///   belongs to this user or a system service (asked from the kernel over
 ///   netlink sock_diag, as `ss` does); their user unit is started when they do
 ///   not answer; a model an Ask loaded is unloaded again on request.
+/// - Every other agent of Maprisma's helpers catalog (helpers_catalog.dart) that
+///   is installed: run by the catalog's `ask` argv (one answer on stdout, no
+///   tools or read-only), the same private folder and limits; its sign-in is
+///   not known here (an Ask shows it), `verified: false` ones are "(untested)".
 library;
 
 import '../translations.dart';
@@ -32,6 +36,7 @@ import 'package:ffi/ffi.dart';
 import 'package:path/path.dart' as p;
 
 import 'bounded.dart';
+import 'helpers_catalog.dart';
 import 'posix.dart';
 
 
@@ -68,9 +73,55 @@ typedef Helper = ({
   // the helper has no web tools. A helper (local ones too) that gains web
   // search only needs this filled in.
   ({List<String> off, List<String> on})? web,
+  // A helper of Maprisma's catalog run by its `ask` argv (null: one of the four
+  // above, with their own stricter argv, sign-in check and special handling).
+  CatalogHelper? catalog,
+  // false: the catalog's entry was not tried with the agent yet ("(untested)").
+  bool verified,
 });
 
-List<Helper> get helpers => [
+/// The helpers in the catalog's order: Claude Code, Codex, pi and Hermes with
+/// their own handling ([ownHelpers]), every other entry with an `ask` as the
+/// catalog runs it.
+List<Helper> get helpers => helpersFrom(helpersCatalog());
+
+List<Helper> helpersFrom(HelpersCatalog catalog) {
+  final own = ownHelpers;
+  final out = <Helper>[
+    for (final e in catalog.helpers) own.where((h) => h.id == e.id).firstOrNull ?? catalogHelper(e),
+  ];
+  for (final h in own) {
+    if (!out.any((o) => o.id == h.id)) out.add(h);
+  }
+  return out;
+}
+
+/// API key variables passed to a catalog helper (no other provider's key reaches it).
+const catalogEnv = <String, List<String>>{
+  'gemini': ['GEMINI_API_KEY', 'GOOGLE_API_KEY', 'GOOGLE_CLOUD_PROJECT', 'GOOGLE_CLOUD_LOCATION', 'GOOGLE_GENAI_USE_VERTEXAI'],
+  'agy': ['GEMINI_API_KEY', 'GOOGLE_API_KEY'],
+  'cursor-agent': ['CURSOR_API_KEY'],
+  'copilot': ['COPILOT_GITHUB_TOKEN', 'GH_TOKEN', 'GITHUB_TOKEN'],
+  'grok': ['XAI_API_KEY', 'GROK_API_KEY'],
+  'omp': ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'GEMINI_API_KEY', 'OPENROUTER_API_KEY'],
+  'openclaw': ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'OPENROUTER_API_KEY'],
+};
+
+Helper catalogHelper(CatalogHelper e) => (
+  id: e.id,
+  name: e.name,
+  argv: e.argv,
+  files: const [],
+  env: catalogEnv[e.id] ?? const [],
+  login: '',
+  note: '',
+  jail: null,
+  web: null,
+  catalog: e,
+  verified: e.verified,
+);
+
+List<Helper> get ownHelpers => [
   (
     id: 'claude',
     name: 'Claude Code',
@@ -93,6 +144,8 @@ List<Helper> get helpers => [
     note: tr("No tools: it only reads what Maprisma Manager sends."),
     jail: null,
     web: (off: ['--tools', ''], on: ['--tools', 'WebSearch,WebFetch', '--allowedTools', 'WebSearch,WebFetch']),
+    catalog: null,
+    verified: true,
   ),
   (
     id: 'codex',
@@ -121,6 +174,8 @@ List<Helper> get helpers => [
     note: tr("Read-only sandbox, inside a bubblewrap jail that shows it none of your files."),
     jail: (fresh: ['.codex'], keep: ['.codex/auth.json']),
     web: null,
+    catalog: null,
+    verified: true,
   ),
   (
     id: 'pi',
@@ -132,6 +187,8 @@ List<Helper> get helpers => [
     note: tr("No tools, MCP servers, extensions or project files."),
     jail: null,
     web: null,
+    catalog: null,
+    verified: true,
   ),
   (
     id: 'hermes',
@@ -143,6 +200,8 @@ List<Helper> get helpers => [
     note: tr("Only its in-memory task list: no files, terminal, web or MCP."),
     jail: null,
     web: null,
+    catalog: null,
+    verified: true,
   ),
 ];
 
@@ -284,17 +343,26 @@ String localKey(LocalModel m) => '${m.host}|${m.port}|${m.model}';
 }
 
 /// Every supported agent: installed? signed in? (no tokens spent). Codex is
-/// installed only when bubblewrap is there to jail it.
-List<Map<String, dynamic>> helperStates(String home, Map<String, String> environment) {
-  bool has(String program) => which(program, environment) != null;
-  final jail = has('bwrap');
-  final pi = has('pi') ? piModels(home) : null;
-  final hermes = has('hermes') ? hermesModel(home) : null;
+/// installed only when bubblewrap is there to jail it. A catalog helper counts
+/// as signed in when installed (only an Ask can tell); `verified` false marks
+/// an untested catalog entry.
+Future<List<Map<String, dynamic>>> helperStates(String home, Map<String, String> environment) async {
+  final all = helpers;
+  // Every program looked for at once (`mise which` only for one mise has a shim for).
+  final commands = {for (final h in all) h.argv.first}.toList();
+  final paths = await Future.wait([for (final c in commands) findHelperCommand(c, home, environment)]);
+  final found = <String, String?>{for (var i = 0; i < commands.length; i++) commands[i]: paths[i]};
+  Future<bool> has(String program) async =>
+      (found.containsKey(program) ? found[program] : found[program] = await findHelperCommand(program, home, environment)) != null;
+  final jail = which('bwrap', environment) != null;
+  final pi = await has('pi') ? piModels(home) : null;
+  final hermes = await has('hermes') ? hermesModel(home) : null;
   final piLocalDefault = pi != null && pi.local.any((m) => m.provider == pi.provider && m.model == pi.model);
   final out = <Map<String, dynamic>>[];
-  for (final h in helpers) {
-    final installed = has(h.argv.first) && (jail || h.jail == null);
+  for (final h in all) {
+    final installed = await has(h.argv.first) && (jail || h.jail == null);
     final signedIn =
+        h.catalog != null ||
         h.env.any((e) => (environment[e] ?? '').isNotEmpty) ||
         h.files.any((f) => FileSystemEntity.typeSync(p.join(home, f), followLinks: false) != FileSystemEntityType.notFound);
     var name = h.name;
@@ -313,7 +381,8 @@ List<Map<String, dynamic>> helperStates(String home, Map<String, String> environ
       'signed_in': installed && (signedIn || local),
       'local': local,
       'login': h.login,
-      'note': h.jail != null && !jail && has(h.argv.first) ? 'Needs bubblewrap (bwrap) to run jailed.' : h.note,
+      'note': h.jail != null && !jail && found[h.argv.first] != null ? 'Needs bubblewrap (bwrap) to run jailed.' : h.note,
+      'verified': h.verified,
     });
   }
   for (final m in pi?.local ?? const <LocalModel>[]) {
@@ -326,6 +395,7 @@ List<Map<String, dynamic>> helperStates(String home, Map<String, String> environ
       'local': true,
       'login': '',
       'note': trf("On this PC ({0}): no tokens, nothing leaves the computer.", [m.provider]),
+      'verified': true,
     });
   }
   return out;
@@ -603,10 +673,10 @@ Future<String?> realBinary(String command, Map<String, String> environment) asyn
     return null;
   }
   if (p.basename(real) == 'mise') {
-    final mise = which('mise', environment);
-    if (mise == null) return null;
+    final mise = real; // the shim is mise itself
     final out = (await readBoundedText(
-      [mise, 'which', command],
+      // by name: [command] may be the shim's own path
+      [mise, 'which', p.basename(command)],
       maxBytes: 4096,
       timeout: const Duration(seconds: 10),
       environment: environment,
@@ -861,19 +931,24 @@ final class AskRunner {
   Future<String> _runHelper(Helper helper, List<String> extra, String prompt, Duration timeout, {bool web = false}) async {
     final setsid = which('setsid', environment), prlimit = which('prlimit', environment);
     if (setsid == null || prlimit == null) throw AskError(tr("setsid and prlimit (util-linux) are needed"));
-    final binary = which(helper.argv.first, environment);
+    final binary = await findHelperCommand(helper.argv.first, home, environment);
     if (binary == null) throw AskError(tr("not installed"));
+    final catalog = helper.catalog;
+    // A catalog helper takes the prompt as one argument (unless its entry says stdin).
+    final promptInArgv = catalog != null && !catalog.stdin;
+    if (promptInArgv && utf8.encode(prompt).length > argvPromptMax) throw AskError(tr("the question is too long for this helper"));
     final work = Directory.systemTemp.createTempSync('maprisma-manager-ask-').path;
     chmodPath(work, 448);
     final answerFile = p.join(work, 'answer.txt');
     Process? process;
     try {
-      var argv = [for (final a in helper.argv) a == '{answer}' ? answerFile : a, ...extra];
-      if (web) argv = withWebTools(helper, argv);
-      if (helper.jail != null) {
-        argv = await jailArgv(helper, argv, work, home, environment);
+      List<String> argv;
+      if (catalog != null) {
+        argv = catalogAskArgv(catalog, binary, prompt);
       } else {
-        argv = [binary, ...argv.skip(1)];
+        argv = [binary, ...[for (final a in helper.argv) a == '{answer}' ? answerFile : a].skip(1), ...extra];
+        if (web) argv = withWebTools(helper, argv);
+        if (helper.jail != null) argv = await jailArgv(helper, argv, work, home, environment);
       }
       // Its own process group (setsid execs it, so pid = group), and a hard
       // cap on every file it writes, inherited by all it starts.
@@ -917,7 +992,7 @@ final class AskRunner {
           .catchError((_) {});
       proc.stdin.done.ignore();
       try {
-        proc.stdin.add(utf8.encode(prompt));
+        if (!promptInArgv) proc.stdin.add(utf8.encode(prompt));
       } on Object {
         // it went away; its exit code says how
       }

@@ -122,7 +122,8 @@ Future<int> runCli(List<String> args, {CoreService? service, IOSink? out}) async
         } else {
           sink.writeln('AI updates: ${r['enabled'] == true ? 'on' : 'off'}   chosen: ${r['chosen'] ?? 'none ready'}');
           for (final h in (r['helpers'] as List).cast<Map<String, dynamic>>()) {
-            final state = h['signed_in'] == true ? 'ready' : h['installed'] == true ? 'not signed in (${h['login']})' : 'not installed';
+            var state = h['signed_in'] == true ? 'ready' : h['installed'] == true ? 'not signed in (${h['login']})' : 'not installed';
+            if (h['verified'] == false) state = '$state (untested)';
             sink.writeln('${'${h['id']}'.padRight(24)} ${'${h['name']}'.padRight(28)} $state');
           }
         }

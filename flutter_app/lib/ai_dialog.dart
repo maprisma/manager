@@ -26,8 +26,9 @@ class AiDialogState extends State<AiDialog> {
   Timer? _timer;
   final _scroll = ScrollController();
 
-  /// The helper's id (`pi:<provider>/<model>` too) as Ask AI shows it.
-  static String helperName(Map h) => '${h['name']}${h['local'] == true ? tr(' · on this PC') : ''}';
+  /// The helper's id (`pi:<provider>/<model>` too) as Ask AI shows it; a catalog entry nobody
+  /// has tried with its agent yet is "(untested)".
+  static String helperName(Map h) => '${h['name']}${h['local'] == true ? tr(' · on this PC') : ''}${h['verified'] == false ? tr(' (untested)') : ''}';
 
   List<Map<String, dynamic>> get ready => [for (final h in helpers) if (h['signed_in'] == true) h];
   bool get running => run?['state'] == 'running';
@@ -248,7 +249,7 @@ class AiDialogState extends State<AiDialog> {
                   if (ready.isEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 8),
-                      child: Text(tr('No helper ready: install Claude Code, Codex, pi or Hermes and sign in, or connect pi or Hermes to a local model.'), style: TextStyle(color: scheme.error)),
+                      child: Text(tr('No helper ready: install a coding agent (Claude Code, Codex, Gemini CLI, pi, Hermes …) and sign in, or connect pi or Hermes to a local model.'), style: TextStyle(color: scheme.error)),
                     ),
                   if (error != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(error!, style: TextStyle(color: scheme.error))),
                   if (r != null) ...[

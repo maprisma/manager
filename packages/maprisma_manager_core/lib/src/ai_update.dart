@@ -1,6 +1,7 @@
 /// "Let AI do the updates": an installed, signed-in helper (the Ask AI helpers of Maprisma
-/// Theme: Claude Code, Codex, pi, Hermes, local models) decides what to update, and the Manager
-/// does it.
+/// Theme: Claude Code, Codex, pi, Hermes, local models, and every other installed agent of
+/// Maprisma's helpers catalog, see ai/helpers_catalog.dart) decides what to update, and the
+/// Manager does it.
 ///
 /// The helper has no tools (Codex: a read-only sandbox in a jail): it gets the apps' status and
 /// what the steps so far did, and answers with steps from a fixed list. The Manager checks every
@@ -150,11 +151,13 @@ final class AiUpdater {
 
   bool get running => _run?['state'] == 'running';
 
-  List<Map<String, dynamic>> helperList() => helperStates(ctx.paths.home, ctx.environment);
+  Future<List<Map<String, dynamic>>> helperList() => helperStates(ctx.paths.home, ctx.environment);
 
-  Map<String, dynamic> helpers() {
+  /// The helpers; `chosen` is the saved one when it is ready, else (automatic, or one that is
+  /// unknown or no longer installed) the first ready one in the catalog's order.
+  Future<Map<String, dynamic>> helpers() async {
     final settings = Settings.load(ctx.paths);
-    final list = helperList();
+    final list = await helperList();
     final ready = [for (final h in list) if (h['signed_in'] == true) h['id'] as String];
     final saved = settings.str('ai_helper');
     return {
@@ -172,12 +175,13 @@ final class AiUpdater {
     'steps': [for (final s in run['steps'] as List) Map<String, dynamic>.from(s as Map)],
   };
 
-  Map<String, dynamic> start(Map<String, dynamic> params) {
+  Future<Map<String, dynamic>> start(Map<String, dynamic> params) async {
     if (Settings.load(ctx.paths).values['ai_updates'] != true) throw RouteError('off', tr('AI updates are off: turn them on in Settings'));
     if (running) throw RouteError('busy', tr('the AI is already updating'));
     final wanted = params['helper'];
     if (wanted != null && wanted is! String) throw RouteError('bad_params', 'helper');
-    final h = helpers();
+    final h = await helpers();
+    if (running) throw RouteError('busy', tr('the AI is already updating'));
     final ready = [for (final x in h['helpers'] as List) if ((x as Map)['signed_in'] == true) x];
     final id = (wanted as String?) ?? h['chosen'] as String?;
     final helper = ready.where((x) => x['id'] == id).firstOrNull;

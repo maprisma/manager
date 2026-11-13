@@ -1075,7 +1075,10 @@ const catalogs = <String, Map<String, String>>{
     "A notification when one of your programs crashes, with its details.": "A notification when one of your programs crashes, with its details.",
     "AI helper": "AI helper",
     "Check with AI on a crash opens it in a terminal.": "Check with AI on a crash opens it in a terminal.",
-    "Automatic ({0})": "Automatic ({0})"
+    "Automatic ({0})": "Automatic ({0})",
+    " (untested)": " (untested)",
+    "No helper ready: install a coding agent (Claude Code, Codex, Gemini CLI, pi, Hermes …) and sign in, or connect pi or Hermes to a local model.": "No helper ready: install a coding agent (Claude Code, Codex, Gemini CLI, pi, Hermes …) and sign in, or connect pi or Hermes to a local model.",
+    "the question is too long for this helper": "the question is too long for this helper"
   },
   "de": {
     "Waiting": "Wartet",
@@ -2152,7 +2155,10 @@ const catalogs = <String, Map<String, String>>{
     "A notification when one of your programs crashes, with its details.": "Eine Benachrichtigung, wenn eines deiner Programme abstürzt, mit den Details.",
     "AI helper": "KI-Helfer",
     "Check with AI on a crash opens it in a terminal.": "„Mit KI prüfen“ bei einem Absturz öffnet ihn in einem Terminal.",
-    "Automatic ({0})": "Automatisch ({0})"
+    "Automatic ({0})": "Automatisch ({0})",
+    " (untested)": " (ungetestet)",
+    "No helper ready: install a coding agent (Claude Code, Codex, Gemini CLI, pi, Hermes …) and sign in, or connect pi or Hermes to a local model.": "Kein Helfer bereit: einen Coding-Agenten (Claude Code, Codex, Gemini CLI, pi, Hermes …) installieren und anmelden, oder pi bzw. Hermes mit einem lokalen Modell verbinden.",
+    "the question is too long for this helper": "die Frage ist zu lang für diesen Helfer"
   },
   "fr": {
     "Waiting": "En attente",
@@ -3229,7 +3235,10 @@ const catalogs = <String, Map<String, String>>{
     "A notification when one of your programs crashes, with its details.": "Une notification quand l'un de vos programmes plante, avec ses détails.",
     "AI helper": "Assistant IA",
     "Check with AI on a crash opens it in a terminal.": "« Vérifier avec l'IA » sur un plantage l'ouvre dans un terminal.",
-    "Automatic ({0})": "Automatique ({0})"
+    "Automatic ({0})": "Automatique ({0})",
+    " (untested)": " (non testé)",
+    "No helper ready: install a coding agent (Claude Code, Codex, Gemini CLI, pi, Hermes …) and sign in, or connect pi or Hermes to a local model.": "Aucun assistant prêt : installez un agent de code (Claude Code, Codex, Gemini CLI, pi, Hermes …) et connectez-vous, ou reliez pi ou Hermes à un modèle local.",
+    "the question is too long for this helper": "la question est trop longue pour cet assistant"
   },
   "es": {
     "Waiting": "En espera",
@@ -4306,7 +4315,10 @@ const catalogs = <String, Map<String, String>>{
     "A notification when one of your programs crashes, with its details.": "Una notificación cuando uno de tus programas se bloquea, con sus detalles.",
     "AI helper": "Asistente de IA",
     "Check with AI on a crash opens it in a terminal.": "«Revisar con IA» en un bloqueo lo abre en un terminal.",
-    "Automatic ({0})": "Automático ({0})"
+    "Automatic ({0})": "Automático ({0})",
+    " (untested)": " (sin probar)",
+    "No helper ready: install a coding agent (Claude Code, Codex, Gemini CLI, pi, Hermes …) and sign in, or connect pi or Hermes to a local model.": "Ningún ayudante listo: instala un agente de programación (Claude Code, Codex, Gemini CLI, pi, Hermes …) e inicia sesión, o conecta pi o Hermes a un modelo local.",
+    "the question is too long for this helper": "la pregunta es demasiado larga para este ayudante"
   },
   "it": {
     "Waiting": "In attesa",
@@ -5383,7 +5395,10 @@ const catalogs = <String, Map<String, String>>{
     "A notification when one of your programs crashes, with its details.": "Una notifica quando uno dei tuoi programmi si arresta, con i dettagli.",
     "AI helper": "Assistente IA",
     "Check with AI on a crash opens it in a terminal.": "«Verifica con l'IA» su un arresto anomalo lo apre in un terminale.",
-    "Automatic ({0})": "Automatico ({0})"
+    "Automatic ({0})": "Automatico ({0})",
+    " (untested)": " (non testato)",
+    "No helper ready: install a coding agent (Claude Code, Codex, Gemini CLI, pi, Hermes …) and sign in, or connect pi or Hermes to a local model.": "Nessun assistente pronto: installa un agente di programmazione (Claude Code, Codex, Gemini CLI, pi, Hermes …) e accedi, oppure collega pi o Hermes a un modello locale.",
+    "the question is too long for this helper": "la domanda è troppo lunga per questo assistente"
   },
   "pt": {
     "Waiting": "Em espera",
@@ -6460,7 +6475,10 @@ const catalogs = <String, Map<String, String>>{
     "A notification when one of your programs crashes, with its details.": "Uma notificação quando um dos teus programas falha, com os detalhes.",
     "AI helper": "Assistente de IA",
     "Check with AI on a crash opens it in a terminal.": "«Verificar com IA» numa falha abre-o num terminal.",
-    "Automatic ({0})": "Automático ({0})"
+    "Automatic ({0})": "Automático ({0})",
+    " (untested)": " (não testado)",
+    "No helper ready: install a coding agent (Claude Code, Codex, Gemini CLI, pi, Hermes …) and sign in, or connect pi or Hermes to a local model.": "Nenhum assistente pronto: instale um agente de programação (Claude Code, Codex, Gemini CLI, pi, Hermes …) e inicie sessão, ou ligue pi ou Hermes a um modelo local.",
+    "the question is too long for this helper": "a pergunta é demasiado longa para este assistente"
   },
   "nl": {
     "Waiting": "Wachten",
@@ -7537,7 +7555,10 @@ const catalogs = <String, Map<String, String>>{
     "A notification when one of your programs crashes, with its details.": "Een melding wanneer een van je programma's crasht, met de details.",
     "AI helper": "AI-helper",
     "Check with AI on a crash opens it in a terminal.": "‘Controleren met AI’ bij een crash opent hem in een terminal.",
-    "Automatic ({0})": "Automatisch ({0})"
+    "Automatic ({0})": "Automatisch ({0})",
+    " (untested)": " (niet getest)",
+    "No helper ready: install a coding agent (Claude Code, Codex, Gemini CLI, pi, Hermes …) and sign in, or connect pi or Hermes to a local model.": "Geen helper klaar: installeer een codeeragent (Claude Code, Codex, Gemini CLI, pi, Hermes …) en meld je aan, of koppel pi of Hermes aan een lokaal model.",
+    "the question is too long for this helper": "de vraag is te lang voor deze helper"
   },
   "pl": {
     "Waiting": "Oczekiwanie",
@@ -8614,6 +8635,9 @@ const catalogs = <String, Map<String, String>>{
     "A notification when one of your programs crashes, with its details.": "Powiadomienie, gdy któryś z twoich programów ulegnie awarii, ze szczegółami.",
     "AI helper": "Asystent AI",
     "Check with AI on a crash opens it in a terminal.": "„Sprawdź z AI” przy awarii otwiera go w terminalu.",
-    "Automatic ({0})": "Automatycznie ({0})"
+    "Automatic ({0})": "Automatycznie ({0})",
+    " (untested)": " (nieprzetestowany)",
+    "No helper ready: install a coding agent (Claude Code, Codex, Gemini CLI, pi, Hermes …) and sign in, or connect pi or Hermes to a local model.": "Brak gotowego pomocnika: zainstaluj agenta programistycznego (Claude Code, Codex, Gemini CLI, pi, Hermes …) i zaloguj się albo połącz pi lub Hermes z modelem lokalnym.",
+    "the question is too long for this helper": "pytanie jest za długie dla tego pomocnika"
   }
 };
