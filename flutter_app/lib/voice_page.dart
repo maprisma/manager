@@ -93,8 +93,6 @@ class VoicePageState extends State<VoicePage> with RoutePage {
     return home == null ? path : '~${path.substring(home.length)}';
   }
 
-  static String _size(Object? bytes) => bytes is num ? '${(bytes / 1000000).round()} MB' : '';
-
   @override
   Future<void> load() async {
     await super.load();
@@ -372,7 +370,7 @@ class VoicePageState extends State<VoicePage> with RoutePage {
           } else if (c['installed'] == true) {
             status = tr('Installed');
           } else {
-            status = trf('Not downloaded · {0}', [_size(c['size'])]);
+            status = tr('Not downloaded');
           }
           final managed = installed.any((m) => m['name'] == file && m['managed'] == true);
           return Column(
