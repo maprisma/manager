@@ -2,6 +2,7 @@
 // COSMIC and KDE (only the link to their own settings). With MAPRISMA_SHOTS=<folder> it saves a
 // PNG of every page.
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -202,6 +203,46 @@ void main() {
     expect(find.text('Maprisma Theme'), findsOneWidget);
     expect(find.byKey(const ValueKey('appearance-install-theme')), findsOneWidget);
     await shot(tester, 'page-appearance');
+  });
+
+  testWidgets('Hyprland: Appearance sets the animations (workspace style, windows off) and resets them', (tester) async {
+    await open(tester, 'Hyprland');
+    await nav(tester, 'appearance');
+    expect(find.text('Animations (Hyprland)'), findsOneWidget);
+    expect(find.byKey(const ValueKey('anim-reset')), findsOneWidget);
+    expect(tester.widget<OutlinedButton>(find.byKey(const ValueKey('anim-reset'))).onPressed, isNull, reason: 'nothing set yet');
+    await choose(tester, 'anim-workspaces-style', 'Slide and fade');
+    final lua = File(p.join(w.home, '.config/hypr/hypr-manager.lua'));
+    expect(lua.readAsStringSync(), contains('leaf = "workspaces", enabled = true, speed = 5, bezier = "standard", style = "slidefade 20%"'));
+    // the Hyprland fake still answers with the config's values: make it answer with the new style
+    final live = jsonDecode(jsonEncode(animationsFixture)) as List;
+    for (final a in (live.first as List).cast<Map>()) {
+      if (a['name'] == 'workspaces') a['style'] = 'slidefade 20%';
+    }
+    w.writeFile(p.join(w.home, 'hypr', 'animations.json'), jsonEncode(live));
+    await nav(tester, 'apps');
+    await nav(tester, 'appearance');
+    expect(find.byKey(const ValueKey('anim-workspaces-percent')), findsOneWidget, reason: 'slidefade takes a distance');
+    await shot(tester, 'page-appearance-animations');
+    await tester.ensureVisible(find.byKey(const ValueKey('anim-windows')));
+    await tester.tap(find.descendant(of: find.byKey(const ValueKey('anim-windows')), matching: find.byType(Switch)));
+    await settle(tester);
+    expect(lua.readAsStringSync(), contains('leaf = "windowsIn", enabled = false'));
+    await tester.ensureVisible(find.byKey(const ValueKey('anim-reset')));
+    await tester.tap(find.byKey(const ValueKey('anim-reset')));
+    await settle(tester);
+    expect(lua.readAsStringSync(), isNot(contains('hl.animation')));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('COSMIC and KDE: no animations card on Appearance', (tester) async {
+    for (final desktop in ['COSMIC', 'KDE']) {
+      await open(tester, desktop);
+      await nav(tester, 'appearance');
+      expect(find.text('Maprisma Theme'), findsOneWidget, reason: desktop);
+      expect(find.text('Animations (Hyprland)'), findsNothing, reason: desktop);
+      expect(find.byKey(const ValueKey('anim-card')), findsNothing, reason: desktop);
+    }
   });
 
   testWidgets('COSMIC: pages only open COSMIC Settings; KDE: one row per module', (tester) async {

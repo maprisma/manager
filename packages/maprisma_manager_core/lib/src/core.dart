@@ -14,6 +14,7 @@ import 'desktop_look.dart';
 import 'discovery.dart';
 import 'displays.dart';
 import 'icons.dart';
+import 'animations.dart';
 import 'input.dart';
 import 'jobs.dart';
 import 'network.dart';
@@ -207,6 +208,10 @@ final class CoreService {
       'displays.keep': (_) => displays.keep(),
       'input.get': (_) => input.get(),
       'input.set': (params) => input.set(params),
+      // Hyprland's animations on the Appearance page (hypr-manager.lua, animations.dart).
+      'animations.get': (_) => animations.get(),
+      'animations.set': (params) => animations.set(params),
+      'animations.reset': (_) => animations.reset(),
       // Network & Wireless and Bluetooth on Hyprland (nmcli, bluetoothctl).
       'network.get': (params) => network.get(params),
       'network.wifi': (params) => network.wifi(params),
@@ -284,6 +289,9 @@ final class CoreService {
   /// whole session (Displays keeps what to undo).
   late final DisplaysService displays = DisplaysService(ctx);
   late final InputService input = InputService(ctx);
+
+  /// Hyprland's animations (animations.*); one service, so changes go one after another.
+  late final AnimationsService animations = AnimationsService(ctx);
 
   /// The Network & Wireless and Bluetooth pages (network.*, bluetooth.*).
   late final NetworkService network = NetworkService(ctx);

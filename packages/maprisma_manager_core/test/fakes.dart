@@ -59,16 +59,40 @@ final monitorsFixture = [
 
 /// A fake hyprctl (monitors, devices, getoption from $HOME/`opt/<key>`, reload logged) and
 /// localectl (two layouts).
+/// `hyprctl animations -j` of this PC's config (Maprisma Shell's animations.lua), shortened.
+final animationsFixture = [
+  [
+    {'name': 'global', 'overridden': true, 'bezier': 'default', 'enabled': true, 'speed': 8.0, 'style': ''},
+    {'name': 'windows', 'overridden': false, 'bezier': '', 'enabled': true, 'speed': 0.0, 'style': ''},
+    {'name': 'windowsIn', 'overridden': true, 'bezier': 'emphasizedDecel', 'enabled': true, 'speed': 5.0, 'style': ''},
+    {'name': 'windowsOut', 'overridden': true, 'bezier': 'emphasizedAccel', 'enabled': true, 'speed': 3.0, 'style': ''},
+    {'name': 'windowsMove', 'overridden': true, 'bezier': 'standard', 'enabled': true, 'speed': 6.0, 'style': ''},
+    {'name': 'layersIn', 'overridden': true, 'bezier': 'emphasizedDecel', 'enabled': true, 'speed': 5.0, 'style': 'slide'},
+    {'name': 'layersOut', 'overridden': true, 'bezier': 'emphasizedAccel', 'enabled': true, 'speed': 4.0, 'style': 'slide'},
+    {'name': 'fade', 'overridden': true, 'bezier': 'standard', 'enabled': true, 'speed': 6.0, 'style': ''},
+    {'name': 'fadeLayers', 'overridden': true, 'bezier': 'standard', 'enabled': true, 'speed': 5.0, 'style': ''},
+    {'name': 'workspaces', 'overridden': true, 'bezier': 'standard', 'enabled': true, 'speed': 5.0, 'style': ''},
+    {'name': 'workspacesIn', 'overridden': false, 'bezier': '', 'enabled': true, 'speed': 0.0, 'style': ''},
+    {'name': 'specialWorkspace', 'overridden': true, 'bezier': 'specialWorkSwitch', 'enabled': true, 'speed': 4.0, 'style': 'slidefadevert 15%'},
+  ],
+  [
+    {'name': 'standard', 'X0': 0.2, 'Y0': 0.0, 'X1': 0.0, 'Y1': 1.0},
+  ],
+];
+
 void fakeHypr(World w, {bool touchpad = false}) {
   w.writeFile(p.join(w.home, 'hypr', 'monitors.json'), jsonEncode(monitorsFixture));
   w.writeFile(p.join(w.home, 'hypr', 'devices.json'), jsonEncode({'mice': [{'name': touchpad ? 'elan-touchpad' : 'logitech-mouse'}], 'keyboards': []}));
   w.writeFile(p.join(w.home, 'opt', 'input.kb_layout'), '{"option": "input:kb_layout", "str": "de", "set": true}');
   w.writeFile(p.join(w.home, 'opt', 'input.repeat_rate'), '{"option": "input:repeat_rate", "int": 35, "set": true}');
+  w.writeFile(p.join(w.home, 'opt', 'animations.enabled'), '{"option": "animations:enabled", "bool": true, "set": true}');
+  w.writeFile(p.join(w.home, 'hypr', 'animations.json'), jsonEncode(animationsFixture));
   w.fake('hyprctl', r'''
 show() { while IFS= read -r l || [ -n "$l" ]; do echo "$l"; done < "$1"; }
 case "$1" in
   monitors) show "$HOME/hypr/monitors.json" ;;
   devices) show "$HOME/hypr/devices.json" ;;
+  animations) show "$HOME/hypr/animations.json" ;;
   getoption) if [ -f "$HOME/opt/$2" ]; then show "$HOME/opt/$2"; else echo '{"option": "x", "bool": false, "set": false}'; fi ;;
   reload) echo reload >> "$HOME/hyprctl.log"; echo ok ;;
   *) exit 1 ;;

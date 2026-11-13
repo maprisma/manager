@@ -21,6 +21,7 @@ export 'src/desktop_look.dart';
 export 'src/discovery.dart';
 export 'src/displays.dart';
 export 'src/hypr_config.dart';
+export 'src/animations.dart';
 export 'src/input.dart';
 export 'src/git.dart';
 export 'src/github.dart';

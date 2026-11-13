@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:maprisma_manager_core/maprisma_manager_core.dart' show tr, trf;
 
+import 'animations_card.dart';
 import 'app_facts.dart' show installed;
 import 'backend.dart' show ServiceError;
 import 'core_call.dart';
@@ -134,7 +135,7 @@ class _DesktopSettingsPageState extends State<DesktopSettingsPage> {
 }
 
 /// The Appearance page: Maprisma Theme does the look (colours, wallpaper, fonts, icons, corners)
-/// on every desktop, so the page opens it.
+/// on every desktop, so the page opens it; on Hyprland the animations are set here too.
 class AppearancePage extends StatelessWidget {
   const AppearancePage({super.key, required this.core, required this.theme, this.onShowApps});
   final CoreCall core;
@@ -177,6 +178,8 @@ class AppearancePage extends StatelessWidget {
             ),
           ],
         ),
+        // Hyprland only (the card hides itself elsewhere).
+        AnimationsCard(core: core),
       ],
     );
   }

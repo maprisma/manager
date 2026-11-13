@@ -4,11 +4,12 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 
+import 'animations.dart' show AnimationsService;
 import 'bar_cosmic.dart' show atomicWrite;
 import 'catalog_model.dart' show DesktopId;
 import 'context.dart';
 
-/// The Hyprland settings the Manager's Displays and Input pages change. They live in a file of
+/// The Hyprland settings the Manager's Displays, Input and Appearance (animations) pages change. They live in a file of
 /// the Manager's own, `~/.config/hypr/hypr-manager.lua`, loaded last from hypr-user.lua (a
 /// marked line), so it overrides the user's config only where a value was set here. The values
 /// are kept as JSON next to it (`maprisma-manager/hyprland.json`) and the Lua is made from them;
@@ -22,24 +23,25 @@ final class HyprConfig {
   String get userFile => p.join(hyprDir, 'hypr-user.lua');
   String get stateFile => p.join(ctx.paths.config, 'maprisma-manager', 'hyprland.json');
 
-  static const requireLine = 'pcall(require, "hypr-manager") -- Maprisma Manager: Displays, Input devices (keep last)';
+  static const requireLine = 'pcall(require, "hypr-manager") -- Maprisma Manager: Displays, Input devices, Animations (keep last)';
 
   void need() {
     if (ctx.desktop != DesktopId.hyprland) throw RouteError('unavailable', tr('Only on Hyprland; this desktop has its own settings'));
     if (ctx.runner.which('hyprctl') == null) throw RouteError('unavailable', tr('hyprctl is missing'));
   }
 
-  /// The stored values: {monitors: {name: {...}}, input: {key: value}}.
+  /// The stored values: {monitors: {name: {...}}, input: {key: value}, animations: {...}}.
   Map<String, dynamic> read() {
+    Map<String, dynamic> part(Object? v) => v is Map ? Map<String, dynamic>.from(v) : <String, dynamic>{};
     try {
       final v = jsonDecode(File(stateFile).readAsStringSync());
-      if (v is Map<String, dynamic>) return {'monitors': v['monitors'] is Map ? Map<String, dynamic>.from(v['monitors'] as Map) : <String, dynamic>{}, 'input': v['input'] is Map ? Map<String, dynamic>.from(v['input'] as Map) : <String, dynamic>{}};
+      if (v is Map<String, dynamic>) return {'monitors': part(v['monitors']), 'input': part(v['input']), 'animations': part(v['animations'])};
     } on FileSystemException {
       // none yet
     } on FormatException {
       // a broken file counts as none; the next write replaces it
     }
-    return {'monitors': <String, dynamic>{}, 'input': <String, dynamic>{}};
+    return {'monitors': <String, dynamic>{}, 'input': <String, dynamic>{}, 'animations': <String, dynamic>{}};
   }
 
   /// Saves [state], writes the Lua, makes sure hypr-user.lua loads it, and reloads Hyprland.
@@ -70,9 +72,10 @@ final class HyprConfig {
     _ => 'nil',
   };
 
-  /// The Lua for [state]: one hl.monitor per changed monitor, one hl.config with the input.
+  /// The Lua for [state]: one hl.monitor per changed monitor, one hl.config with the input, then
+  /// the animations (AnimationsService.lua).
   static String lua(Map<String, dynamic> state) {
-    final b = StringBuffer('-- Written by Maprisma Manager (Displays, Input devices). Changes made here by hand are\n-- replaced on the next change in the Manager; remove a value there instead.\n');
+    final b = StringBuffer('-- Written by Maprisma Manager (Displays, Input devices, Animations). Changes made here by hand are\n-- replaced on the next change in the Manager; remove a value there instead.\n');
     final monitors = (state['monitors'] as Map?) ?? const {};
     for (final MapEntry(:key, :value) in monitors.entries) {
       final m = value as Map;
@@ -102,6 +105,8 @@ final class HyprConfig {
       b.writeln('    },');
       b.writeln('})');
     }
+    final animations = state['animations'];
+    if (animations is Map<String, dynamic>) b.write(AnimationsService.lua(animations));
     return b.toString();
   }
 
