@@ -175,11 +175,14 @@ class SettingsToggle extends StatelessWidget {
 
 /// A drop-down row ([choices]: value → label).
 class SettingsChoice<T> extends StatelessWidget {
-  const SettingsChoice({super.key, required this.title, this.description, required this.value, required this.choices, required this.onChanged});
+  const SettingsChoice({super.key, required this.title, this.description, required this.value, required this.choices, required this.onChanged, this.disabled = const {}});
   final String title;
   final String? description;
   final T value;
   final List<(T, String)> choices;
+
+  /// Choices shown but not selectable (an engine that isn't available).
+  final Set<T> disabled;
   final ValueChanged<T>? onChanged;
   @override
   Widget build(BuildContext context) => SettingsItem(
@@ -191,7 +194,12 @@ class SettingsChoice<T> extends StatelessWidget {
         isDense: true,
         borderRadius: BorderRadius.circular(cornerSizes(context).radius),
         dropdownColor: Theme.of(context).colorScheme.surfaceContainerHigh,
-        items: [for (final (v, label) in choices) DropdownMenuItem<T>(value: v, child: Text(label))],
+        items: [for (final (v, label) in choices) DropdownMenuItem<T>(
+            value: v,
+            enabled: !disabled.contains(v),
+            child: Text(label, style: disabled.contains(v) ? TextStyle(color: Theme.of(context).disabledColor) : null),
+          ),
+        ],
         onChanged: onChanged == null ? null : (v) => v == null ? null : onChanged!(v),
       ),
     ),

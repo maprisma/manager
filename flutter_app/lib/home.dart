@@ -16,10 +16,11 @@ import 'pages.dart';
 import 'power_page.dart';
 import 'settings_page.dart';
 import 'theme.dart';
+import 'voice_page.dart';
 import 'window.dart';
 
 /// The window's pages, in the sidebar's order.
-enum Section { apps, network, bluetooth, appearance, bar, displays, sound, notifications, ai, power, input, applications, time, about, settings }
+enum Section { apps, network, bluetooth, appearance, bar, displays, sound, notifications, ai, voice, power, input, applications, time, about, settings }
 
 /// The window as COSMIC Settings lays it out: a sidebar of pages left (icon and name, the open
 /// one highlighted), the page right. Below [condensedBelow] the sidebar hides behind a toggle
@@ -78,6 +79,7 @@ class ManagerHomeState extends State<ManagerHome> {
     Section.sound => on ? Icons.volume_up : Icons.volume_up_outlined,
     Section.notifications => on ? Icons.notifications : Icons.notifications_outlined,
     Section.ai => on ? Icons.auto_awesome : Icons.auto_awesome_outlined,
+    Section.voice => on ? Icons.mic : Icons.mic_none,
     Section.power => on ? Icons.power_settings_new : Icons.power_settings_new_outlined,
     Section.input => on ? Icons.keyboard : Icons.keyboard_outlined,
     Section.applications => on ? Icons.grid_view : Icons.grid_view_outlined,
@@ -96,6 +98,7 @@ class ManagerHomeState extends State<ManagerHome> {
     Section.sound => tr('Sound'),
     Section.notifications => tr('Notifications'),
     Section.ai => tr('AI'),
+    Section.voice => tr('Voice'),
     Section.power => tr('Power'),
     Section.input => tr('Input devices'),
     Section.applications => tr('Applications'),
@@ -170,7 +173,7 @@ class ManagerHomeState extends State<ManagerHome> {
     }
   }
 
-  /// Installs app [id] from a page (Notifications without Maprisma Notifier): the Apps page's
+  /// Installs app [id] from a page (Notifications without Maprisma Notifier, Voice without Maprisma Dictation): the Apps page's
   /// install job, whose sheet shows there; null while the list doesn't know the app or it
   /// can't be installed on this desktop.
   VoidCallback? _installer(String id) {
@@ -213,6 +216,7 @@ class ManagerHomeState extends State<ManagerHome> {
       onOpenAi: () => open(Section.ai),
     ),
     Section.ai => AiPage(key: const ValueKey('ai-page'), core: widget.core, onAiChanged: () => appsKey.currentState?.reload()),
+    Section.voice => VoicePage(key: const ValueKey('voice-page'), core: widget.core, onInstall: _installer('dictation')),
     Section.displays => DisplaysPage(key: const ValueKey('displays-page'), core: widget.core),
     Section.input => InputPage(key: const ValueKey('input-page'), core: widget.core),
     Section.applications => ApplicationsPage(key: const ValueKey('applications-page'), core: widget.core),
