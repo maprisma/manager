@@ -26,6 +26,8 @@ const minWindowWidth = 420, minWindowHeight = 320;
 }
 
 /// Saves the window's size [delay] after the last resize ([resized], from didChangeMetrics).
+/// Each resize also notes the size right away while the window is still shown, so a window
+/// closed or hidden within [delay] keeps the size it had ([flush] on closing saves it at once).
 final class WindowSizeKeeper {
   WindowSizeKeeper({required this.geometry, required this.save, this.saved, this.delay = const Duration(milliseconds: 500)});
 
@@ -38,20 +40,49 @@ final class WindowSizeKeeper {
   (int, int)? saved;
   Timer? _timer;
 
+  /// The last free size seen since the last resize (null: none, or maximized, fullscreen, tiled).
+  (int, int)? _latest;
+  Future<void> _sampling = Future.value();
+
   void resized() {
     _timer?.cancel();
-    _timer = Timer(delay, _check);
+    _sampling = _sample();
+    _timer = Timer(delay, () => unawaited(_check()));
   }
 
+  Future<void> _sample() async {
+    try {
+      _latest = _free(await geometry());
+    } on Object {
+      // the next resize asks again
+    }
+  }
+
+  static (int, int)? _free(Object? geo) => geo is Map && geo['free'] == true ? parseWindowSize([geo['width'], geo['height']]) : null;
+
   Future<void> _check() async {
-    final Object? geo;
+    await _sampling;
+    Object? geo;
     try {
       geo = await geometry();
     } on Object {
-      return;
+      geo = null;
     }
-    final size = sizeToSave(geo, saved);
-    if (size == null) return;
+    // shown and free now: that size; hidden meanwhile (closed, Esc, the bar): the last one seen
+    // (maximized, fullscreen or tiled meanwhile: that resize noted no free size either)
+    await _save(_free(geo) ?? _latest);
+  }
+
+  /// A resize not saved yet is saved now (the window is closing; it may be hidden already).
+  Future<void> flush() async {
+    if (_timer?.isActive != true) return;
+    _timer!.cancel();
+    await _sampling;
+    await _save(_latest);
+  }
+
+  Future<void> _save((int, int)? size) async {
+    if (size == null || size == saved) return;
     saved = size;
     try {
       await save(size.$1, size.$2);
