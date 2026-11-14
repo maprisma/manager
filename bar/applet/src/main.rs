@@ -7,6 +7,8 @@
 // and D-Bus names keep "CosmicMaprismaManager": COSMIC's panel configuration lists the applet by
 // that id, so a new id would drop the icon from the user's panel.
 
+mod fonts;
+
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::LazyLock;
@@ -21,6 +23,7 @@ const ICON: &str = "io.github.ubruckhaus.CosmicMaprismaManager-symbolic";
 static AUTOSIZE_ID: LazyLock<Id> = LazyLock::new(|| Id::new("manager-autosize"));
 
 fn main() -> cosmic::iced::Result {
+    fonts::keep_fonts();
     cosmic::applet::run::<Applet>(())
 }
 
@@ -89,6 +92,7 @@ impl cosmic::Application for Applet {
     }
 
     fn view(&self) -> Element<'_, Message> {
+        fonts::keep_fonts();
         let horizontal = matches!(self.core.applet.anchor, PanelAnchor::Top | PanelAnchor::Bottom);
         let padding = self.core.applet.suggested_padding(true).0;
         let size = self.core.applet.suggested_size(true).0;
