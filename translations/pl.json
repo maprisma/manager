@@ -1250,5 +1250,11 @@
   "Where Ask AI in Maprisma Launcher may install apps from. The AUR and GitHub are not checked by your distribution.": "Skąd Ask AI w Maprisma Launcher może instalować aplikacje. AUR i GitHub nie są sprawdzane przez twoją dystrybucję.",
   "May act": "Może działać",
   "Off because another rule blocks this item": "Wyłączone, ponieważ inna reguła blokuje ten element",
-  "Malformed rules are off. Other rules still apply.": "Nieprawidłowe reguły są wyłączone. Pozostałe nadal obowiązują."
+  "Malformed rules are off. Other rules still apply.": "Nieprawidłowe reguły są wyłączone. Pozostałe nadal obowiązują.",
+  "App windows": "Okna aplikacji",
+  "Solid": "Nieprzezroczyste",
+  "Transparent": "Przezroczyste",
+  "Glassy (blurred)": "Szkło (rozmyte)",
+  "Follow the desktop": "Jak pulpit",
+  "For all Maprisma apps: see-through windows, blurred behind where the desktop blurs (Glassy). Follow the desktop uses Omarchy's window style, elsewhere Glassy while Maprisma Theme has blur on.": "Dla wszystkich aplikacji Maprisma: przezroczyste okna, rozmyte z tyłu tam, gdzie pulpit rozmywa (Szkło). „Jak pulpit” korzysta ze stylu okien Omarchy, gdzie indziej Szkło, gdy Maprisma Theme ma włączone rozmycie."
 }

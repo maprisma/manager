@@ -15,6 +15,7 @@ import 'core_call.dart';
 import 'esc_close.dart';
 import 'jobs_model.dart';
 import 'theme.dart';
+import 'window_style.dart';
 import 'window.dart';
 import 'window_size.dart';
 
@@ -61,6 +62,8 @@ class _ManagerAppState extends State<ManagerApp> with WidgetsBindingObserver {
   late Map<String, dynamic> look = widget.look;
   late final JobsModel jobs = widget.jobs ?? JobsModel(widget.core);
   Timer? _relook, _lookCooling;
+  /// Settings › App windows: see-through windows for all Maprisma apps (window_style.dart).
+  WindowStyleWatcher? _windowStyle;
   final _home = GlobalKey<ManagerHomeState>();
 
   /// Esc that no page took (rule 5a): leave a field, Back to Apps, then hide the window as
@@ -88,7 +91,10 @@ class _ManagerAppState extends State<ManagerApp> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _esc.attach();
-    if (widget.relook case final every?) _relook = Timer.periodic(every, (_) => _reloadLook());
+    if (widget.relook case final every?) {
+      _relook = Timer.periodic(every, (_) => _reloadLook());
+      _windowStyle = WindowStyleWatcher();
+    }
     HardwareKeyboard.instance.addHandler(_f12);
     _titlebar();
     _loadSettings();
@@ -113,6 +119,7 @@ class _ManagerAppState extends State<ManagerApp> with WidgetsBindingObserver {
     _esc.detach();
     _windowSize.dispose();
     _relook?.cancel();
+    _windowStyle?.dispose();
     _lookCooling?.cancel();
     HardwareKeyboard.instance.removeHandler(_f12);
     if (widget.jobs == null) jobs.dispose();
@@ -221,6 +228,12 @@ class _ManagerAppState extends State<ManagerApp> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final radius = cornerRadius(cornersSetting, look['rounding'] as int?);
+    final style = _windowStyle;
+    if (style == null) return _app(context, radius, 1);
+    return ValueListenableBuilder<double>(valueListenable: style, builder: (context, alpha, _) => _app(context, radius, alpha));
+  }
+
+  Widget _app(BuildContext context, double radius, double alpha) {
     return MaterialApp(
       title: tr('Maprisma Settings'),
       navigatorKey: _navigator,
@@ -231,7 +244,7 @@ class _ManagerAppState extends State<ManagerApp> with WidgetsBindingObserver {
       supportedLocales: [for (final code in languageNames.keys) Locale(code)],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       debugShowCheckedModeBanner: false,
-      theme: appTheme(MediaQuery.platformBrightnessOf(context), look['colors'] as Map? ?? {}, radius),
+      theme: withWindowAlpha(appTheme(MediaQuery.platformBrightnessOf(context), look['colors'] as Map? ?? {}, radius), alpha),
       home: ManagerHome(key: _home, page: widget.page, core: widget.core, jobs: jobs, onRestart: widget.onRestart, checkOnStart: widget.checkOnStart, onLanguageChanged: _loadSettings, languageSetting: languageSetting,
           cornersSetting: cornersSetting, screenshotKey: screenshotKey, onSettingsChanged: _loadSettings),
     );
