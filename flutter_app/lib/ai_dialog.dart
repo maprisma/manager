@@ -214,7 +214,7 @@ class AiDialogState extends State<AiDialog> {
       children: [
         Align(
           alignment: Alignment.centerLeft,
-          child: SelectableText(detail, style: Theme.of(context).textTheme.bodySmall?.copyWith(fontFamily: 'monospace')),
+          child: SelectableText(detail, style: Theme.of(context).textTheme.bodySmall?.copyWith(fontFamily: monoFont(context))),
         ),
       ],
     );

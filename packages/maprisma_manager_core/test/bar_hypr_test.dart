@@ -184,4 +184,18 @@ void main() {
     expect(look['desktop'], 'hyprland');
     expect(look['colors'], {'accent': '#89b4fa', 'background': '#1e1e2e', 'foreground': '#cdd6f4'});
   });
+
+  test('desktop.look\'s fonts on Hyprland: GTK\'s gsettings without the size, asked at most every 30 s', () async {
+    w.fake('gsettings', 'echo "\$@" >> "${w.dir}/gs.log"\ncase "\$3" in font-name) echo "\'Noto Sans  10\'";; monospace-font-name) echo "\'Hack, 10.5\'";; esac');
+    final core = hypr();
+    expect((await core.call('desktop.look'))['fonts'], {'ui': 'Noto Sans', 'mono': 'Hack'});
+    await core.call('desktop.look');
+    expect(File('${w.dir}/gs.log').readAsLinesSync(), hasLength(2));
+    expect(pangoFamily('JetBrains Mono Nerd Font 12'), 'JetBrains Mono Nerd Font');
+    expect(pangoFamily('Hack'), 'Hack');
+  });
+
+  test('desktop.look without gsettings: no fonts', () async {
+    expect((await hypr().call('desktop.look'))['fonts'], isEmpty);
+  });
 }

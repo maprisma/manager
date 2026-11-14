@@ -8,7 +8,8 @@ import 'context.dart';
 
 /// `desktop.look`: the desktop's palette and window corners, as Maprisma Launcher reads them
 /// (maprisma_launcher_core desktops.dart), so the Manager looks like the Launcher's pages.
-/// `{desktop, colors: {accent, background, foreground, muted, selection, red, yellow, orange, green}, rounding, is_dark}`.
+/// `{desktop, colors: {accent, background, foreground, muted, selection, red, yellow, orange, green}, rounding, is_dark,
+/// fonts: {ui, mono}}` (fonts: the desktop's interface and monospace families, each left out when unknown).
 Future<Map<String, dynamic>> desktopLook(Ctx ctx) async {
   final colors = switch (ctx.desktop) {
     DesktopId.cosmic => _cosmicColors(ctx),
@@ -27,7 +28,59 @@ Future<Map<String, dynamic>> desktopLook(Ctx ctx) async {
       DesktopId.other => null,
     },
     'is_dark': bg == null ? null : _dark(bg),
+    'fonts': await desktopFonts(ctx),
   };
+}
+
+// --- fonts (the same in every Maprisma app; Maprisma Theme's Font & effects sets them) ------
+
+/// The desktop's interface and monospace font families, `{ui, mono}`, each left out when it
+/// can't be read: COSMIC's CosmicTk interface_font / monospace_font, KDE's kdeglobals font /
+/// fixed, elsewhere (Hyprland, GNOME) GTK's gsettings font-name / monospace-font-name, asked at
+/// most every 30 s.
+Future<Map<String, String>> desktopFonts(Ctx ctx) async {
+  String? clean(String? v) {
+    final t = v?.trim();
+    return t == null || t.isEmpty || t.length > 100 ? null : t;
+  }
+
+  final (String? ui, String? mono) = switch (ctx.desktop) {
+    DesktopId.cosmic => (
+      _ronFamily(_cosmicConfig(ctx, 'com.system76.CosmicTk', 'interface_font')),
+      _ronFamily(_cosmicConfig(ctx, 'com.system76.CosmicTk', 'monospace_font')),
+    ),
+    DesktopId.kde => () {
+      final text = _read(p.join(ctx.paths.config, 'kdeglobals'), 1024 * 1024) ?? '';
+      return (_kdeIni(text, 'General', 'font')?.split(',').first, _kdeIni(text, 'General', 'fixed')?.split(',').first);
+    }(),
+    _ => await _gtkFonts(ctx),
+  };
+  return {'ui': ?clean(ui), 'mono': ?clean(mono)};
+}
+
+String? _ronFamily(String? text) {
+  final v = text == null ? null : ronField(text, 'family');
+  return v?.replaceAll('"', '');
+}
+
+/// A Pango font ("Noto Sans  10", "Hack, 10") without its size.
+String pangoFamily(String font) => font.trim().replaceFirst(RegExp(r',?\s+\d+(\.\d+)?$'), '').trim();
+
+final _gtkFontCache = Expando<({DateTime at, (String?, String?) value})>('gtkFonts');
+
+Future<(String?, String?)> _gtkFonts(Ctx ctx) async {
+  final now = ctx.clock();
+  final cached = _gtkFontCache[ctx];
+  if (cached != null && now.difference(cached.at).abs() < const Duration(seconds: 30)) return cached.value;
+  Future<String?> get(String key) async {
+    final r = await ctx.runner.run(['gsettings', 'get', 'org.gnome.desktop.interface', key], timeout: const Duration(seconds: 3));
+    final out = r.ok ? r.stdout.trim() : '';
+    return out.length > 2 && out.startsWith("'") && out.endsWith("'") ? pangoFamily(out.substring(1, out.length - 1)) : null;
+  }
+
+  final value = (await get('font-name'), await get('monospace-font-name'));
+  _gtkFontCache[ctx] = (at: now, value: value);
+  return value;
 }
 
 /// The last answer of `hyprctl` per core, so the look's re-reads (every few seconds while the

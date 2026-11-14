@@ -175,7 +175,7 @@ class _JobSheetState extends State<JobSheet> {
                         controller: _scroll,
                         child: SelectableText(
                           text.isEmpty ? tr('Waiting for the first output…') : text,
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(fontFamily: 'monospace', height: 1.35, color: scheme.onSurfaceVariant),
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(fontFamily: monoFont(context), height: 1.35, color: scheme.onSurfaceVariant),
                         ),
                       ),
                     ),

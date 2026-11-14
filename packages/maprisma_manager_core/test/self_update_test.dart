@@ -411,8 +411,15 @@ void main() {
     expect(look['colors']['foreground'], '#e6e6e6');
     expect(look['rounding'], 12);
     expect(look['is_dark'], isTrue);
+    expect(look['fonts'], isEmpty); // no CosmicTk fonts in this world
+    final tk = p.join(w.paths.config, 'cosmic/com.system76.CosmicTk/v1');
+    w.writeFile(p.join(tk, 'interface_font'), '(\n    family: "Open Sans",\n    weight: Normal,\n)');
+    w.writeFile(p.join(tk, 'monospace_font'), '(\n    family: "Hack",\n    weight: Normal,\n)');
+    expect((await core().call('desktop.look'))['fonts'], {'ui': 'Open Sans', 'mono': 'Hack'});
+    w.writeFile(p.join(w.paths.config, 'kdeglobals'), '[General]\nfixed=Hack,10,-1,5,400,0,0,0,0,0\nfont=Noto Sans,10,-1,5,400,0,0,0,0,0\n');
     final kde = await w.core(desktop: 'KDE').call('desktop.look');
     expect(kde['colors']['accent'], '#3daee9');
+    expect(kde['fonts'], {'ui': 'Noto Sans', 'mono': 'Hack'});
     expect((await w.core(desktop: 'X').call('desktop.look'))['colors'], isEmpty);
   });
 

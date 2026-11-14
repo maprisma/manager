@@ -40,6 +40,26 @@ class MarkColors extends ThemeExtension<MarkColors> {
   MarkColors lerp(MarkColors? other, double t) => other ?? this;
 }
 
+/// The desktop's monospace family (desktop.look fonts.mono) for code, logs and commands; the
+/// interface font is the theme's own fontFamily.
+class AppFonts extends ThemeExtension<AppFonts> {
+  const AppFonts({this.mono});
+  final String? mono;
+  @override
+  AppFonts copyWith({String? mono}) => AppFonts(mono: mono ?? this.mono);
+  @override
+  AppFonts lerp(AppFonts? other, double t) => other ?? this;
+}
+
+/// The monospace family to use: the desktop's, else the system's 'monospace'.
+String monoFont(BuildContext context) => Theme.of(context).extension<AppFonts>()?.mono ?? 'monospace';
+
+/// [fonts] (desktop.look `fonts`) as a family: a non-empty string, else null.
+String? fontFamily(Map? fonts, String key) {
+  final v = fonts?[key];
+  return v is String && v.trim().isNotEmpty ? v.trim() : null;
+}
+
 MarkColors markColors(BuildContext context) =>
     Theme.of(context).extension<MarkColors>() ??
     const MarkColors(running: Color(0xff3a944a), update: Color(0xffed5b00), fresh: Color(0xffc88800));
@@ -60,8 +80,9 @@ double cornerRadius(String setting, int? windowRounding) => switch (setting) {
 };
 
 /// The desktop's palette (desktop.look colors) as a Material theme; an
-/// empty palette (generic desktops) follows the platform's light or dark.
-ThemeData appTheme(Brightness platform, Map colors, double radius) {
+/// empty palette (generic desktops) follows the platform's light or dark. [fonts] (desktop.look
+/// `fonts`): the desktop's interface font for all text, its monospace font for [monoFont].
+ThemeData appTheme(Brightness platform, Map colors, double radius, {Map? fonts}) {
   final background = hexColor(colors, 'background');
   final brightness = background == null
       ? platform
@@ -108,9 +129,11 @@ ThemeData appTheme(Brightness platform, Map colors, double radius) {
   return ThemeData(
     colorScheme: scheme,
     useMaterial3: true,
+    fontFamily: fontFamily(fonts, 'ui'),
     scaffoldBackgroundColor: scheme.surface,
     extensions: [
       sizes,
+      AppFonts(mono: fontFamily(fonts, 'mono')),
       MarkColors(
         running: hexColor(colors, 'green') ?? const Color(0xff3a944a),
         update: hexColor(colors, 'orange') ?? const Color(0xffed5b00),

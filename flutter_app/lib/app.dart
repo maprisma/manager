@@ -152,7 +152,7 @@ class _ManagerAppState extends State<ManagerApp> with WidgetsBindingObserver {
 
   void _titlebar() {
     final platform = WidgetsBinding.instance.platformDispatcher.platformBrightness;
-    final theme = appTheme(platform, look['colors'] as Map? ?? {}, 12);
+    final theme = appTheme(platform, look['colors'] as Map? ?? {}, 12, fonts: look['fonts'] as Map?);
     final s = theme.colorScheme;
     AppWindow.titlebar(theme.brightness == Brightness.dark, background: hexOf(s.surface), foreground: hexOf(s.onSurface), border: hexOf(s.outlineVariant));
   }
@@ -244,7 +244,7 @@ class _ManagerAppState extends State<ManagerApp> with WidgetsBindingObserver {
       supportedLocales: [for (final code in languageNames.keys) Locale(code)],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       debugShowCheckedModeBanner: false,
-      theme: withWindowAlpha(appTheme(MediaQuery.platformBrightnessOf(context), look['colors'] as Map? ?? {}, radius), alpha),
+      theme: withWindowAlpha(appTheme(MediaQuery.platformBrightnessOf(context), look['colors'] as Map? ?? {}, radius, fonts: look['fonts'] as Map?), alpha),
       home: ManagerHome(key: _home, page: widget.page, core: widget.core, jobs: jobs, onRestart: widget.onRestart, checkOnStart: widget.checkOnStart, onLanguageChanged: _loadSettings, languageSetting: languageSetting,
           cornersSetting: cornersSetting, screenshotKey: screenshotKey, onSettingsChanged: _loadSettings),
     );
