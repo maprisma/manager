@@ -1185,5 +1185,6 @@
   "Reduced motion is on: the previews turn only with the arrows. Set in Maprisma Theme › Settings.": "Movimento reduzido ativo: as pré-visualizações só rodam com as setas. Definido em Maprisma Theme › Configurações.",
   "Click a theme to preview it; double-click or Enter uses it.": "Um clique mostra um tema na pré-visualização; duplo clique ou Enter usa-o.",
   "In use: {0}. Click a theme to preview it; double-click or Enter uses it.": "Em uso: {0}. Um clique mostra um tema na pré-visualização; duplo clique ou Enter usa-o.",
-  "Wallpapers: {0} (‹ › on the picture)": "Papéis de parede: {0} (‹ › na imagem)"
+  "Wallpapers: {0} (‹ › on the picture)": "Papéis de parede: {0} (‹ › na imagem)",
+  "the folder has commits the installed build lacks ({0})": "a pasta tem commits que faltam na compilação instalada ({0})"
 }

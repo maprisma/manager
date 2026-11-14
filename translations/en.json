@@ -1185,5 +1185,6 @@
   "Reduced motion is on: the previews turn only with the arrows. Set in Maprisma Theme › Settings.": "Reduced motion is on: the previews turn only with the arrows. Set in Maprisma Theme › Settings.",
   "Click a theme to preview it; double-click or Enter uses it.": "Click a theme to preview it; double-click or Enter uses it.",
   "In use: {0}. Click a theme to preview it; double-click or Enter uses it.": "In use: {0}. Click a theme to preview it; double-click or Enter uses it.",
-  "Wallpapers: {0} (‹ › on the picture)": "Wallpapers: {0} (‹ › on the picture)"
+  "Wallpapers: {0} (‹ › on the picture)": "Wallpapers: {0} (‹ › on the picture)",
+  "the folder has commits the installed build lacks ({0})": "the folder has commits the installed build lacks ({0})"
 }

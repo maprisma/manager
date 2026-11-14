@@ -386,6 +386,45 @@ void main() {
       expect(installedVersion(), '0.14.2-2');
     });
 
+    test('update at the same version: new folder commits since the build mean a folder build, not "up to date"', () async {
+      installedOld();
+      makeRelease('0.15.0');
+      final repo = w.repo('maprisma');
+      w.writeFile(p.join(repo, 'addons.py'), 'MAPRISMA_VERSION = "0.15.0"\n');
+      w.writeFile(p.join(repo, 'tools/build-release.py'), _fakeBuildRelease, mode: '755');
+      stageArchive(p.join(repo, 'stage'), '0.15.0');
+      w.git(repo, ['add', '.']);
+      w.git(repo, ['commit', '-q', '-m', 'build']);
+      final addons = w.repo('maprisma-addons');
+      w.writeFile(p.join(addons, 'dist/adapters-0.15.0.zip'), 'zip');
+      w.git(addons, ['add', '.']);
+      w.git(addons, ['commit', '-q', '-m', 'adapters']);
+      final c = core();
+      var job = await run(c, 'maprisma', 'install', {'source': 'folder'});
+      expect(job['state'], 'succeeded', reason: log(job));
+      expect(installedVersion(), '0.15.0-1');
+      // same release and folder version, nothing new: up to date
+      job = await run(c, 'maprisma', 'update');
+      expect(job['result']['up_to_date'], isTrue, reason: log(job));
+      // uncommitted changes don't count
+      w.writeFile(p.join(repo, 'notes.txt'), 'x\n');
+      job = await run(c, 'maprisma', 'update');
+      expect(job['result']['up_to_date'], isTrue, reason: log(job));
+      // a new commit, still 0.15.0: the folder is built and installed
+      w.git(repo, ['add', '.']);
+      w.git(repo, ['commit', '-q', '-m', 'fix']);
+      job = await run(c, 'maprisma', 'update');
+      expect(job['state'], 'succeeded', reason: log(job));
+      expect(job['result']['up_to_date'], isNot(isTrue));
+      expect(log(job), contains('the folder has commits the installed build lacks'));
+      expect(installedVersion(), '0.15.0-2');
+      expect(receipt('maprisma')['inputs'][0]['commit'], w.head('maprisma'));
+      final a = appOf(await c.call('apps.list'), 'maprisma');
+      expect(a['updates']['sourceDiffers'], isFalse);
+      job = await run(c, 'maprisma', 'update');
+      expect(job['result']['up_to_date'], isTrue, reason: log(job));
+    });
+
     test('remove: the plan, the service stopped and disabled, pkexec pacman -R, settings only when asked', () async {
       installedOld();
       w.writeFile(p.join(w.paths.config, 'maprisma/settings.json'), '{}');

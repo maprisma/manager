@@ -1185,5 +1185,6 @@
   "Reduced motion is on: the previews turn only with the arrows. Set in Maprisma Theme › Settings.": "Movimento ridotto attivo: le anteprime ruotano solo con le frecce. Si imposta in Maprisma Theme › Impostazioni.",
   "Click a theme to preview it; double-click or Enter uses it.": "Un clic mostra un tema nell’anteprima; doppio clic o Invio lo usa.",
   "In use: {0}. Click a theme to preview it; double-click or Enter uses it.": "In uso: {0}. Un clic mostra un tema nell’anteprima; doppio clic o Invio lo usa.",
-  "Wallpapers: {0} (‹ › on the picture)": "Sfondi: {0} (‹ › sull’immagine)"
+  "Wallpapers: {0} (‹ › on the picture)": "Sfondi: {0} (‹ › sull’immagine)",
+  "the folder has commits the installed build lacks ({0})": "la cartella ha commit che mancano nella build installata ({0})"
 }

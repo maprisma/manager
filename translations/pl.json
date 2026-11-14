@@ -1185,5 +1185,6 @@
   "Reduced motion is on: the previews turn only with the arrows. Set in Maprisma Theme › Settings.": "Ograniczony ruch jest włączony: podglądy obracają się tylko strzałkami. Ustawiane w Maprisma Theme › Ustawienia.",
   "Click a theme to preview it; double-click or Enter uses it.": "Kliknięcie pokazuje motyw w podglądzie; dwuklik lub Enter go używa.",
   "In use: {0}. Click a theme to preview it; double-click or Enter uses it.": "W użyciu: {0}. Kliknięcie pokazuje motyw w podglądzie; dwuklik lub Enter go używa.",
-  "Wallpapers: {0} (‹ › on the picture)": "Tapety: {0} (‹ › na obrazie)"
+  "Wallpapers: {0} (‹ › on the picture)": "Tapety: {0} (‹ › na obrazie)",
+  "the folder has commits the installed build lacks ({0})": "folder ma commity, których brakuje w zainstalowanej kompilacji ({0})"
 }

@@ -131,7 +131,23 @@ extension _Pacman on JobEngine {
 
   /// Release or folder: the one asked for (`options.source`, a release job), else the newer of
   /// the latest release and the folder's version (the same version: the release).
-  Future<({String kind, String version, String why})> _chooseSource(_Run r, AppEntry app) async {
+  /// An update whose installed build came from the folder, while every folder is clean and at least
+  /// one has commits since that build (status' "build differs" mark): the folder is newer even at
+  /// the same version, so a folder build replaces it. Never for uncommitted changes.
+  Future<String?> _folderAheadOfBuild(AppEntry app) async {
+    final rec = readReceipt(paths, app.id).receipt;
+    if (rec == null || rec.fromRelease || rec.inputs.isEmpty) return null;
+    final moved = <String>[];
+    for (final input in app.inputs) {
+      final then = rec.input(input.repo);
+      final g = await ctx.git.inspect(input.repo, ctx.repoFolder(input.repo));
+      if (then == null || g.head == null || g.dirty != false || then.dirty) return null;
+      if (then.commit != g.head) moved.add('${input.repo} ${'${then.commit}'.substring(0, 7)} → ${g.head!.substring(0, 7)}');
+    }
+    return moved.isEmpty ? null : moved.join(', ');
+  }
+
+  Future<({String kind, String version, String why, bool newerBuild})> _chooseSource(_Run r, AppEntry app) async {
     final options = r.job['options'] as Map? ?? const {};
     final asked = r.kind == JobKind.release ? 'release' : options['source'] as String?;
     String? relVersion, relError;
@@ -152,20 +168,31 @@ extension _Pacman on JobEngine {
     }
     if (asked == 'release') {
       if (relVersion == null) throw JobFailure(relError == tr('no release') || (relError ?? '').startsWith(tr('no release')) ? 'no_release' : 'github_failed', trf('the release: {0}', [relError ?? tr('unknown')]));
-      return (kind: 'release', version: relVersion, why: r.kind == JobKind.release ? tr('a release job') : tr('asked for'));
+      return (kind: 'release', version: relVersion, why: r.kind == JobKind.release ? tr('a release job') : tr('asked for'), newerBuild: false);
     }
     if (asked == 'folder') {
       if (folderVersion == null) throw JobFailure('no_source', trf('{0} has no tools/build-release.py or no MAPRISMA_VERSION', [folder]));
-      return (kind: 'folder', version: folderVersion, why: tr('asked for'));
+      return (kind: 'folder', version: folderVersion, why: tr('asked for'), newerBuild: false);
+    }
+    // The folder has commits the installed build lacks: only a folder build of the installed
+    // version clears that (an update; the release can't have them).
+    final ahead = r.kind == JobKind.update && folderVersion != null ? await _folderAheadOfBuild(app) : null;
+    if (ahead != null) {
+      final installed = await _installedPackage();
+      final same = installed != null && installed.isNotEmpty && compareVersions(packageBaseVersion(installed), folderVersion!) == 0;
+      final c = relVersion == null ? 1 : compareVersions(folderVersion!, relVersion) ?? 0;
+      if (same && c >= 0) {
+        return (kind: 'folder', version: folderVersion, why: trf('the folder has commits the installed build lacks ({0})', [ahead]), newerBuild: true);
+      }
     }
     if (relVersion != null && folderVersion != null) {
       final c = compareVersions(folderVersion, relVersion) ?? 0;
       return c > 0
-          ? (kind: 'folder', version: folderVersion, why: trf('the folder ({0}) is newer than the release ({1})', [folderVersion, relVersion]))
-          : (kind: 'release', version: relVersion, why: c == 0 ? trf('the release and the folder are both {0}: the release', [relVersion]) : trf('the release ({0}) is newer than the folder ({1})', [relVersion, folderVersion]));
+          ? (kind: 'folder', version: folderVersion, why: trf('the folder ({0}) is newer than the release ({1})', [folderVersion, relVersion]), newerBuild: false)
+          : (kind: 'release', version: relVersion, why: c == 0 ? trf('the release and the folder are both {0}: the release', [relVersion]) : trf('the release ({0}) is newer than the folder ({1})', [relVersion, folderVersion]), newerBuild: false);
     }
-    if (relVersion != null) return (kind: 'release', version: relVersion, why: tr('no folder build possible'));
-    if (folderVersion != null) return (kind: 'folder', version: folderVersion, why: trf('no release ({0})', [relError ?? tr('none')]));
+    if (relVersion != null) return (kind: 'release', version: relVersion, why: tr('no folder build possible'), newerBuild: false);
+    if (folderVersion != null) return (kind: 'folder', version: folderVersion, why: trf('no release ({0})', [relError ?? tr('none')]), newerBuild: false);
     throw JobFailure('no_source', trf('neither a release ({0}) nor a folder with tools/build-release.py', [relError ?? tr('none')]));
   }
 
@@ -184,7 +211,7 @@ extension _Pacman on JobEngine {
     if (!_plainVersion.hasMatch(source.version)) throw JobFailure('no_source', trf('version "{0}" is not a plain version', [source.version]));
     _checkCancel(r);
 
-    if (r.kind == JobKind.update && installed.isNotEmpty) {
+    if (r.kind == JobKind.update && installed.isNotEmpty && !source.newerBuild) {
       final cmp = compareVersions(packageBaseVersion(installed), source.version);
       if (cmp != null && cmp >= 0) {
         r.log.note(trf('already up to date: {0} {1} (the {2} is {3})', [pacmanPackage, installed, source.kind, source.version]));

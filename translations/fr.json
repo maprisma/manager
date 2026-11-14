@@ -1185,5 +1185,6 @@
   "Reduced motion is on: the previews turn only with the arrows. Set in Maprisma Theme › Settings.": "Animations réduites activées : les aperçus ne tournent qu’avec les flèches. Se règle dans Maprisma Theme › Réglages.",
   "Click a theme to preview it; double-click or Enter uses it.": "Un clic affiche un thème en aperçu ; un double-clic ou Entrée l’applique.",
   "In use: {0}. Click a theme to preview it; double-click or Enter uses it.": "Utilisé : {0}. Un clic affiche un thème en aperçu ; un double-clic ou Entrée l’applique.",
-  "Wallpapers: {0} (‹ › on the picture)": "Fonds d’écran : {0} (‹ › sur l’image)"
+  "Wallpapers: {0} (‹ › on the picture)": "Fonds d’écran : {0} (‹ › sur l’image)",
+  "the folder has commits the installed build lacks ({0})": "le dossier a des commits absents de la version installée ({0})"
 }

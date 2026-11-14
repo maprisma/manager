@@ -1185,5 +1185,6 @@
   "Reduced motion is on: the previews turn only with the arrows. Set in Maprisma Theme › Settings.": "Minder beweging staat aan: de voorbeelden draaien alleen met de pijlen. In te stellen in Maprisma Theme › Instellingen.",
   "Click a theme to preview it; double-click or Enter uses it.": "Klik op een thema voor een voorbeeld; dubbelklik of Enter gebruikt het.",
   "In use: {0}. Click a theme to preview it; double-click or Enter uses it.": "In gebruik: {0}. Klik op een thema voor een voorbeeld; dubbelklik of Enter gebruikt het.",
-  "Wallpapers: {0} (‹ › on the picture)": "Achtergronden: {0} (‹ › op de afbeelding)"
+  "Wallpapers: {0} (‹ › on the picture)": "Achtergronden: {0} (‹ › op de afbeelding)",
+  "the folder has commits the installed build lacks ({0})": "de map heeft commits die de geïnstalleerde build mist ({0})"
 }
