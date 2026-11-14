@@ -35,7 +35,7 @@ import 'sysproc.dart';
 import 'time_lang.dart';
 import 'voice.dart';
 
-const coreVersion = '0.3.1';
+const coreVersion = '0.4.0';
 
 /// How long a fetch counts as fresh (plan: "fetch at most every 30 min unless forced").
 const fetchInterval = Duration(minutes: 30);
