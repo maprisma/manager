@@ -91,36 +91,32 @@ String sharedAiLock(Paths paths) => p.join(paths.config, sharedAiDir, 'settings.
 /// Saves one key of the shared file, keeping every other key.
 void writeSharedKey(Paths paths, String key, Object value) => _writeKey(paths, key, value);
 
-void _writeKey(Paths paths, String key, Object value) {
-  final path = sharedAiFile(paths);
-  final dir = Directory(p.dirname(path));
-  dir.createSync(recursive: true);
-  chmodPath(dir.path, 0x1c0); // 0700
-  // Under the shared lock every app takes; an existing file that can't be read is never rebuilt
-  // from one key (that would drop the user's rules).
-  Posix.instance.withFlock(sharedAiLock(paths), () => _writeKeyLocked(path, dir, key, value));
-}
+void _writeKey(Paths paths, String key, Object value) =>
+    updateSharedObject(paths, (values) => values[key] = value);
 
-void _writeKeyLocked(String path, Directory dir, String key, Object value) {
-  if (FileSystemEntity.typeSync(path, followLinks: false) != FileSystemEntityType.notFound && _readObject(path) == null) {
-    throw FileSystemException('the shared AI settings can\'t be read: not changed', path);
-  }
-  final values = {...?_readObject(path), key: value};
-  final tmp = File(p.join(dir.path, '.settings.json.$pid.${DateTime.now().microsecondsSinceEpoch}.tmp'));
-  try {
-    final raf = tmp.openSync(mode: FileMode.writeOnly);
-    try {
-      if (!chmodPath(tmp.path, 0x180)) throw FileSystemException('chmod 0600 failed', tmp.path); // 0600
-      raf.writeStringSync('${const JsonEncoder.withIndent('  ').convert(values)}\n');
-      raf.flushSync();
-    } finally {
-      raf.closeSync();
+/// Read, modify and atomically replace in one shared lock transaction.
+void updateSharedObject(Paths paths, void Function(Map<String, dynamic>) update, {bool reset = false}) {
+  final path = sharedAiFile(paths);
+  final dir = Directory(p.dirname(path))..createSync(recursive: true);
+  chmodPath(dir.path, 0x1c0);
+  Posix.instance.withFlock(sharedAiLock(paths), () {
+    final broken = sharedFileBroken(paths);
+    if (broken && !reset) throw FileSystemException('the shared AI settings can\'t be read: not changed', path);
+    if (reset && sharedHelperExists(paths)) {
+      // Copy first: the restrictive original remains visible until the final rename.
+      final backup = '$path.broken-${DateTime.now().microsecondsSinceEpoch}';
+      if (!Posix.instance.writeNewPrivate(backup, File(path).readAsBytesSync())) {
+        throw FileSystemException('Could not back up the rules', path);
+      }
     }
-    tmp.renameSync(path);
-  } on Object {
-    if (tmp.existsSync()) tmp.deleteSync();
-    rethrow;
-  }
+    final values = broken ? <String, dynamic>{} : {...?_readObject(path)};
+    update(values);
+    final tmp = File(p.join(dir.path, '.settings.json.$pid.${DateTime.now().microsecondsSinceEpoch}.tmp'));
+    if (!Posix.instance.writeNewPrivate(tmp.path, utf8.encode('${const JsonEncoder.withIndent('  ').convert(values)}\n'))) {
+      throw FileSystemException('Could not write settings', tmp.path);
+    }
+    try { tmp.renameSync(path); } finally { if (tmp.existsSync()) tmp.deleteSync(); }
+  });
 }
 
 /// Migration: when the shared file doesn't exist yet, the Manager's old `ai_helper` setting (if

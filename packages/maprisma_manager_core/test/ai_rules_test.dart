@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:maprisma_manager_core/src/ai/rules.dart';
+import 'package:maprisma_manager_core/src/ai/posix.dart';
 import 'package:maprisma_manager_core/src/ai/shared_helper.dart';
 import 'package:path/path.dart' as p;
 import 'package:test/test.dart';
@@ -106,4 +107,61 @@ void main() {
     expect(install['on'], isTrue);
     expect(install['effective'], isFalse);
   });
+  test('nested edits preserve unknown and malformed fields', () {
+    write({'ask_ai': {'future': {'x': 1}, 'actions': {'unknown': null, 'theme.apply': 'bad'}}});
+    writeAskAiRule(w.paths, kind: 'actions', id: 'launcher.remove', on: false);
+    final rules = (jsonDecode(shared().readAsStringSync()) as Map)['ask_ai'] as Map;
+    expect(rules['future'], {'x': 1});
+    expect(rules['actions'], {'unknown': null, 'theme.apply': 'bad', 'launcher.remove': false});
+    expect(askAiAllowed(w.paths, 'theme.apply'), isFalse);
+  });
+
+  test('view distinguishes partial damage and dependent local source', () {
+    write({'ask_ai': {'actions': {'theme.apply': null}, 'folders': {'downloads': false}}});
+    final view = askAiRulesView(w.paths);
+    expect(view['broken'], isTrue);
+    expect(view['answers_only_error'], isFalse);
+    expect((view['sources'] as List).firstWhere((i) => i['id'] == 'local')['effective'], isFalse);
+    expect(askAiAllowed(w.paths, 'launcher.remove'), isTrue);
+    write({'ask_ai': null});
+    expect(askAiRulesView(w.paths)['answers_only_error'], isTrue);
+  });
+
+  test('append repairs incomplete tails and tolerates invalid UTF8 during rotation', () {
+    final log = File(askAiLogFile(w.paths))..createSync(recursive: true);
+    log.writeAsBytesSync([255, 10, ...utf8.encode('{"time":')]);
+    appendAskAiLog(w.paths, op: 'recovered', app: 'settings', action: 'settings.updates', target: 'x', result: 'done');
+    expect(readAskAiLog(w.paths).single['op'], 'recovered');
+    log.writeAsBytesSync([...List.filled(askAiLogBytes + 1, 255), 10]);
+    expect(() => appendAskAiLog(w.paths, op: 'rotated', app: 'settings', action: 'settings.updates', target: 'x', result: 'done'), returnsNormally);
+    expect(readAskAiLog(w.paths).first['op'], 'rotated');
+  });
+
+  test('append and clear refuse symlink data files', () {
+    final log = File(askAiLogFile(w.paths));
+    log.parent.createSync(recursive: true);
+    final target = File(p.join(w.paths.state, 'untouched'))..writeAsStringSync('keep');
+    Link(log.path).createSync(target.path);
+    appendAskAiLog(w.paths, op: 'x', app: 'settings', action: 'settings.updates', target: 'x', result: 'done');
+    clearAskAiLog(w.paths);
+    expect(target.readAsStringSync(), 'keep');
+  });
+
+  test('locks reject special files and links and correct regular file permissions', () {
+    final lock = File(sharedAiLock(w.paths));
+    lock.parent.createSync(recursive: true);
+    lock.writeAsStringSync('');
+    chmodPath(lock.path, 0x1ff);
+    expect(Posix.instance.withFlock(lock.path, () => 42), 42);
+    expect(lock.statSync().mode & 0x1ff, 0x180);
+    lock.deleteSync();
+    final target = File('${lock.path}.target')..writeAsStringSync('keep');
+    Link(lock.path).createSync(target.path);
+    expect(() => Posix.instance.withFlock(lock.path, () => fail('called')), throwsA(isA<FileSystemException>()));
+    Link(lock.path).deleteSync();
+    expect(Process.runSync('mkfifo', [lock.path]).exitCode, 0);
+    expect(() => Posix.instance.withFlock(lock.path, () => fail('called')), throwsA(isA<FileSystemException>()));
+    expect(target.readAsStringSync(), 'keep');
+  });
+
 }

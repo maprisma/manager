@@ -11,6 +11,7 @@ Map<String, dynamic> _view({
 }) => {
   'level': level,
   'broken': broken,
+  'answers_only_error': broken && level == 'answers',
   'actions': [
     {
       'id': 'launcher.install',
@@ -178,4 +179,19 @@ void main() {
     expect(calls.any((c) => c.$1 == 'ai.clear_log'), isTrue);
     expect(find.text('Nothing yet.'), findsOneWidget);
   });
+  testWidgets('partial damage does not claim all apps only answer', (tester) async {
+    await open(tester, _view(broken: true, removeOn: false));
+    expect(find.text('Malformed rules are off. Other rules still apply.'), findsOneWidget);
+    expect(find.text('Until they are reset, Ask AI in every app only answers.'), findsNothing);
+  });
+
+  testWidgets('dependent effective-off item is off with a reason', (tester) async {
+    final view = _view();
+    (view['sources'] as List).first['effective'] = false;
+    await open(tester, view);
+    final toggle = find.descendant(of: find.byKey(const ValueKey('ask-ai-sources-aur')), matching: find.byType(Switch));
+    expect(tester.widget<Switch>(toggle).value, isFalse);
+    expect(find.text('Off because another rule blocks this item'), findsOneWidget);
+  });
+
 }

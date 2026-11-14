@@ -84,10 +84,11 @@ class AskAiRulesState extends State<AskAiRules> {
       SettingsToggle(
         key: ValueKey('ask-ai-$kind-${item['id']}'),
         title: tr(item['label'] as String),
-        description: answersOnly && item['on'] == true
-            ? tr('Off while Ask AI only answers')
+        description: item['effective'] == false
+            ? tr(answersOnly ? 'Off while Ask AI only answers' :
+                item['on'] == true ? 'Off because another rule blocks this item' : 'Switched off in Maprisma Settings › AI')
             : null,
-        value: item['on'] == true,
+        value: item['effective'] == true,
         onChanged: working
             ? null
             : (v) => _call('ai.set_rule', {
@@ -138,7 +139,9 @@ class AskAiRulesState extends State<AskAiRules> {
         if (r['broken'] == true)
           SettingsSection(
             title: tr('The rules can\'t be read'),
-            note: tr('Until they are reset, Ask AI in every app only answers.'),
+            note: tr(r['answers_only_error'] == true
+                ? 'Until they are reset, Ask AI in every app only answers.'
+                : 'Malformed rules are off. Other rules still apply.'),
             children: [
               SettingsItem(
                 leading: Icon(

@@ -1248,5 +1248,7 @@
   "The apps check these themselves, every time; the AI can't change them. A switched-off step is still suggested, but its button is disabled. Most changes also show you a review first.": "The apps check these themselves, every time; the AI can't change them. A switched-off step is still suggested, but its button is disabled. Most changes also show you a review first.",
   "Answers only: Ask AI explains and suggests, but changes nothing.": "Answers only: Ask AI explains and suggests, but changes nothing.",
   "Where Ask AI in Maprisma Launcher may install apps from. The AUR and GitHub are not checked by your distribution.": "Where Ask AI in Maprisma Launcher may install apps from. The AUR and GitHub are not checked by your distribution.",
-  "May act": "May act"
+  "May act": "May act",
+  "Off because another rule blocks this item": "Off because another rule blocks this item",
+  "Malformed rules are off. Other rules still apply.": "Malformed rules are off. Other rules still apply."
 }

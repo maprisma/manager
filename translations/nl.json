@@ -1248,5 +1248,7 @@
   "The apps check these themselves, every time; the AI can't change them. A switched-off step is still suggested, but its button is disabled. Most changes also show you a review first.": "De apps controleren dit zelf, elke keer; de AI kan het niet veranderen. Een uitgeschakelde stap wordt nog voorgesteld, maar de knop is uitgeschakeld. De meeste wijzigingen tonen je eerst ook een controle.",
   "Answers only: Ask AI explains and suggests, but changes nothing.": "Alleen antwoorden: Ask AI legt uit en stelt voor, maar verandert niets.",
   "Where Ask AI in Maprisma Launcher may install apps from. The AUR and GitHub are not checked by your distribution.": "Waarvandaan Ask AI in Maprisma Launcher apps mag installeren. De AUR en GitHub worden niet door je distributie gecontroleerd.",
-  "May act": "Mag handelen"
+  "May act": "Mag handelen",
+  "Off because another rule blocks this item": "Uit omdat een andere regel dit onderdeel blokkeert",
+  "Malformed rules are off. Other rules still apply.": "Ongeldige regels staan uit. Andere regels blijven gelden."
 }

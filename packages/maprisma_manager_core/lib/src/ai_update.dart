@@ -335,7 +335,7 @@ final class AiUpdater {
         // stops the next step even while a run goes on. Blocked steps show in the run view.
         final op = _opId();
         final target = '${step['do']} ${step['app']}';
-        if (!askAiAllowed(ctx.paths, 'settings.updates')) {
+        if (Settings.load(ctx.paths).values['ai_updates'] != true || !askAiAllowed(ctx.paths, 'settings.updates')) {
           final blocked = {...step, 'ok': false, 'blocked': true, 'message': tr('Switched off in Maprisma Settings › AI')};
           _step(run, blocked);
           done.add({'action': raw, 'result': 'blocked', 'message': blocked['message']});

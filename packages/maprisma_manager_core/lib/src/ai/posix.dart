@@ -1,4 +1,3 @@
-import '../translations.dart';
 import 'dart:ffi';
 import 'dart:io';
 import 'dart:math';
@@ -114,6 +113,97 @@ final class Posix {
     }
   }
 
+  /// Bounded tail of an owned regular file, checked on its no-follow descriptor.
+  (Uint8List, int)? readOwnedTail(String path, int cap) {
+    final fd = _withPath(path, (name) => _open(name,
+        _rdonly | _nonBlock | _noFollow | _cloexec, 0)) ?? -1;
+    if (fd < 0) return null;
+    try {
+      final info = _fstat(fd);
+      if (info == null || info.$1 & 0xf000 != 0x8000 || info.$3 != uid) return null;
+      final start = max(0, info.$2 - cap);
+      if (_seek(fd, start, 0) != start) return null;
+      final size = info.$2 - start;
+      final buffer = calloc<Uint8>(max(1, size));
+      try {
+        var done = 0;
+        while (done < size) {
+          final n = _read(fd, buffer + done, size - done);
+          if (n <= 0) return null;
+          done += n;
+        }
+        return (Uint8List.fromList(buffer.asTypedList(size)), info.$2);
+      } finally { calloc.free(buffer); }
+    } finally { _close(fd); }
+  }
+  static final _seek = _lib.lookupFunction<Int64 Function(Int, Int64, Int), int Function(int, int, int)>('lseek');
+
+  /// Remove an unterminated tail, then append one complete newline-delimited record
+  /// through a no-follow, owned regular descriptor. Caller must hold the log lock.
+  bool appendPrivate(String path, List<int> bytes) {
+    final fd = _withPath(path, (name) => _open(name,
+        0x2 | 0x40 | 0x400 | _nonBlock | _noFollow | _cloexec, 0x180)) ?? -1;
+    if (fd < 0) return false;
+    final buffer = calloc<Uint8>(bytes.length);
+    try {
+      final info = _fstat(fd);
+      if (info == null || info.$1 & 0xf000 != 0x8000 || info.$3 != uid) return false;
+      if (_fchmod(fd, 0x180) != 0) return false;
+      // Scan backwards in bounded chunks, even when the partial record exceeds
+      // the rotation limit. Truncate bytes, without decoding a possibly split UTF-8 tail.
+      final tail = calloc<Uint8>(65536);
+      try {
+        var end = info.$2;
+        var completeEnd = 0;
+        while (end > 0) {
+          final start = max(0, end - 65536);
+          final size = end - start;
+          if (_seek(fd, start, 0) != start) return false;
+          var read = 0;
+          while (read < size) {
+            final n = _read(fd, tail + read, size - read);
+            if (n <= 0) return false;
+            read += n;
+          }
+          final newline = tail.asTypedList(size).lastIndexOf(10);
+          if (newline >= 0) {
+            completeEnd = start + newline + 1;
+            break;
+          }
+          end = start;
+        }
+        if (completeEnd != info.$2 && _ftruncate(fd, completeEnd) != 0) return false;
+      } finally {
+        calloc.free(tail);
+      }
+      buffer.asTypedList(bytes.length).setAll(0, bytes);
+      var done = 0;
+      while (done < bytes.length) {
+        final n = _write(fd, buffer + done, bytes.length - done);
+        if (n <= 0) return false;
+        done += n;
+      }
+      return true;
+    } finally {
+      calloc.free(buffer);
+      _close(fd);
+    }
+  }
+  static final _fchmod = _lib.lookupFunction<Int Function(Int, Uint32), int Function(int, int)>('fchmod');
+  static final _ftruncate = _lib.lookupFunction<Int Function(Int, Int64), int Function(int, int)>('ftruncate');
+
+  /// Clear through the checked descriptor, without following links or blocking on FIFOs.
+  bool clearPrivate(String path) {
+    final fd = _withPath(path, (name) => _open(name,
+        0x1 | _nonBlock | _noFollow | _cloexec, 0)) ?? -1;
+    if (fd < 0) return false;
+    try {
+      final info = _fstat(fd);
+      return info != null && info.$1 & 0xf000 == 0x8000 && info.$3 == uid &&
+          _fchmod(fd, 0x180) == 0 && _ftruncate(fd, 0) == 0;
+    } finally { _close(fd); }
+  }
+
   T? _withPath<T>(String path, T Function(Pointer<Utf8>) action) {
     if (path.isEmpty || path.contains('\x00')) return null;
     final native = path.toNativeUtf8();
@@ -154,13 +244,17 @@ final class Posix {
     final fd =
         _withPath(
           lockPath,
-          (name) => _open(name, 0x1 | 0x40 | _noFollow | _cloexec, 0x180),
+          (name) => _open(name, 0x1 | 0x40 | _nonBlock | _noFollow | _cloexec, 0x180),
         ) ??
         -1;
-    if (fd < 0) throw FileSystemException(tr("Could not open the lock"), lockPath);
+    if (fd < 0) throw FileSystemException('Could not open the lock', lockPath);
     try {
+      final info = _fstat(fd);
+      if (info == null || info.$1 & 0xf000 != 0x8000 || info.$3 != uid || _fchmod(fd, 0x180) != 0) {
+        throw FileSystemException('Invalid lock file', lockPath);
+      }
       if (_flock(fd, 2) != 0) {
-        throw FileSystemException(tr("Could not lock"), lockPath);
+        throw FileSystemException('Could not lock', lockPath);
       }
       return body();
     } finally {
@@ -186,14 +280,14 @@ final class Posix {
     }
   }
 
-  /// (mode, size) of an open descriptor.
-  (int, int)? _fstat(int fd) {
+  /// (mode, size, uid) of an open descriptor.
+  (int, int, int)? _fstat(int fd) {
     final buffer = calloc<Uint8>(256);
     final empty = ''.toNativeUtf8();
     try {
       if (_statx(fd, empty, _emptyPath, 0x7ff, buffer) != 0) return null;
       final data = ByteData.sublistView(buffer.asTypedList(256));
-      return (data.getUint16(28, Endian.host), data.getUint64(40, Endian.host));
+      return (data.getUint16(28, Endian.host), data.getUint64(40, Endian.host), data.getUint32(20, Endian.host));
     } finally {
       calloc.free(buffer);
       calloc.free(empty);

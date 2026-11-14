@@ -122,16 +122,8 @@ bool askAiAllowed(Paths paths, String action, {String? source}) {
 
 /// Changes one switch (`kind` actions/sources/folders) or the level, keeping every other key.
 void writeAskAiRule(Paths paths, {String? level, String? kind, String? id, bool? on}) {
-  final r = readAskAiRules(paths);
-  final next = {
-    'level': r.level,
-    'actions': {...r.actions},
-    'sources': {...r.sources},
-    'folders': {...r.folders},
-  };
   if (level != null) {
     if (!askAiLevels.contains(level)) throw ArgumentError.value(level, 'level');
-    next['level'] = level;
   }
   if (kind != null) {
     final known = switch (kind) {
@@ -141,19 +133,31 @@ void writeAskAiRule(Paths paths, {String? level, String? kind, String? id, bool?
       _ => throw ArgumentError.value(kind, 'kind'),
     };
     if (id == null || !known.any((i) => i.id == id) || on == null) throw ArgumentError.value(id, 'id');
-    (next[kind] as Map<String, bool>)[id] = on;
   }
-  writeSharedKey(paths, 'ask_ai', next);
+  updateSharedObject(paths, (whole) {
+    final raw = whole['ask_ai'];
+    if (whole.containsKey('ask_ai') && raw is! Map) {
+      throw FileSystemException('The rules must be reset first', sharedAiFile(paths));
+    }
+    final next = <String, dynamic>{...?raw as Map<String, dynamic>?};
+    if (level != null) next['level'] = level;
+    if (kind != null) {
+      final entries = next[kind];
+      if (next.containsKey(kind) && entries is! Map) {
+        throw FileSystemException('The rules must be reset first', sharedAiFile(paths));
+      }
+      next[kind] = <String, dynamic>{...?entries as Map<String, dynamic>?, id!: on};
+    }
+    whole['ask_ai'] = next;
+  });
 }
 
 /// Resets the rules to the defaults (the page's answer to a broken file): writes a fresh file that
 /// keeps nothing of the unreadable one except what can't be lost (helper → auto).
 void resetAskAiRules(Paths paths) {
-  final path = sharedAiFile(paths);
-  Posix.instance.withFlock(sharedAiLock(paths), () {
-    if (sharedFileBroken(paths)) File(path).renameSync('$path.broken-${DateTime.now().millisecondsSinceEpoch}');
-  });
-  writeSharedKey(paths, 'ask_ai', {'level': 'review', 'actions': {}, 'sources': {}, 'folders': {}});
+  updateSharedObject(paths, (whole) {
+    whole['ask_ai'] = {'level': 'review', 'actions': {}, 'sources': {}, 'folders': {}};
+  }, reset: true);
 }
 
 // ---------------------------------------------------------------- the log
@@ -187,33 +191,21 @@ void appendAskAiLog(Paths paths,
         'target': target.length > 200 ? target.substring(0, 200) : target,
         'result': result,
       };
-      final raf = File(path).openSync(mode: FileMode.append);
-      try {
-        chmodPath(path, 0x180);
-        raf.writeStringSync('${jsonEncode(entry)}\n');
-        raf.flushSync();
-      } finally {
-        raf.closeSync();
-      }
-      final data = File(path);
-      final lines = data.readAsStringSync().split('\n');
-      final complete = lines.sublist(0, lines.length - 1); // the part after the last newline is incomplete
-      if (complete.length > askAiLogMax || data.lengthSync() > askAiLogBytes) {
+      if (!Posix.instance.appendPrivate(path, utf8.encode('${jsonEncode(entry)}\n'))) return;
+      final tail = Posix.instance.readOwnedTail(path, askAiLogBytes);
+      if (tail == null) return;
+      var content = utf8.decode(tail.$1, allowMalformed: true);
+      if (tail.$2 > askAiLogBytes) content = content.substring(content.indexOf('\n') + 1);
+      final lines = content.split('\n');
+      final complete = lines.sublist(0, lines.length - 1);
+      if (complete.length > askAiLogMax || tail.$2 > askAiLogBytes) {
         final keep = complete.length > askAiLogKeep ? complete.sublist(complete.length - askAiLogKeep) : complete;
-        final tmp = File(p.join(dir.path, '.actions.${DateTime.now().microsecondsSinceEpoch}.tmp'));
-        if (tmp.existsSync()) return; // O_EXCL by name: never write into a file that is already there
-        final out = tmp.openSync(mode: FileMode.writeOnly);
-        try {
-          chmodPath(tmp.path, 0x180);
-          out.writeStringSync('${keep.join('\n')}\n');
-          out.flushSync();
-        } finally {
-          out.closeSync();
-        }
-        tmp.renameSync(path);
+        final tmp = File(p.join(dir.path, '.actions.$pid.${DateTime.now().microsecondsSinceEpoch}.tmp'));
+        if (!Posix.instance.writeNewPrivate(tmp.path, utf8.encode('${keep.join('\n')}\n'))) return;
+        try { tmp.renameSync(path); } finally { if (tmp.existsSync()) tmp.deleteSync(); }
       }
     });
-  } on FileSystemException {
+  } on Object {
     // a record only
   }
 }
@@ -224,17 +216,10 @@ List<Map<String, dynamic>> readAskAiLog(Paths paths, {int limit = 100}) {
   if (FileSystemEntity.typeSync(path, followLinks: false) != FileSystemEntityType.file) return [];
   final out = <Map<String, dynamic>>[];
   // at most the last MiB; the first (possibly cut) and an unterminated last line are skipped
-  final raf = File(path).openSync();
-  String text;
-  try {
-    final length = raf.lengthSync();
-    final start = length > askAiLogBytes ? length - askAiLogBytes : 0;
-    raf.setPositionSync(start);
-    text = utf8.decode(raf.readSync(length - start), allowMalformed: true);
-    if (start > 0) text = text.substring(text.indexOf('\n') + 1);
-  } finally {
-    raf.closeSync();
-  }
+  final tail = Posix.instance.readOwnedTail(path, askAiLogBytes);
+  if (tail == null) return [];
+  var text = utf8.decode(tail.$1, allowMalformed: true);
+  if (tail.$2 > askAiLogBytes) text = text.substring(text.indexOf('\n') + 1);
   final lines = text.split('\n')..removeLast();
   for (final line in lines.reversed) {
     try {
@@ -251,8 +236,12 @@ List<Map<String, dynamic>> readAskAiLog(Paths paths, {int limit = 100}) {
 /// Empties the log (under its lock).
 void clearAskAiLog(Paths paths) {
   final path = askAiLogFile(paths);
-  if (FileSystemEntity.typeSync(path, followLinks: false) != FileSystemEntityType.file) return;
-  Posix.instance.withFlock(askAiLogLock(paths), () => File(path).writeAsStringSync(''));
+  final dir = p.dirname(path);
+  if (FileSystemEntity.typeSync(dir, followLinks: false) != FileSystemEntityType.directory ||
+      Posix.instance.ownerOf(dir, follow: false) != Posix.instance.uid) {
+    return;
+  }
+  Posix.instance.withFlock(askAiLogLock(paths), () => Posix.instance.clearPrivate(path));
 }
 
 /// `ai.rules`: the stored rules, what each switch means, and the effective state per item.
@@ -265,12 +254,16 @@ Map<String, dynamic> askAiRulesView(Paths paths) {
             'app': i.app,
             'label': i.label,
             'on': stored[i.id] != false,
-            'effective': r.level != 'answers' && stored[i.id] != false,
+            'effective': r.level != 'answers' && stored[i.id] != false &&
+                (kind != 'sources' || r.actions['launcher.install'] != false) &&
+                (kind != 'sources' || i.id != 'local' || r.folders['downloads'] != false),
           },
       ];
   return {
     'level': r.level,
     'broken': r.broken,
+    'answers_only_error': sharedFileBroken(paths) ||
+        (readSharedObject(paths)?.containsKey('ask_ai') == true && readSharedObject(paths)?['ask_ai'] is! Map),
     'actions': items(askAiActions, r.actions, 'actions'),
     'sources': items(askAiSources, r.sources, 'sources'),
     'folders': items(askAiFolders, r.folders, 'folders'),

@@ -1248,5 +1248,7 @@
   "The apps check these themselves, every time; the AI can't change them. A switched-off step is still suggested, but its button is disabled. Most changes also show you a review first.": "Las apps lo comprueban ellas mismas, cada vez; la IA no puede cambiarlo. Un paso desactivado se sigue sugiriendo, pero su botón está desactivado. La mayoría de los cambios también te muestran antes una revisión.",
   "Answers only: Ask AI explains and suggests, but changes nothing.": "Solo respuestas: Ask AI explica y sugiere, pero no cambia nada.",
   "Where Ask AI in Maprisma Launcher may install apps from. The AUR and GitHub are not checked by your distribution.": "Desde dónde puede instalar apps Ask AI en Maprisma Launcher. Tu distribución no revisa el AUR ni GitHub.",
-  "May act": "Puede actuar"
+  "May act": "Puede actuar",
+  "Off because another rule blocks this item": "Desactivado porque otra regla bloque este elemento",
+  "Malformed rules are off. Other rules still apply.": "Las reglas incorrectas están desactivadas. Las demás siguen vigentes."
 }

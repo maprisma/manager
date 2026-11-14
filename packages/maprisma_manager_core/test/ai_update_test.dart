@@ -41,6 +41,22 @@ void main() {
   });
   tearDown(() => w.dispose());
 
+  test('turning off the opt-in during a run blocks every following step', () async {
+    await core.call('settings.set', {'key': 'ai_updates', 'value': true});
+    core.ai.ask = (helper, prompt) async {
+      await core.call('settings.set', {'key': 'ai_updates', 'value': false});
+      return jsonEncode({'say': 'Update', 'actions': [
+        {'do': 'pub_get', 'app': 'wlan'},
+        {'do': 'reinstall', 'app': 'wlan'},
+      ], 'done': true});
+    };
+    await core.call('ai.start');
+    final run = await settle(core);
+    final actions = (run['steps'] as List).cast<Map<String, dynamic>>().where((s) => s['kind'] == 'action').toList();
+    expect(actions, hasLength(2));
+    expect(actions.every((s) => s['blocked'] == true), isTrue);
+  });
+
   test('parseAnswer takes the JSON object out of words or a code fence', () {
     expect(parseAnswer('Sure:\n```json\n{"say": "hi", "actions": []}\n```'), {'say': 'hi', 'actions': []});
     expect(parseAnswer('no json here'), isNull);
