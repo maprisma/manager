@@ -69,14 +69,18 @@ final _id = RegExp(r'^[a-z][a-z0-9_.]{0,63}$');
   // An existing file that can't be read, or an ask_ai that isn't an object: restrictive.
   if (sharedFileBroken(paths)) return (level: 'answers', actions: {}, sources: {}, folders: {}, broken: true);
   final whole = readSharedObject(paths);
-  final raw = whole?['ask_ai'];
-  if (raw == null) return (level: 'review', actions: {}, sources: {}, folders: {}, broken: false);
+  // Missing = defaults; present but not an object (null too) = restrictive (contract).
+  if (whole == null || !whole.containsKey('ask_ai')) {
+    return (level: 'review', actions: {}, sources: {}, folders: {}, broken: false);
+  }
+  final raw = whole['ask_ai'];
   if (raw is! Map) return (level: 'answers', actions: {}, sources: {}, folders: {}, broken: true);
   var broken = false;
   // Malformed values are restrictive (docs/ask-ai-rules.md): a map that isn't an object switches
   // all of its kind off, a known id with a non-boolean value is off.
-  Map<String, bool> map(Object? v, List<AskAiItem> known) {
-    if (v == null) return {};
+  Map<String, bool> map(String key, List<AskAiItem> known) {
+    if (!raw.containsKey(key)) return {};
+    final v = raw[key];
     if (v is! Map) {
       broken = true;
       return {for (final i in known) i.id: false};
@@ -95,10 +99,11 @@ final _id = RegExp(r'^[a-z][a-z0-9_.]{0,63}$');
   }
 
   final level = raw['level'];
-  final actions = map(raw['actions'], askAiActions), sources = map(raw['sources'], askAiSources), folders = map(raw['folders'], askAiFolders);
-  if (level != null && !askAiLevels.contains(level)) broken = true;
+  final actions = map('actions', askAiActions), sources = map('sources', askAiSources), folders = map('folders', askAiFolders);
+  final hasLevel = raw.containsKey('level');
+  if (hasLevel && !askAiLevels.contains(level)) broken = true;
   return (
-    level: level == null ? 'review' : (askAiLevels.contains(level) ? level as String : 'answers'),
+    level: !hasLevel ? 'review' : (askAiLevels.contains(level) ? level as String : 'answers'),
     actions: actions,
     sources: sources,
     folders: folders,

@@ -53,6 +53,10 @@ void main() {
     expect(readAskAiRules(w.paths).broken, isTrue);
     write({'ask_ai': {'sources': ['aur']}});
     expect(askAiAllowed(w.paths, 'launcher.install', source: 'pacman'), isFalse);
+    write({'ask_ai': {'actions': null}}); // null isn't an object: restrictive, like the apps
+    expect(askAiAllowed(w.paths, 'launcher.install'), isFalse);
+    write({'ask_ai': null});
+    expect(readAskAiRules(w.paths).level, 'answers');
     write({'ask_ai': {'level': 'yolo'}});
     expect(readAskAiRules(w.paths).level, 'answers');
     shared().writeAsStringSync('{not json');
