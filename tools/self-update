@@ -246,6 +246,14 @@ fi
 # 4. done: recorded first, then the old bundle goes (kept when the record failed)
 if core_done; then
   [[ -n $prev ]] && rm -rf -- "$prev"
+  # The bar icon of the old build still runs from the moved bundle (COSMIC's applet, KDE's tray):
+  # the new core ends it and brings up the new one, as a job does for every other app. Never fatal.
+  # 9>&-: a tray started from here must not hold the lock.
+  if bar_out=$(MAPRISMA_MANAGER_PROC=$proc "$(core_of "$lib")" self-update-bar 2>&1 9>&-); then
+    while IFS= read -r l; do [[ -n $l ]] && say "bar icon: $l"; done <<<"$bar_out"
+  else
+    say "the bar icon was not restarted: ${bar_out//$'\n'/ }"
+  fi
   status "done"
 else
   say "the outcome could not be recorded in the job: the old bundle is kept at ${prev:-nowhere}"

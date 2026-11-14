@@ -380,3 +380,21 @@ Map<String, dynamic> finishSelfUpdate(Paths paths, String id, {String? failed}) 
   atomicWrite(p.join(_jobsDir(paths), '$id.json'), const JsonEncoder.withIndent('  ').convert(job));
   return {'id': id, 'state': job['state'], 'selfUpdate': job['selfUpdate']['state']};
 }
+
+/// After a self-update: the bar icon's processes of the build before (they run from the moved and
+/// deleted bundle) are ended and the new ones brought up, as a job does for any other app.
+/// Run by the self-update helper with the new core (`self-update-bar`). Never a panel restart.
+extension SelfUpdateBar on JobEngine {
+  Future<Map<String, dynamic>> selfUpdateBar({void Function(String)? note}) async {
+    final app = findApp(selfApp)!;
+    if (ctx.desktop == DesktopId.other || app.bar.none) return {'note': tr('no bar icon here')};
+    // The executable's name: an old process' exe is the moved bundle's copy (not a current path).
+    bool sameName(ProcInfo pr, Set<String> exe) => exe.any((e) => p.basename(e) == p.basename(pr.exe!));
+    return _restartBarProcesses(
+      app,
+      note ?? (_) {},
+      matches: (pr, exe) => exe.contains(pr.exe) || (sameName(pr, exe) && pr.uid == ctx.uid),
+      isOld: (pr, exe) => !exe.contains(pr.exe) && !File(pr.exe!).existsSync(),
+    );
+  }
+}

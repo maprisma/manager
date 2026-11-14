@@ -634,6 +634,33 @@ void main() {
     expect(File(wingsFile()).readAsStringSync(), realWings);
     expect(await runCli(['bar', 'wlan', 'up'], service: cosmic(), out: _Sink()), 2);
   });
+
+  group('after a self-update', () {
+    test('the old Settings applet (from the moved, deleted bundle) is ended; the new one and other apps are left alone; never the panel', () async {
+      w.writeFile(wingsFile(), 'Some(([\n    "${_c}Manager",\n], [\n    "com.system76.CosmicAppletPower",\n]))');
+      w.writeFile(centerFile(), 'Some([\n    "${_c}WlanMonitor",\n])');
+      w.install('settings');
+      final applet = p.join(w.paths.lib, 'maprisma-settings/bin/maprisma-settings-applet');
+      w.process(500, exe: '/usr/bin/cosmic-panel');
+      w.process(501, exe: p.join(w.dir, 'gone/maprisma-settings.old.AbC123/bin/maprisma-settings-applet'), ppid: 500);
+      w.process(502, exe: applet, ppid: 500, start: 9000); // the panel already started the new one
+      w.process(503, exe: p.join(w.paths.bin, 'maprisma-wlan-monitor'), ppid: 500);
+      final c = cosmic();
+      c.jobs.stopGrace = const Duration(milliseconds: 50);
+      c.jobs.appletWait = const Duration(milliseconds: 50);
+      final notes = <String>[];
+      final r = await c.jobs.selfUpdateBar(note: notes.add);
+      expect(r['restarted'], [501]);
+      expect(c.jobs.signaller.sent.map((e) => e.split(':').first).toSet(), {'501'});
+      expect(notes, contains('the applet runs again'));
+      // nothing old: nothing ended
+      Directory(p.join(w.proc, '501')).deleteSync(recursive: true);
+      c.jobs.signaller.sent.clear();
+      final again = await c.jobs.selfUpdateBar();
+      expect(again['restarted'], isNull);
+      expect(c.jobs.signaller.sent, isEmpty);
+    });
+  });
 }
 
 final class _Sink implements IOSink {
@@ -645,4 +672,5 @@ final class _Sink implements IOSink {
   void write(Object? o) => _b.write(o);
   @override
   dynamic noSuchMethod(Invocation i) => null;
+
 }

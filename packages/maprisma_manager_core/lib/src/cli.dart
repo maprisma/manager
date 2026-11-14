@@ -4,7 +4,7 @@ import 'dart:io';
 
 import 'context.dart';
 import 'core.dart';
-import 'jobs.dart' show finishSelfUpdate;
+import 'jobs.dart' show SelfUpdateBar, finishSelfUpdate;
 
 const usage = '''usage: maprisma-settings-core status [--json] [--desktop cosmic|kde|other] [<id>]
        maprisma-settings-core sources [--json]
@@ -25,7 +25,8 @@ const usage = '''usage: maprisma-settings-core status [--json] [--desktop cosmic
        maprisma-settings-core jobs [<id>]
        maprisma-settings-core log <job>
        maprisma-settings-core version
-       maprisma-settings-core self-update-done <job> [--failed <why>]   (the self-update helper)''';
+       maprisma-settings-core self-update-done <job> [--failed <why>]   (the self-update helper)
+       maprisma-settings-core self-update-bar              (the self-update helper: the bar icon of the new build)''';
 
 /// The name this program was started by: `maprisma-settings-core`, or `maprisma-manager-core` when
 /// started through the old name (a Manager from before the rename checks a new build's `version`
@@ -86,6 +87,9 @@ Future<int> runCli(List<String> args, {CoreService? service, IOSink? out, String
   }
   try {
     switch (rest) {
+      case ['self-update-bar']:
+        final r = await core.jobs.selfUpdateBar(note: sink.writeln);
+        if (json) sink.writeln(jsonEncode(r));
       case ['self-update-done', final job]:
         final r = finishSelfUpdate(core.ctx.paths, job, failed: failed);
         sink.writeln(json ? jsonEncode(r) : 'job $job: ${r['state']} (${r['selfUpdate']})');

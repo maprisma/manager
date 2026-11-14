@@ -222,7 +222,8 @@ void main() {
     // without the helper's lock: everything its jobs start would inherit it (a restarted shell …)
     expect(File(p.join(ctl, 'gui-fds')).readAsStringSync(), isNot(contains('self-update/lock')));
     // the new core was asked to record it (the fake core only notes the call): do what it does
-    expect(File(p.join(ctl, 'core-calls')).readAsStringSync().trim(), 'self-update-done $id');
+    // then the bar icon of the new build (also after the first install, which records nothing)
+    expect(File(p.join(ctl, 'core-calls')).readAsStringSync().trim().split('\n'), ['self-update-bar', 'self-update-done $id', 'self-update-bar']);
     final done = finishSelfUpdate(w.paths, id);
     expect(done['selfUpdate'], 'done');
     expect(receipt()['version'], '0.1.2');
@@ -253,8 +254,10 @@ void main() {
     expect(File(p.join(w.paths.apps, 'com.maprisma.Settings.desktop')).readAsStringSync(), oldEntry);
     // the old build was started again (it writes "started build 1")
     expect(File(p.join(ctl, 'started')).readAsStringSync(), contains('started build 1'));
-    final call = File(p.join(ctl, 'core-calls')).readAsStringSync().trim();
-    expect(call, startsWith('self-update-done $id --failed'));
+    // a rollback leaves the bar icon alone (the old build is the one in place)
+    final calls = File(p.join(ctl, 'core-calls')).readAsStringSync().trim().split('\n');
+    expect(calls.last, startsWith('self-update-done $id --failed'));
+    expect(calls.where((c) => c == 'self-update-bar'), hasLength(1)); // only the first install's
     finishSelfUpdate(w.paths, id, failed: 'the new Maprisma Settings wasn\'t ready within 3 s; the old build is back');
     final j = await c.call('jobs.get', {'id': id});
     expect(j['state'], 'failed');

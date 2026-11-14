@@ -1620,8 +1620,28 @@ final class JobEngine {
       out['error'] = '${e.code}: ${e.message}';
       r.log.note(trf('bar state not applied: {0} {1}', [e.code, e.message ?? '']));
     }
+    out.addAll(await _restartBarProcesses(
+      r.app,
+      r.log.note,
+      matches: (pr, exe) => exe.contains(pr.exe),
+      isOld: (pr, exe) => r.aliveAtEnd.contains('${pr.pid}:${pr.startTicks}'),
+    ));
+    return out;
+  }
+
+  /// The bar icon's processes after new files were put in place: COSMIC, the old applet ended
+  /// (cosmic-panel starts the new one, else its panel file is written without it and back); KDE,
+  /// the old tray ended and the new one started (kept stopped when out of the bar). [matches]
+  /// picks the app's processes, [isOld] the ones of the build before; both get the executable's
+  /// current paths. Used by jobs and by the self-update helper (`self-update-bar`).
+  Future<Map<String, dynamic>> _restartBarProcesses(
+    AppEntry app,
+    void Function(String) note, {
+    required bool Function(ProcInfo pr, Set<String> exe) matches,
+    required bool Function(ProcInfo pr, Set<String> exe) isOld,
+  }) async {
+    final out = <String, dynamic>{};
     final procs = ctx.processes();
-    bool isOld(ProcInfo pr) => r.aliveAtEnd.contains('${pr.pid}:${pr.startTicks}');
     Set<String> targets(String template) {
       final path = paths.expand(template);
       String? res;
@@ -1636,11 +1656,11 @@ final class JobEngine {
     if (ctx.desktop == DesktopId.cosmic && app.bar.cosmicApplet != null && app.bar.cosmicAppletExe != null) {
       final exe = targets(app.bar.cosmicAppletExe!);
       final panels = {for (final pr in cosmicPanels(procs)) pr.pid};
-      final old = [for (final pr in procs) if (panels.contains(pr.ppid) && pr.exe != null && exe.contains(pr.exe) && isOld(pr)) pr];
+      final old = [for (final pr in procs) if (panels.contains(pr.ppid) && pr.exe != null && matches(pr, exe) && isOld(pr, exe)) pr];
       if (old.isNotEmpty) {
         await stopProcesses(old, signaller: signaller, procRoot: paths.proc, uid: ctx.uid, grace: stopGrace);
         out['restarted'] = [for (final pr in old) pr.pid];
-        r.log.note(trf('ended the old applet ({0})', [old.map((pr) => pr.pid).join(', ')]));
+        note(trf('ended the old applet ({0})', [old.map((pr) => pr.pid).join(', ')]));
       }
       // cosmic-panel 1.11 does not start an applet again that ended (checked live 2026-11-09):
       // when the applet is in a panel but not running, the panel is restarted once and checked.
@@ -1660,11 +1680,11 @@ final class JobEngine {
           await Future<void>.delayed(const Duration(milliseconds: 250));
         }
         if (running()) {
-          r.log.note(tr('the applet runs again'));
+          note(tr('the applet runs again'));
         } else {
           // Never a restart of cosmic-panel: cosmic-session starts a killed panel again with a
           // delay that doubles with every restart (65 s after a dozen, seen 2026-11-09).
-          r.log.note(tr('the applet did not start again: its panel file is written without it and back (the panel rebuilds)'));
+          note(tr('the applet did not start again: its panel file is written without it and back (the panel rebuilds)'));
           Map<String, dynamic> f;
           try {
             f = await _nudgeApplet(app.bar.cosmicApplet!);
@@ -1677,7 +1697,7 @@ final class JobEngine {
             await Future<void>.delayed(const Duration(milliseconds: 250));
           }
           out['applet_running'] = running();
-          r.log.note(running() ? tr('the panel started the applet again') : trf('the applet is still not running{0}', [f['error'] == null ? '' : ' (${f['error']})']));
+          note(running() ? tr('the panel started the applet again') : trf('the applet is still not running{0}', [f['error'] == null ? '' : ' (${f['error']})']));
         }
       }
     }
@@ -1685,17 +1705,17 @@ final class JobEngine {
       final exe = targets(app.bar.kdeTrayExe!);
       final autostart = paths.expand(app.bar.kdeAutostart!);
       final shown = File(autostart).existsSync() && !desktopHidden(autostart);
-      final trays = [for (final pr in procs) if (pr.exe != null && exe.contains(pr.exe)) pr];
-      final stop = shown ? trays.where(isOld).toList() : trays;
+      final trays = [for (final pr in procs) if (pr.exe != null && matches(pr, exe)) pr];
+      final stop = shown ? trays.where((pr) => isOld(pr, exe)).toList() : trays;
       if (stop.isNotEmpty) await stopProcesses(stop, signaller: signaller, procRoot: paths.proc, uid: ctx.uid, grace: stopGrace);
       final left = trays.where((t) => !stop.contains(t)).toList();
       if (shown && left.isEmpty) {
         final ok = await startDetached(paths.expand(app.bar.kdeTrayExe!), app.bar.kdeTrayArgs);
         out['trayStarted'] = ok;
-        r.log.note(ok ? tr('tray started') : tr('the tray could not be started'));
+        note(ok ? tr('tray started') : tr('the tray could not be started'));
       } else if (!shown) {
         out['trayStopped'] = stop.length;
-        if (stop.isNotEmpty) r.log.note(tr('tray kept stopped (not in the bar)'));
+        if (stop.isNotEmpty) note(tr('tray kept stopped (not in the bar)'));
       }
     }
     return out;
