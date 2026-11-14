@@ -817,7 +817,10 @@ final class JobEngine {
       final rec = readReceipt(paths, app.id).receipt;
       bool same(Map<String, dynamic> now) {
         final then = rec?.inputs.where((i) => i.repo == now['repo']).firstOrNull;
-        return then != null && !then.dirty && now['dirty'] == false && then.commit != null && then.commit == now['commit'];
+        if (then == null || then.commit == null || then.commit != now['commit']) return false;
+        if (!then.dirty && now['dirty'] == false) return true;
+        // built from uncommitted changes that are still exactly the folder's
+        return then.dirty && now['dirty'] == true && then.fingerprint != null && then.fingerprint == now['fingerprint'];
       }
       if (rec != null && !rec.fromRelease && inputs.every(same) && rec.inputs.length == inputs.length) {
         final states = [for (final c in comps) (await status.component(app, c)).state];

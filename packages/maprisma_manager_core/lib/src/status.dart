@@ -10,6 +10,7 @@ import 'context.dart';
 import 'git.dart';
 import 'github.dart';
 import 'jobs.dart';
+import 'ownership.dart' show sha256File;
 import 'paths.dart';
 import 'procs.dart';
 import 'receipts.dart';
@@ -271,6 +272,11 @@ final class StatusReader {
         } else if (r.commit != g.head) {
           differs = true;
           differReasons.add(trf('{0}: built {1}, folder at {2}', [input.repo, _short(r.commit), _short(g.head)]));
+        } else if (g.dirty == true &&
+            r.dirty &&
+            r.fingerprint != null &&
+            r.fingerprint == await ctx.git.fingerprint(g.folder, (f) => sha256File(f))) {
+          // Built from uncommitted changes that are still exactly the folder's: the same build.
         } else if (g.dirty == true || r.dirty) {
           // Same commit, but uncommitted changes on either side: not provably the same build.
           differs = true;

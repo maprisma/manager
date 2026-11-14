@@ -175,6 +175,25 @@ void main() {
       expect(a['updates']['sourceReasons'].single, contains('uncommitted'));
     });
 
+    test('built from uncommitted changes: same while the folder is exactly that, differs after a change', () async {
+      w.install('wlan');
+      final dir = w.repo('maprisma-wlan-monitor');
+      File(p.join(dir, 'README')).writeAsStringSync('work in progress\n');
+      final print = await w.core().ctx.git.fingerprint(dir, (f) => sha256File(f));
+      expect(print, startsWith('dirty:'));
+      receipt({
+        'id': 'wlan',
+        'at': '2026-11-14T10:00:00Z',
+        'inputs': [{'repo': 'maprisma-wlan-monitor', 'commit': w.head('maprisma-wlan-monitor'), 'dirty': true, 'fingerprint': print}],
+      });
+      var a = appOf(await list(), 'wlan');
+      expect(a['updates']['sourceDiffers'], isFalse);
+      File(p.join(dir, 'README')).writeAsStringSync('more work\n');
+      a = appOf(await list(), 'wlan');
+      expect(a['updates']['sourceDiffers'], isTrue);
+      expect(a['updates']['sourceReasons'].single, contains('uncommitted'));
+    });
+
     test('a broken receipt is reported, not trusted', () async {
       w.install('wlan');
       final good = {'repo': 'maprisma-wlan-monitor', 'commit': 'a' * 40, 'dirty': false};
