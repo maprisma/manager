@@ -33,7 +33,9 @@ final class NativeSettings {
           'network' => cosmic([(tr('Network & Wireless'), 'network')]),
           'bluetooth' => cosmic([(tr('Bluetooth'), 'bluetooth')]),
           'sound' => cosmic([(tr('Sound'), 'sound')]),
-          'notifications' => cosmic([(tr('Notifications'), 'notifications')]),
+          // cosmic-settings 1.11 has no notifications page (`cosmic-settings notifications` is an
+          // unknown command): do not disturb is in the panel's applet, nothing else is settable.
+          'notifications' => const [],
           'displays' => cosmic([(tr('Displays'), 'displays')]),
           'power' => cosmic([(tr('Power & battery'), 'power')]),
           'input' => cosmic([(tr('Keyboard'), 'keyboard'), (tr('Mouse'), 'mouse'), (tr('Touchpad'), 'touchpad')]),

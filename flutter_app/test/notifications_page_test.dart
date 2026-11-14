@@ -36,7 +36,8 @@ Map<String, dynamic> _answer({String desktop = 'hyprland', bool installed = true
     'cosmic' => {'where': 'cosmic', 'on': false},
     _ => {'where': 'recorder'},
   },
-  'native': desktop == 'hyprland' ? null : {'name': desktop == 'cosmic' ? 'COSMIC Settings' : 'System Settings', 'available': true},
+  // COSMIC Settings 1.11 has no notifications page: only KDE links to its own
+  'native': desktop == 'kde' ? {'name': 'System Settings', 'available': true} : null,
 };
 
 void main() {
@@ -146,11 +147,19 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('COSMIC: Notifier\'s settings and a button to COSMIC Settings, no Shell popups', (tester) async {
+  testWidgets('COSMIC: Notifier\'s settings, no Shell popups, no button to COSMIC Settings (it has no notifications page)', (tester) async {
     final calls = await open(tester, _answer(desktop: 'cosmic'));
     expect(find.text('Popups'), findsNothing);
-    expect(find.text('Popups are set in COSMIC Settings'), findsOneWidget);
+    expect(find.text('Popups are set in COSMIC Settings'), findsNothing);
+    expect(find.byKey(const ValueKey('notifications-open-native')), findsNothing);
     if (shotsDir != null) await saveShot(tester, 'page-notifications-cosmic');
+    expect(calls.where((c) => c.$1 == 'native.open'), isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('KDE: the button opens System Settings\' notifications page', (tester) async {
+    final calls = await open(tester, _answer(desktop: 'kde'));
+    expect(find.text('Popups are set in System Settings'), findsOneWidget);
     await tester.ensureVisible(find.byKey(const ValueKey('notifications-open-native')));
     await tester.tap(find.byKey(const ValueKey('notifications-open-native')));
     await tester.pumpAndSettle();

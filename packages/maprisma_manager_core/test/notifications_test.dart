@@ -220,10 +220,24 @@ void main() {
     w.fake('cosmic-settings', r'echo "$*" >> "$HOME/cosmic.log"');
     w.fake('setsid', r'exec "$@"');
     final cosmic = w.core(desktop: 'COSMIC');
-    expect((await cosmic.call('notifications.get'))['native'], {'name': 'COSMIC Settings', 'available': true});
+    // cosmic-settings 1.11 has no notifications page: no link (the section is left out)
+    expect((await cosmic.call('notifications.get'))['native'], isNull);
     expect((await w.core(desktop: 'KDE').call('notifications.get'))['native'], {'name': 'System Settings', 'available': false});
-    expect(await cosmic.call('native.get', {'page': 'notifications'}), containsPair('links', [{'label': 'Notifications', 'available': true}]));
-    expect(cosmic.native.links('notifications').single.argv, ['cosmic-settings', 'notifications']);
+    expect(await cosmic.call('native.get', {'page': 'notifications'}), containsPair('links', isEmpty));
+    expect(cosmic.native.links('notifications'), isEmpty);
+    // every COSMIC link is a page cosmic-settings 1.11 knows (`cosmic-settings --help`)
+    const known = {
+      'accessibility', 'accessibility-magnifier', 'accessibility-osk', 'about', 'appearance', 'applications', 'bluetooth', 'date-time',
+      'default-apps', 'desktop', 'displays', 'dock', 'dock-applet', 'input', 'keyboard', 'legacy-applications', 'mouse', 'network', 'panel',
+      'panel-applet', 'power', 'region-language', 'sound', 'startup-apps', 'system', 'time', 'touchpad', 'users', 'vpn', 'wallpaper',
+      'window-management', 'wired', 'wireless', 'workspaces',
+    };
+    for (final page in NativeSettings.pages) {
+      for (final l in cosmic.native.links(page)) {
+        expect(l.argv.first, 'cosmic-settings');
+        expect(known, contains(l.argv[1]), reason: page);
+      }
+    }
     expect(w.core(desktop: 'KDE').native.links('notifications').single.argv, ['systemsettings', 'kcm_notifications']);
     expect(w.core(desktop: 'Hyprland').native.links('notifications'), isEmpty);
   });
