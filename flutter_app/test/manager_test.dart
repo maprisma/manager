@@ -467,6 +467,32 @@ void main() {
     });
   }
 
+  testWidgets('Update all: the toolbar button with the count, the list to confirm, Cancel, Ctrl+U, one job per app in order', (tester) async {
+    final jobs = await open(tester, 900);
+    final list = [for (final x in (await tester.runAsync(() => call()('apps.list')))!['apps'] as List) Map<String, dynamic>.from(x as Map)];
+    final plan = updateAllPlan(list);
+    expect(plan.steps, isNotEmpty);
+    expect(find.text('Update all (${plan.steps.length})'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('update-all')));
+    await settle(tester, 3);
+    for (final st in plan.steps) {
+      expect(find.textContaining('${st.app['name']}'), findsWidgets);
+    }
+    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+    await settle(tester, 3);
+    expect(jobs.jobs, isEmpty);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyU);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await settle(tester, 3);
+    await tester.tap(find.byKey(const ValueKey('update-all-go')));
+    await settle(tester, 6);
+    expect([for (final j in jobs.jobs) '${j.app}:${j.kind}'], [for (final st in plan.steps) '${st.app['id']}:${st.kind}']);
+    for (var i = 0; i < 60 && jobs.busy; i++) {
+      await settle(tester, 1);
+    }
+  });
+
   testWidgets('Let AI do the updates: off without a helper; on, the AI button, the helper row and its steps', (tester) async {
     await open(tester, 900);
     await tester.tap(find.byKey(const ValueKey('nav-ai')));

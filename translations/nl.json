@@ -1186,5 +1186,16 @@
   "Click a theme to preview it; double-click or Enter uses it.": "Klik op een thema voor een voorbeeld; dubbelklik of Enter gebruikt het.",
   "In use: {0}. Click a theme to preview it; double-click or Enter uses it.": "In gebruik: {0}. Klik op een thema voor een voorbeeld; dubbelklik of Enter gebruikt het.",
   "Wallpapers: {0} (‹ › on the picture)": "Achtergronden: {0} (‹ › op de afbeelding)",
-  "the folder has commits the installed build lacks ({0})": "de map heeft commits die de geïnstalleerde build mist ({0})"
+  "the folder has commits the installed build lacks ({0})": "de map heeft commits die de geïnstalleerde build mist ({0})",
+  "Update all": "Alles bijwerken",
+  "Update all ({0})": "Alles bijwerken ({0})",
+  "Update all (Ctrl+U)": "Alles bijwerken (Ctrl+U)",
+  "Update 1 app?": "1 app bijwerken?",
+  "Update {0} apps?": "{0} apps bijwerken?",
+  "release {0}": "release {0}",
+  "Maprisma asks for your password first.": "Maprisma vraagt eerst om je wachtwoord.",
+  "Left out:": "Overgeslagen:",
+  "needs Repair first": "moet eerst worden hersteld",
+  "uncommitted changes in {0}": "niet-gecommitte wijzigingen in {0}",
+  "Nothing can be updated by \"Update all\"": "\"Alles bijwerken\" kan niets bijwerken"
 }

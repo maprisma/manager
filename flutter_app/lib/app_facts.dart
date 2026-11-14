@@ -1,7 +1,7 @@
 /// What the list shows about an app, read from its `apps.list` entry (docs/protocol.md "App").
 library;
 
-import 'package:maprisma_manager_core/maprisma_manager_core.dart' show tr, trf, uiLabel;
+import 'package:maprisma_manager_core/maprisma_manager_core.dart' show canonicalAppId, selfApp, tr, trf, uiLabel;
 
 
 typedef App = Map<String, dynamic>;
@@ -175,3 +175,38 @@ bool matches(App a, String query) {
 }
 
 String shortCommit(Object? c) => c is String && c.length > 8 ? c.substring(0, 8) : '${c ?? ''}';
+
+/// One step of "Update all": the job to start for an app.
+typedef UpdateStep = ({App app, String kind, Map<String, dynamic> options});
+
+/// Whether the job asks for the password (pkexec): Maprisma's pacman package.
+bool needsPassword(App a) => a['id'] == 'maprisma' || '${a['kind']}'.contains('pacman');
+
+/// "Update all": every installed app of this desktop with an update mark (Update) or only a newer
+/// release (that release), and the ones left out with why. Uncommitted changes in a folder are
+/// never built by it (someone works there), an interrupted job needs Repair first. The password
+/// apps come first (the dialog shows while you are still there), Maprisma Settings itself last
+/// (its update restarts this window when the others have ended).
+({List<UpdateStep> steps, List<(App, String)> skipped}) updateAllPlan(List<App> apps) {
+  final steps = <UpdateStep>[];
+  final skipped = <(App, String)>[];
+  for (final a in apps) {
+    final update = canUpdate(a);
+    final rel = newerRelease(a);
+    if (!installed(a) || (!update && rel == null)) continue;
+    if (!supportedHere(a)) continue; // its mark is for another desktop
+    if (needsRepair(a)) {
+      skipped.add((a, tr('needs Repair first')));
+      continue;
+    }
+    final dirty = [for (final r in (a['repos'] as List?) ?? const []) if ((r as Map)['dirty'] == true) '${r['repo'] ?? r['name'] ?? ''}'];
+    if (update && dirty.isNotEmpty) {
+      skipped.add((a, trf('uncommitted changes in {0}', [dirty.where((d) => d.isNotEmpty).join(', ')])));
+      continue;
+    }
+    steps.add(update ? (app: a, kind: 'update', options: const {}) : (app: a, kind: 'release', options: {'tag': rel!['tag']}));
+  }
+  int rank(UpdateStep s) => canonicalAppId('${s.app['id']}') == selfApp ? 2 : (needsPassword(s.app) ? 0 : 1);
+  final ordered = [for (final (i, s) in steps.indexed) (i, s)]..sort((x, y) => rank(x.$2) != rank(y.$2) ? rank(x.$2) - rank(y.$2) : x.$1 - y.$1);
+  return (steps: [for (final (_, s) in ordered) s], skipped: skipped);
+}

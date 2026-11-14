@@ -210,11 +210,67 @@ class AppsPageState extends State<AppsPage> {
         name: '${a['name']}',
         kind: kind,
         options: options,
-        password: a['id'] == 'maprisma' || '${a['kind']}'.contains('pacman'),
+        password: needsPassword(a),
       );
       setState(() => sheet = true);
     } on ServiceError catch (e) {
       tell('${a['name']}: ${e.reason ?? e.code}');
+    }
+  }
+
+  /// "Update all": asks once with the list (and what is left out), then queues one job per app;
+  /// the core runs them one after another.
+  Future<void> updateAll() async {
+    final plan = updateAllPlan(apps);
+    if (plan.steps.isEmpty) {
+      tell(plan.skipped.isEmpty ? tr('Everything is up to date') : tr('Nothing can be updated by "Update all"'));
+      return;
+    }
+    final password = plan.steps.any((s) => needsPassword(s.app));
+    final scheme = Theme.of(context).colorScheme;
+    final go = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(plan.steps.length == 1 ? tr('Update 1 app?') : trf('Update {0} apps?', [plan.steps.length])),
+        content: SizedBox(
+          width: 420,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (final st in plan.steps)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Text('• ${st.app['name']}${st.kind == 'release' ? '  (${trf('release {0}', ['${st.options['tag']}'])})' : ''}'),
+                  ),
+                if (password) ...[
+                  const SizedBox(height: 10),
+                  Text(tr('Maprisma asks for your password first.'), style: TextStyle(color: scheme.onSurfaceVariant)),
+                ],
+                if (plan.skipped.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Text(tr('Left out:'), style: const TextStyle(fontWeight: FontWeight.w700)),
+                  for (final (a, why) in plan.skipped)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 2),
+                      child: Text('• ${a['name']}: $why', style: TextStyle(color: scheme.onSurfaceVariant)),
+                    ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(tr('Cancel'))),
+          FilledButton(key: const ValueKey('update-all-go'), onPressed: () => Navigator.pop(context, true), child: Text(tr('Update all'))),
+        ],
+      ),
+    );
+    if (go != true || !mounted) return;
+    for (final st in plan.steps) {
+      await startJob(st.app, st.kind, options: st.options);
+      if (!mounted) return;
     }
   }
 
@@ -611,6 +667,10 @@ class AppsPageState extends State<AppsPage> {
       unawaited(openBarEditor());
       return KeyEventResult.handled;
     }
+    if (k == LogicalKeyboardKey.keyU && HardwareKeyboard.instance.isControlPressed) {
+      if (!widget.jobs.busy) unawaited(updateAll());
+      return KeyEventResult.handled;
+    }
     if (k == LogicalKeyboardKey.keyL && HardwareKeyboard.instance.isControlPressed) {
       setState(() => sheet = !sheet);
       return KeyEventResult.handled;
@@ -627,6 +687,7 @@ class AppsPageState extends State<AppsPage> {
     final secs = sections(shown, desktop);
     final running = widget.jobs.busy;
     final narrow = MediaQuery.sizeOf(context).width < 560;
+    final updatable = updateAllPlan(apps).steps.length;
     return Scaffold(
       body: Focus(
         autofocus: true,
@@ -647,6 +708,23 @@ class AppsPageState extends State<AppsPage> {
                       style: pageTitleStyle(context),
                     ),
                   ),
+                  if (updatable > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 4),
+                      child: narrow
+                          ? IconButton(
+                              key: const ValueKey('update-all'),
+                              tooltip: tr('Update all (Ctrl+U)'),
+                              onPressed: running ? null : updateAll,
+                              icon: Badge(label: Text('$updatable'), backgroundColor: markColors(context).update, child: const Icon(Icons.system_update_alt)),
+                            )
+                          : FilledButton.tonalIcon(
+                              key: const ValueKey('update-all'),
+                              onPressed: running ? null : updateAll,
+                              icon: const Icon(Icons.system_update_alt, size: 18),
+                              label: Text(trf('Update all ({0})', [updatable])),
+                            ),
+                    ),
                   if (aiOn)
                     IconButton(
                       key: const ValueKey('ai-button'),

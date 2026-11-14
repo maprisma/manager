@@ -1186,5 +1186,16 @@
   "Click a theme to preview it; double-click or Enter uses it.": "Click a theme to preview it; double-click or Enter uses it.",
   "In use: {0}. Click a theme to preview it; double-click or Enter uses it.": "In use: {0}. Click a theme to preview it; double-click or Enter uses it.",
   "Wallpapers: {0} (‹ › on the picture)": "Wallpapers: {0} (‹ › on the picture)",
-  "the folder has commits the installed build lacks ({0})": "the folder has commits the installed build lacks ({0})"
+  "the folder has commits the installed build lacks ({0})": "the folder has commits the installed build lacks ({0})",
+  "Update all": "Update all",
+  "Update all ({0})": "Update all ({0})",
+  "Update all (Ctrl+U)": "Update all (Ctrl+U)",
+  "Update 1 app?": "Update 1 app?",
+  "Update {0} apps?": "Update {0} apps?",
+  "release {0}": "release {0}",
+  "Maprisma asks for your password first.": "Maprisma asks for your password first.",
+  "Left out:": "Left out:",
+  "needs Repair first": "needs Repair first",
+  "uncommitted changes in {0}": "uncommitted changes in {0}",
+  "Nothing can be updated by \"Update all\"": "Nothing can be updated by \"Update all\""
 }

@@ -1186,5 +1186,16 @@
   "Click a theme to preview it; double-click or Enter uses it.": "Kliknięcie pokazuje motyw w podglądzie; dwuklik lub Enter go używa.",
   "In use: {0}. Click a theme to preview it; double-click or Enter uses it.": "W użyciu: {0}. Kliknięcie pokazuje motyw w podglądzie; dwuklik lub Enter go używa.",
   "Wallpapers: {0} (‹ › on the picture)": "Tapety: {0} (‹ › na obrazie)",
-  "the folder has commits the installed build lacks ({0})": "folder ma commity, których brakuje w zainstalowanej kompilacji ({0})"
+  "the folder has commits the installed build lacks ({0})": "folder ma commity, których brakuje w zainstalowanej kompilacji ({0})",
+  "Update all": "Aktualizuj wszystko",
+  "Update all ({0})": "Aktualizuj wszystko ({0})",
+  "Update all (Ctrl+U)": "Aktualizuj wszystko (Ctrl+U)",
+  "Update 1 app?": "Zaktualizować 1 aplikację?",
+  "Update {0} apps?": "Zaktualizować aplikacje ({0})?",
+  "release {0}": "wydanie {0}",
+  "Maprisma asks for your password first.": "Maprisma najpierw poprosi o hasło.",
+  "Left out:": "Pominięte:",
+  "needs Repair first": "najpierw wymaga naprawy",
+  "uncommitted changes in {0}": "niezatwierdzone zmiany w {0}",
+  "Nothing can be updated by \"Update all\"": "„Aktualizuj wszystko” nie może niczego zaktualizować"
 }
