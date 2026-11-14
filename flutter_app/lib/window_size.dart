@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
@@ -79,7 +80,14 @@ bool tiledByMaprismaTiling(String appId, {Map<String, String>? environment, Stri
 /// Each resize also notes the size right away while the window is still shown, so a window
 /// closed or hidden within [delay] keeps the size it had ([flush] on closing saves it at once).
 final class WindowSizeKeeper {
-  WindowSizeKeeper({required this.geometry, required this.save, this.saved, this.delay = const Duration(milliseconds: 500), this.tiled});
+  WindowSizeKeeper({
+    required this.geometry,
+    required this.save,
+    this.saved,
+    this.delay = const Duration(milliseconds: 500),
+    this.tiled,
+    this.notUsers = hyprlandSizeNotUsers,
+  });
 
   /// The runner's "geometry" answer.
   final Future<Object?> Function() geometry;
@@ -89,6 +97,10 @@ final class WindowSizeKeeper {
   /// Whether the compositor sizes the window itself where the runner can't tell (e.g.
   /// `() => tiledByMaprismaTiling(appId)`): then nothing is saved.
   final bool Function()? tiled;
+
+  /// Whether the present size is the compositor's (Hyprland: tiled or fullscreen), asked just
+  /// before saving.
+  final Future<bool> Function() notUsers;
 
   /// The size last saved (or restored).
   (int, int)? saved;
@@ -142,6 +154,7 @@ final class WindowSizeKeeper {
     } on Object {
       // can't tell: save
     }
+    if (await notUsers()) return;
     saved = size;
     try {
       await save(size.$1, size.$2);
@@ -151,4 +164,59 @@ final class WindowSizeKeeper {
   }
 
   void dispose() => _timer?.cancel();
+}
+
+/// Hyprland marks every window as tiled, floating ones too, so the runner can't tell whether a
+/// size is the user's: there `hyprctl -j clients` decides. True when this process's window is
+/// tiled or fullscreen (not a size to keep); false on other desktops or when it can't be told.
+/// Shared in every Maprisma Flutter app's size code (Uwe, 2026-11-14).
+Future<bool> hyprlandSizeNotUsers({
+  Map<String, String>? environment,
+  int? processId,
+  Future<ProcessResult> Function()? clients,
+}) async {
+  final env = environment ?? Platform.environment;
+  if (!_hyprlandDesktop(env)) return false;
+  try {
+    final result = await (clients ?? () => Process.run('hyprctl', ['-j', 'clients']))()
+        .timeout(const Duration(seconds: 2));
+    if (result.exitCode != 0) return false;
+    return hyprNotUsers(result.stdout.toString(), processId ?? pid) ?? false;
+  } on Object {
+    return false;
+  }
+}
+
+/// From `hyprctl -j clients`: whether [processId]'s window is tiled or fullscreen; null when the
+/// list has no window of it.
+bool? hyprNotUsers(String clientsJson, int processId) {
+  Object? list;
+  try {
+    list = jsonDecode(clientsJson);
+  } on FormatException {
+    return null;
+  }
+  if (list is! List) return null;
+  for (final client in list) {
+    if (client is Map && client['pid'] == processId) {
+      final fullscreen = client['fullscreen'];
+      return client['floating'] != true || (fullscreen is num && fullscreen != 0) || fullscreen == true;
+    }
+  }
+  return null;
+}
+
+/// MAPRISMA_DESKTOP, else XDG_CURRENT_DESKTOP; Hyprland's instance signature only when neither
+/// is set (a stale one stays in the systemd user environment after a Hyprland session).
+bool _hyprlandDesktop(Map<String, String> env) {
+  final forced = (env['MAPRISMA_DESKTOP'] ?? '').trim().toLowerCase();
+  if (forced.isNotEmpty) return forced == 'hyprland';
+  final names = (env['XDG_CURRENT_DESKTOP'] ?? '')
+      .toLowerCase()
+      .split(':')
+      .map((n) => n.trim())
+      .where((n) => n.isNotEmpty)
+      .toList();
+  if (names.isNotEmpty) return names.contains('hyprland');
+  return (env['HYPRLAND_INSTANCE_SIGNATURE'] ?? '').isNotEmpty;
 }
