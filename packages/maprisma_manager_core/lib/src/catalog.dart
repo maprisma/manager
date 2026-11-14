@@ -521,7 +521,7 @@ final List<AppEntry> builtinCatalog = [
           InstalledPath('{autostart}/${_c}Dictation.Tray.desktop', PathKind.file, note: 'OnlyShowIn=KDE;Hyprland'),
           InstalledPath('{icons}/${_c}Dictation-symbolic.svg', PathKind.file),
           InstalledPath('{icons}/${_c}Dictation-open-symbolic.svg', PathKind.file),
-          InstalledPath('{icons}/${_c}Dictation-listening-symbolic.svg', PathKind.file),
+          InstalledPath('{icons}/${_c}Dictation-listening-active-symbolic.svg', PathKind.file),
           InstalledPath('{icons}/${_c}Dictation-speaking-symbolic.svg', PathKind.file),
         ],
       ),
