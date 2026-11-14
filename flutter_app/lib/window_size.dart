@@ -166,6 +166,153 @@ final class WindowSizeKeeper {
   void dispose() => _timer?.cancel();
 }
 
+/// A saved place ([x, y], Hyprland's layout pixels); null when missing or broken.
+(int, int)? parseWindowPosition(Object? value) {
+  if (value is! List || value.length != 2) return null;
+  final x = value[0], y = value[1];
+  if (x is! int || y is! int || x.abs() > 100000 || y.abs() > 100000) return null;
+  return (x, y);
+}
+
+/// From `hyprctl -j clients`: where [processId]'s window is, when it floats and isn't fullscreen
+/// (a tiled or fullscreen place is not the user's); null otherwise.
+(int, int)? hyprPosition(String clientsJson, int processId) {
+  if (hyprNotUsers(clientsJson, processId) != false) return null;
+  for (final client in jsonDecode(clientsJson) as List) {
+    if (client is Map && client['pid'] == processId) {
+      final at = client['at'];
+      if (at is List && at.length == 2 && at[0] is int && at[1] is int) return (at[0] as int, at[1] as int);
+    }
+  }
+  return null;
+}
+
+/// From `hyprctl -j monitors`: whether a window at [position] (its top left) with [size] keeps
+/// at least 48 px on a screen, so a place on a screen that is gone isn't used.
+bool onAMonitor(String monitorsJson, (int, int) position, (int, int) size) {
+  Object? list;
+  try {
+    list = jsonDecode(monitorsJson);
+  } on FormatException {
+    return false;
+  }
+  if (list is! List) return false;
+  final (x, y) = position;
+  for (final m in list) {
+    if (m is! Map) continue;
+    final scale = (m['scale'] is num && (m['scale'] as num) > 0) ? (m['scale'] as num).toDouble() : 1.0;
+    final mx = m['x'], my = m['y'], mw = m['width'], mh = m['height'];
+    if (mx is! num || my is! num || mw is! num || mh is! num) continue;
+    final w = mw / scale, h = mh / scale;
+    if (x + size.$1 - 48 >= mx && x + 48 <= mx + w && y >= my && y + 48 <= my + h) return true;
+  }
+  return false;
+}
+
+/// Hyprland: the window opens where the user left it (Uwe, 2026-11-14, every Maprisma window).
+/// A Wayland window can't place itself or hear that it was moved, and the runner hides it before
+/// Dart could ask, so while it is shown [every] few seconds hyprctl says where it is (saved when
+/// that changed), and each time it is shown again it is moved back there. Elsewhere it does
+/// nothing. [run] and [environment] are for tests.
+final class WindowPlaceKeeper {
+  WindowPlaceKeeper({
+    required (int, int)? saved,
+    required this.save,
+    this.every = const Duration(seconds: 2),
+    Map<String, String>? environment,
+    Future<ProcessResult> Function(List<String> args)? run,
+    int? processId,
+  }) : _saved = saved, // ignore: prefer_initializing_formals
+       _env = environment ?? Platform.environment,
+       _run = run ?? ((args) => Process.run('hyprctl', args)),
+       _pid = processId ?? pid;
+
+  final Future<void> Function(int x, int y) save;
+  final Duration every;
+  final Map<String, String> _env;
+  final Future<ProcessResult> Function(List<String> args) _run;
+  final int _pid;
+  (int, int)? _saved;
+  Timer? _timer;
+  bool _shown = true;
+
+  /// Hyprland only, and never in widget tests (they must not ask or move the real windows).
+  bool get active => _env['FLUTTER_TEST'] != 'true' && _hyprlandDesktop(_env);
+
+  Future<String?> _ask(List<String> args) async {
+    try {
+      final r = await _run(args).timeout(const Duration(seconds: 2));
+      return r.exitCode == 0 ? r.stdout.toString() : null;
+    } on Object {
+      return null;
+    }
+  }
+
+  /// At start: back to the saved place, then sampling while shown.
+  void start() {
+    if (!active) return;
+    unawaited(restore());
+    _timer = Timer.periodic(every, (_) {
+      if (_shown) unawaited(sample());
+    });
+  }
+
+  /// From didChangeAppLifecycleState: hidden stops the sampling; shown again moves it back.
+  void lifecycle(AppLifecycleStateName state) {
+    if (!active) return;
+    final shown = state != AppLifecycleStateName.hidden && state != AppLifecycleStateName.paused;
+    if (shown && !_shown) unawaited(restore());
+    _shown = shown;
+  }
+
+  /// Saves where the window is now when that changed (floating, not fullscreen).
+  Future<void> sample() async {
+    final clients = await _ask(['-j', 'clients']);
+    if (clients == null) return;
+    final at = hyprPosition(clients, _pid);
+    if (at == null || at == _saved) return;
+    _saved = at;
+    await save(at.$1, at.$2);
+  }
+
+  /// Once Hyprland lists the window (asked every 50 ms for up to 3 s), it is moved to the saved
+  /// place when that is still on a screen.
+  Future<void> restore() async {
+    final place = _saved;
+    if (place == null) return;
+    for (var i = 0; i < 60; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      final clients = await _ask(['-j', 'clients']);
+      if (clients == null) return;
+      if (hyprNotUsers(clients, _pid) == null) continue; // not mapped yet
+      if (hyprNotUsers(clients, _pid) == true) return; // tiled or fullscreen: Hyprland's place
+      final size = _sizeOf(clients);
+      if (hyprPosition(clients, _pid) == place || size == null) return;
+      final monitors = await _ask(['-j', 'monitors']);
+      if (monitors != null && onAMonitor(monitors, place, size)) {
+        await _ask(['eval', "hl.dispatch(hl.dsp.window.move({ x = ${place.$1}, y = ${place.$2}, window = 'pid:$_pid' }))"]);
+      }
+      return;
+    }
+  }
+
+  (int, int)? _sizeOf(String clientsJson) {
+    for (final client in jsonDecode(clientsJson) as List) {
+      if (client is Map && client['pid'] == _pid && client['size'] is List) {
+        final s = client['size'] as List;
+        if (s.length == 2 && s[0] is int && s[1] is int) return (s[0] as int, s[1] as int);
+      }
+    }
+    return null;
+  }
+
+  void dispose() => _timer?.cancel();
+}
+
+/// The app lifecycle states [WindowPlaceKeeper.lifecycle] needs, by name (this file doesn't
+/// import Flutter): `AppLifecycleStateName.values.byName(state.name)`.
+enum AppLifecycleStateName { detached, resumed, inactive, hidden, paused }
+
 /// Hyprland marks every window as tiled, floating ones too, so the runner can't tell whether a
 /// size is the user's: there `hyprctl -j clients` decides. True when this process's window is
 /// tiled or fullscreen (not a size to keep); false on other desktops or when it can't be told.

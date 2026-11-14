@@ -83,6 +83,12 @@ class _ManagerAppState extends State<ManagerApp> with WidgetsBindingObserver {
     tiled: () => tiledByMaprismaTiling('com.maprisma.Settings'),
   );
 
+  /// Hyprland: the window's place, kept and put back each time it shows (window_size.dart).
+  late final _windowPlace = WindowPlaceKeeper(
+    saved: parseWindowPosition(widget.settings['window_position']),
+    save: (x, y) => widget.core('settings.set', {'key': 'window_position', 'value': [x, y]}),
+  );
+
   @override
   void didChangeMetrics() => _windowSize.resized();
 
@@ -96,6 +102,7 @@ class _ManagerAppState extends State<ManagerApp> with WidgetsBindingObserver {
       _windowStyle = WindowStyleWatcher();
     }
     HardwareKeyboard.instance.addHandler(_f12);
+    _windowPlace.start();
     _titlebar();
     _loadSettings();
   }
@@ -118,6 +125,7 @@ class _ManagerAppState extends State<ManagerApp> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _esc.detach();
     _windowSize.dispose();
+    _windowPlace.dispose();
     _relook?.cancel();
     _windowStyle?.dispose();
     _lookCooling?.cancel();
@@ -132,6 +140,7 @@ class _ManagerAppState extends State<ManagerApp> with WidgetsBindingObserver {
   /// The window got the focus back: the theme may have changed meanwhile (at most every 2 s).
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    _windowPlace.lifecycle(AppLifecycleStateName.values.byName(state.name));
     if (state != AppLifecycleState.resumed) return;
     if (_lookCooling?.isActive != true) _reloadLook();
   }

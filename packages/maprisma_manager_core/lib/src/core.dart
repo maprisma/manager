@@ -94,6 +94,8 @@ final class CoreService {
           'ai_updates': settings.values['ai_updates'] == true,
           // The window's size as the user left it (rule 5a), null when missing or broken.
           'window_size': windowSize(settings.values['window_size']),
+          // Hyprland: where the user left the window ([x, y]), null when missing or broken.
+          'window_position': windowPosition(settings.values['window_position']),
         };
       },
       'settings.language': (params) async {
@@ -117,6 +119,8 @@ final class CoreService {
           'sound_amplify' => value is bool,
           // The window's size (GTK's [width, height]), saved after a resize.
           'window_size' => windowSize(value) != null,
+          // Hyprland: the window's place ([x, y]), saved when it moved.
+          'window_position' => windowPosition(value) != null,
           _ => false,
         };
         if (!ok) throw RouteError('bad_params', 'key, value');
@@ -515,6 +519,13 @@ final class CoreService {
 String _firstLine(String s) => s.trim().split('\n').firstWhere((l) => l.trim().isNotEmpty, orElse: () => 'failed');
 
 /// A saved window size: [width, height], whole numbers 100…20000; else null.
+/// A window place `[x, y]` (Hyprland's layout pixels, may be negative), or null.
+List<int>? windowPosition(Object? value) => value is List &&
+        value.length == 2 &&
+        value.every((v) => v is int && v.abs() <= 100000)
+    ? [value[0] as int, value[1] as int]
+    : null;
+
 List<int>? windowSize(Object? value) => value is List &&
         value.length == 2 &&
         value.every((v) => v is int && v >= 100 && v <= 20000)
