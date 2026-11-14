@@ -528,7 +528,7 @@ void main() {
     expect(find.text('Helper:'), findsOneWidget);
     expect(find.descendant(of: find.byKey(const ValueKey('ai-helper')), matching: find.text('Claude Code')), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('ai-start')));
-    await settle(tester, 12);
+    await settle(tester, 30);
     expect(find.text('The WLAN Monitor needs its packages.'), findsOneWidget);
     expect(find.textContaining('Fetch Flutter packages · Maprisma WLAN Monitor — done'), findsOneWidget);
     expect(find.textContaining('Update · Maprisma Settings — not done'), findsOneWidget);

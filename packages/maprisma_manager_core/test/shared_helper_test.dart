@@ -53,13 +53,15 @@ void main() {
     expect(stored(), {'helper': 'codex', 'future': {'x': 1}, 'other': true});
     expect(mode(file()), 0x180);
     expect(mode(p.dirname(file())), 0x1c0);
-    expect(Directory(p.dirname(file())).listSync().map((e) => p.basename(e.path)), ['settings.json']);
-    // a broken file is replaced by a fresh object
-    w.writeFile(file(), '{broken');
-    writeSharedHelper(w.paths, 'auto');
-    expect(stored(), {'helper': 'auto'});
+    // no temporary file left; the never-renamed lock file of the write protocol stays (docs/ask-ai-rules.md)
+    expect(Directory(p.dirname(file())).listSync().map((e) => p.basename(e.path)).toSet(), {'settings.json', 'settings.lock'});
     expect(() => writeSharedHelper(w.paths, '../x'), throwsArgumentError);
-    expect(stored(), {'helper': 'auto'});
+    expect(stored(), {'helper': 'codex', 'future': {'x': 1}, 'other': true});
+    // a broken file is never rebuilt from one key (it may hold the user's Ask AI rules): the AI
+    // page offers Reset instead (docs/ask-ai-rules.md)
+    w.writeFile(file(), '{broken');
+    expect(() => writeSharedHelper(w.paths, 'auto'), throwsA(isA<FileSystemException>()));
+    expect(File(file()).readAsStringSync(), '{broken');
   });
 
   test('write is atomic: a rename over the old file (a reader never sees half a file)', () {

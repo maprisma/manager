@@ -75,11 +75,36 @@ void writeSharedWebSearch(Paths paths, bool on) => _writeKey(paths, 'web_search'
 /// `Helper.web`). Only Claude Code for now (`--tools WebSearch,WebFetch`, nothing else).
 bool helperCanSearchWeb(String? helper) => helper != null && canSearchWeb(helper);
 
+/// The shared file's object (null when missing or invalid), for the other shared keys (rules.dart).
+Map<String, dynamic>? readSharedObject(Paths paths) => _readObject(sharedAiFile(paths));
+
+/// Whether the shared file exists but can't be read as a JSON object (docs/ask-ai-rules.md: the
+/// rules are then restrictive, and nothing rewrites the file).
+bool sharedFileBroken(Paths paths) {
+  final path = sharedAiFile(paths);
+  return FileSystemEntity.typeSync(path, followLinks: false) != FileSystemEntityType.notFound && _readObject(path) == null;
+}
+
+/// The shared file's lock (docs/ask-ai-rules.md), never renamed.
+String sharedAiLock(Paths paths) => p.join(paths.config, sharedAiDir, 'settings.lock');
+
+/// Saves one key of the shared file, keeping every other key.
+void writeSharedKey(Paths paths, String key, Object value) => _writeKey(paths, key, value);
+
 void _writeKey(Paths paths, String key, Object value) {
   final path = sharedAiFile(paths);
   final dir = Directory(p.dirname(path));
   dir.createSync(recursive: true);
   chmodPath(dir.path, 0x1c0); // 0700
+  // Under the shared lock every app takes; an existing file that can't be read is never rebuilt
+  // from one key (that would drop the user's rules).
+  Posix.instance.withFlock(sharedAiLock(paths), () => _writeKeyLocked(path, dir, key, value));
+}
+
+void _writeKeyLocked(String path, Directory dir, String key, Object value) {
+  if (FileSystemEntity.typeSync(path, followLinks: false) != FileSystemEntityType.notFound && _readObject(path) == null) {
+    throw FileSystemException('the shared AI settings can\'t be read: not changed', path);
+  }
   final values = {...?_readObject(path), key: value};
   final tmp = File(p.join(dir.path, '.settings.json.$pid.${DateTime.now().microsecondsSinceEpoch}.tmp'));
   try {

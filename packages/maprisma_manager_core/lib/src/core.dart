@@ -4,6 +4,7 @@ import 'dart:io';
 import 'translations.dart';
 
 import 'about.dart';
+import 'ai/rules.dart';
 import 'ai_update.dart';
 import 'applications.dart';
 import 'bar.dart';
@@ -129,6 +130,31 @@ final class CoreService {
       'ai.set_helper': (params) => ai.setHelper(params),
       // The AI page: may the shared helper search the web (maprisma-ai/settings.json web_search).
       'ai.set_web_search': (params) => ai.setWebSearch(params),
+      // The AI page: the Ask AI rules every Maprisma app enforces (docs/ask-ai-rules.md) and the log.
+      'ai.rules': (_) async => askAiRulesView(ctx.paths),
+      'ai.set_rule': (params) async {
+        final kind = params['kind'], id = params['id'], on = params['on'], level = params['level'];
+        if (level != null && level is! String || kind != null && (kind is! String || id is! String || on is! bool)) {
+          throw RouteError('bad_params', 'level | kind, id, on');
+        }
+        try {
+          writeAskAiRule(ctx.paths, level: level as String?, kind: kind as String?, id: id as String?, on: on as bool?);
+        } on ArgumentError catch (e) {
+          throw RouteError('bad_params', '${e.message}');
+        } on FileSystemException catch (e) {
+          throw RouteError('unreadable', e.message);
+        }
+        return askAiRulesView(ctx.paths);
+      },
+      'ai.reset_rules': (_) async {
+        resetAskAiRules(ctx.paths);
+        return askAiRulesView(ctx.paths);
+      },
+      'ai.log': (params) async => {'entries': readAskAiLog(ctx.paths, limit: params['limit'] is int ? params['limit'] as int : 100)},
+      'ai.clear_log': (_) async {
+        clearAskAiLog(ctx.paths);
+        return {'entries': <Object>[]};
+      },
       'ai.start': (params) async => ai.start(params),
       'ai.get': (_) async => ai.get(),
       'ai.cancel': (_) => ai.cancel(),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:maprisma_manager_core/maprisma_manager_core.dart' show tr, trf;
 
 import 'ai_dialog.dart';
+import 'ask_ai_rules.dart';
 import 'core_call.dart';
 import 'desktop_page.dart';
 import 'settings_widgets.dart';
@@ -134,6 +135,7 @@ class AiPageState extends State<AiPage> with RoutePage {
             ),
           ],
         ),
+        AskAiRules(core: core),
       ],
     );
   }

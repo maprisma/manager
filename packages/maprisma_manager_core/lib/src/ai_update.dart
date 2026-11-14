@@ -20,10 +20,12 @@ library;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' show Random;
 
 import 'package:path/path.dart' as p;
 
 import 'ai/ask_ai.dart';
+import 'ai/rules.dart';
 import 'ai/shared_helper.dart';
 import 'catalog.dart';
 import 'context.dart';
@@ -329,12 +331,33 @@ final class AiUpdater {
           done.add({'action': raw, 'result': 'refused', 'message': refused['message']});
           continue;
         }
+        // The Ask AI rules (docs/ask-ai-rules.md), checked before every step: switching them off
+        // stops the next step even while a run goes on. Blocked steps show in the run view.
+        final op = _opId();
+        final target = '${step['do']} ${step['app']}';
+        if (!askAiAllowed(ctx.paths, 'settings.updates')) {
+          final blocked = {...step, 'ok': false, 'blocked': true, 'message': tr('Switched off in Maprisma Settings › AI')};
+          _step(run, blocked);
+          done.add({'action': raw, 'result': 'blocked', 'message': blocked['message']});
+          appendAskAiLog(ctx.paths, op: op, app: 'settings', action: 'settings.updates', target: target, result: 'blocked');
+          continue;
+        }
         steps++;
         ran++;
         step['state'] = 'running';
         _step(run, step);
         final outcome = await _perform(step);
         step.addAll(outcome);
+        appendAskAiLog(ctx.paths,
+            op: op,
+            app: 'settings',
+            action: 'settings.updates',
+            target: target,
+            result: switch (outcome['state']) {
+              'succeeded' => 'done',
+              'cancelled' => 'cancelled',
+              _ => 'failed',
+            });
         done.add({
           'action': {'do': step['do'], 'app': step['app']},
           'result': outcome['state'],
@@ -347,6 +370,9 @@ final class AiUpdater {
     _step(run, {'kind': 'note', 'text': trf('Stopped after {0} rounds', [maxRounds])});
     _finish(run, 'succeeded');
   }
+
+  static final _random = Random.secure();
+  String _opId() => List.generate(8, (_) => _random.nextInt(256).toRadixString(16).padLeft(2, '0')).join();
 
   /// A step from the answer, checked: `{kind: action, do, app, name}` or with `ok: false, message`.
   Map<String, dynamic> _check(Object? raw, List<Map<String, dynamic>> apps) {
