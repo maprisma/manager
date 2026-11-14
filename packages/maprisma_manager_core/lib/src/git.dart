@@ -224,7 +224,10 @@ final class Git {
 
   /// A content fingerprint of the working tree: `tree:<HEAD's tree>` when clean, else
   /// `dirty:<sha256 of HEAD and every changed/untracked file's path and content hash>`.
-  Future<String?> fingerprint(String folder, String Function(String path) hashFile) async {
+  /// [maxFiles]/[maxBytes]: give up (null) on a larger change set (the status view's cheap path).
+  /// A changed symlink counts with its target; a changed folder (a submodule) or anything else
+  /// makes a fingerprint that never matches another one: its content can't be vouched for.
+  Future<String?> fingerprint(String folder, String Function(String path) hashFile, {int? maxFiles, int? maxBytes}) async {
     final tree = await _git(folder, ['rev-parse', '-q', '--verify', 'HEAD^{tree}']);
     if (!tree.ok) return null;
     final st = await _git(folder, ['status', '--porcelain=v1', '-z', '--untracked-files=all']);
@@ -238,13 +241,26 @@ final class Git {
       if (f[0] == 'R' || f[0] == 'C') i++; // the original path follows
     }
     if (changed.isEmpty) return 'tree:${tree.stdout.trim()}';
+    if (maxFiles != null && changed.length > maxFiles) return null;
     changed.sort();
+    var bytes = 0;
     final parts = <String>['head ${tree.stdout.trim()}'];
     for (final rel in changed) {
       final path = p.join(folder, rel);
       String h;
       try {
-        h = FileSystemEntity.typeSync(path, followLinks: false) == FileSystemEntityType.file ? hashFile(path) : 'other';
+        final type = FileSystemEntity.typeSync(path, followLinks: false);
+        if (type == FileSystemEntityType.file) {
+          if (maxBytes != null) {
+            bytes += File(path).lengthSync();
+            if (bytes > maxBytes) return null;
+          }
+          h = hashFile(path);
+        } else if (type == FileSystemEntityType.link) {
+          h = 'link ${Link(path).targetSync()}';
+        } else {
+          h = 'other ${DateTime.now().microsecondsSinceEpoch}'; // never equal: can't be vouched for
+        }
       } on FileSystemException {
         h = 'unreadable';
       }

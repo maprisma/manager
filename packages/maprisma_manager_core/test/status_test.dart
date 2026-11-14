@@ -194,6 +194,25 @@ void main() {
       expect(a['updates']['sourceReasons'].single, contains('uncommitted'));
     });
 
+    test('the fingerprint: a symlink by its target, a folder never matches, limits give up', () async {
+      final dir = w.repo('maprisma-wlan-monitor');
+      final git = w.core().ctx.git;
+      Link(p.join(dir, 'l')).createSync('a');
+      final a = await git.fingerprint(dir, (f) => sha256File(f));
+      Link(p.join(dir, 'l')).updateSync('b');
+      expect(await git.fingerprint(dir, (f) => sha256File(f)), isNot(a));
+      Link(p.join(dir, 'l')).deleteSync();
+      Directory(p.join(dir, 'sub')).createSync();
+      File(p.join(dir, 'sub', 'x')).writeAsStringSync('x');
+      // an untracked folder is listed by its files; a nested repo (submodule-like) as a folder
+      w.git(p.join(dir, 'sub'), ['init', '-q']);
+      final f1 = await git.fingerprint(dir, (f) => sha256File(f));
+      expect(await git.fingerprint(dir, (f) => sha256File(f)), isNot(f1));
+      File(p.join(dir, 'big')).writeAsStringSync('x' * 2000);
+      expect(await git.fingerprint(dir, (f) => sha256File(f), maxBytes: 1000), isNull);
+      expect(await git.fingerprint(dir, (f) => sha256File(f), maxFiles: 1), isNull);
+    });
+
     test('a broken receipt is reported, not trusted', () async {
       w.install('wlan');
       final good = {'repo': 'maprisma-wlan-monitor', 'commit': 'a' * 40, 'dirty': false};

@@ -275,7 +275,7 @@ final class StatusReader {
         } else if (g.dirty == true &&
             r.dirty &&
             r.fingerprint != null &&
-            r.fingerprint == await ctx.git.fingerprint(g.folder, (f) => sha256File(f))) {
+            r.fingerprint == await ctx.git.fingerprint(g.folder, (f) => sha256File(f), maxFiles: 200, maxBytes: 50 << 20)) {
           // Built from uncommitted changes that are still exactly the folder's: the same build.
         } else if (g.dirty == true || r.dirty) {
           // Same commit, but uncommitted changes on either side: not provably the same build.
