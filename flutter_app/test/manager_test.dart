@@ -274,6 +274,46 @@ void main() {
     });
   }
 
+  for (final width in [900.0, 460.0]) {
+    testWidgets('the legend at ${width.round()} px: every mark explained, a click filters, again or Esc: all', (tester) async {
+      await open(tester, width, height: width > 600 ? 1250 : 1500);
+      await tester.tap(find.byKey(const ValueKey('legend')));
+      await settle(tester, 3);
+      expect(find.text('What the marks mean'), findsOneWidget);
+      for (final id in ['update', 'partial', 'unknown', 'repair', 'job']) {
+        expect(find.byKey(ValueKey('legend-$id')), findsOneWidget, reason: id);
+      }
+      expect(tester.takeException(), isNull);
+      await shot(tester, 'legend-${width.round()}');
+
+      // Partly installed: only Theme is left, the button shows the filter
+      await tester.tap(find.byKey(const ValueKey('legend-partial')));
+      await settle(tester, 4);
+      expect(find.text('Maprisma Theme'), findsOneWidget);
+      expect(find.text('Maprisma WLAN Monitor'), findsNothing);
+      expect(find.byIcon(Icons.filter_alt), findsOneWidget);
+
+      // the same mark again: all
+      await tester.tap(find.byKey(const ValueKey('legend')));
+      await settle(tester, 3);
+      await tester.tap(find.byKey(const ValueKey('legend-partial')));
+      await settle(tester, 4);
+      expect(find.text('Maprisma WLAN Monitor'), findsOneWidget);
+
+      // Update available, then Esc: all
+      await tester.tap(find.byKey(const ValueKey('legend')));
+      await settle(tester, 3);
+      await tester.tap(find.byKey(const ValueKey('legend-update')));
+      await settle(tester, 4);
+      expect(find.text('Maprisma WLAN Monitor'), findsOneWidget);
+      expect(find.text('Maprisma Hue Lights'), findsNothing);
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await settle(tester, 4);
+      expect(find.text('Maprisma Hue Lights'), findsOneWidget);
+      expect(find.byIcon(Icons.filter_alt), findsNothing);
+    });
+  }
+
   testWidgets('new apps: a section with the folder-only and the GitHub-only one; Clone puts it into the projects folder', (tester) async {
     // a local app the catalog doesn't know, and a repo of the org (as last listed)
     final sky = w.repo('maprisma-sky');
@@ -467,16 +507,25 @@ void main() {
     });
   }
 
-  testWidgets('Update all: the toolbar button with the count, the list to confirm, Cancel, Ctrl+U, one job per app in order', (tester) async {
-    final jobs = await open(tester, 900);
+  testWidgets('Update all: per category line with its count, only its apps to confirm, Cancel, Ctrl+U: all, one job per app in order', (tester) async {
+    final jobs = await open(tester, 900, height: 1250);
     final list = [for (final x in (await tester.runAsync(() => call()('apps.list')))!['apps'] as List) Map<String, dynamic>.from(x as Map)];
     final plan = updateAllPlan(list);
     expect(plan.steps, isNotEmpty);
-    expect(find.text('Update all (${plan.steps.length})'), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('update-all')));
+    expect(find.byKey(const ValueKey('update-all')), findsNothing); // not in the header any more
+    final secs = sections(list, '${(await tester.runAsync(() => call()('apps.list')))!['desktop']}');
+    final withUpdates = [for (final (t, items) in secs) if (updateAllPlan(items).steps.isNotEmpty) (t, updateAllPlan(items))];
+    expect(withUpdates, isNotEmpty);
+    expect(withUpdates.fold<int>(0, (n, x) => n + x.$2.steps.length), plan.steps.length);
+    for (final (t, p) in withUpdates) {
+      expect(find.descendant(of: find.byKey(ValueKey('update-all-$t')), matching: find.text('Update all (${p.steps.length})')), findsOneWidget, reason: t);
+    }
+    final (title, part) = withUpdates.first;
+    await tester.tap(find.byKey(ValueKey('update-all-$title')));
     await settle(tester, 3);
-    for (final st in plan.steps) {
-      expect(find.textContaining('${st.app['name']}'), findsWidgets);
+    expect(find.text(part.steps.length == 1 ? 'Update 1 app?' : 'Update ${part.steps.length} apps?'), findsOneWidget);
+    for (final st in part.steps) {
+      expect(find.textContaining('• ${st.app['name']}'), findsOneWidget);
     }
     await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
     await settle(tester, 3);

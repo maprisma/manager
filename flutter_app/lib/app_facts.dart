@@ -95,6 +95,19 @@ List<String> prerequisitesMissing(App a) => {
 /// A job that was interrupted or failed after it had started writing: Repair.
 bool needsRepair(App a) => a['repair'] == true;
 
+/// The legend's marks, in the order the legend lists them.
+const legendMarks = ['update', 'partial', 'unknown', 'repair', 'job'];
+
+/// Whether an app shows this legend mark (as its row draws it); `busy`: a job runs for it.
+bool hasMark(App a, String mark, {bool busy = false}) => switch (mark) {
+  'update' => updateReasons(a).isNotEmpty,
+  'partial' => a['state'] == 'partial',
+  'unknown' => installed(a) && buildUnknown(a),
+  'repair' => needsRepair(a),
+  'job' => busy,
+  _ => false,
+};
+
 /// Which desktops it runs on, when not this one: "KDE only".
 String? otherDesktopNote(App a) {
   if (supportedHere(a)) return null;

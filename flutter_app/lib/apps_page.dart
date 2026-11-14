@@ -52,6 +52,10 @@ class AppsPageState extends State<AppsPage> {
   bool checking = false;
   String? error;
   String query = '';
+
+  /// The legend's choice: only apps with this mark (legendMarks); null: all. Esc or a second
+  /// click clears it, as in Maprisma Launcher.
+  String? markFilter;
   bool sheet = false;
   final filter = TextEditingController();
   final filterFocus = FocusNode();
@@ -219,9 +223,9 @@ class AppsPageState extends State<AppsPage> {
   }
 
   /// "Update all": asks once with the list (and what is left out), then queues one job per app;
-  /// the core runs them one after another.
-  Future<void> updateAll() async {
-    final plan = updateAllPlan(apps);
+  /// the core runs them one after another. `scope`: one category line's apps (null: all, Ctrl+U).
+  Future<void> updateAll([List<App>? scope]) async {
+    final plan = updateAllPlan(scope ?? apps);
     if (plan.steps.isEmpty) {
       tell(plan.skipped.isEmpty ? tr('Everything is up to date') : tr('Nothing can be updated by "Update all"'));
       return;
@@ -528,6 +532,73 @@ class AppsPageState extends State<AppsPage> {
     );
   }
 
+  bool _busy(App a) => widget.jobs.jobs.any((j) => j.app == a['id'] && !j.finished);
+
+  /// The legend (Maprisma Launcher's legend_popover): every mark as it looks and what it means;
+  /// a click shows only those apps.
+  Future<void> _legend(Offset at) async {
+    final scheme = Theme.of(context).colorScheme;
+    final marks = markColors(context);
+    final rows = [
+      ('update', Icon(Icons.arrow_circle_up, size: 16, color: marks.update), tr('Update available: Update in its menu or Update all')),
+      ('partial', Icon(Icons.incomplete_circle, size: 16, color: marks.fresh), tr('Partly installed: a part or a prerequisite is missing')),
+      ('unknown', Icon(Icons.help_outline, size: 16, color: scheme.onSurfaceVariant), tr('Build unknown: installed before Maprisma Settings (Reinstall records it)')),
+      ('repair', Icon(Icons.warning_amber_rounded, size: 16, color: scheme.error), tr('Needs repair: the last job was interrupted or failed')),
+      ('job', const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2, value: 0.75)), tr('A job is running for it')),
+    ];
+    final choice = await showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(at.dx, at.dy, at.dx, at.dy),
+      items: [
+        PopupMenuItem(enabled: false, child: Text(tr('What the marks mean'))),
+        for (final (id, mark, text) in rows)
+          PopupMenuItem(
+            key: ValueKey('legend-$id'),
+            value: id,
+            child: Tooltip(
+              message: tr('Show only these (click again or Esc: all)'),
+              child: Row(
+                children: [
+                  SizedBox(width: 22, child: Center(child: mark)),
+                  const SizedBox(width: 8),
+                  Flexible(child: Text(text)),
+                  if (markFilter == id) const Padding(padding: EdgeInsets.only(left: 8), child: Icon(Icons.check, size: 16)),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+    if (choice == null || !mounted) return;
+    setState(() => markFilter = markFilter == choice ? null : choice);
+  }
+
+  /// A category line: its title, and on the right its own "Update all (N)" (only its apps), drawn
+  /// like the rows' update mark. Only while something in it can be updated.
+  Widget _sectionLine(String title, List<App> items, {required bool narrow, required bool running}) {
+    final n = updateAllPlan(items).steps.length;
+    final color = markColors(context).update;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(12, 12, n > 0 ? 4 : 12, n > 0 ? 0 : 4),
+      child: Row(
+        children: [
+          Expanded(child: Text(title, style: TextStyle(fontWeight: FontWeight.w700))),
+          if (n > 0)
+            Tooltip(
+              message: trf('Update the apps of "{0}" (Ctrl+U: all)', [title]),
+              child: TextButton.icon(
+                key: ValueKey('update-all-$title'),
+                style: TextButton.styleFrom(foregroundColor: color, visualDensity: VisualDensity.compact),
+                onPressed: running ? null : () => updateAll(items),
+                icon: Icon(Icons.arrow_circle_up, size: 16, color: running ? null : color),
+                label: Text(narrow ? '$n' : trf('Update all ({0})', [n])),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   Widget _mark(String tooltip, IconData icon, Color color) => Padding(
     padding: const EdgeInsets.only(left: 8),
     child: Tooltip(message: tooltip, child: Icon(icon, size: 16, color: color)),
@@ -640,11 +711,15 @@ class AppsPageState extends State<AppsPage> {
         Navigator.of(context).maybePop();
         return KeyEventResult.handled;
       }
-      // Esc: the filter first, then the log sheet, then the window.
+      // Esc: the filter first, then the legend's choice, then the log sheet, then the window.
       if (filter.text.isNotEmpty) {
         filter.clear();
         setState(() => query = '');
         filterFocus.requestFocus();
+        return KeyEventResult.handled;
+      }
+      if (markFilter != null) {
+        setState(() => markFilter = null);
         return KeyEventResult.handled;
       }
       if (sheet) {
@@ -681,13 +756,15 @@ class AppsPageState extends State<AppsPage> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final shown = [for (final a in apps) if (matches(a, query)) a];
+    final shown = [
+      for (final a in apps)
+        if (matches(a, query) && (markFilter == null || hasMark(a, markFilter!, busy: _busy(a)))) a,
+    ];
     final q = query.trim().toLowerCase();
-    final shownNew = [for (final n in discovered) if (q.isEmpty || '${n['name']}'.toLowerCase().contains(q)) n];
+    final shownNew = [for (final n in discovered) if (markFilter == null) if (q.isEmpty || '${n['name']}'.toLowerCase().contains(q)) n];
     final secs = sections(shown, desktop);
     final running = widget.jobs.busy;
     final narrow = MediaQuery.sizeOf(context).width < 560;
-    final updatable = updateAllPlan(apps).steps.length;
     return Scaffold(
       body: Focus(
         autofocus: true,
@@ -708,23 +785,6 @@ class AppsPageState extends State<AppsPage> {
                       style: pageTitleStyle(context),
                     ),
                   ),
-                  if (updatable > 0)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 4),
-                      child: narrow
-                          ? IconButton(
-                              key: const ValueKey('update-all'),
-                              tooltip: tr('Update all (Ctrl+U)'),
-                              onPressed: running ? null : updateAll,
-                              icon: Badge(label: Text('$updatable'), backgroundColor: markColors(context).update, child: const Icon(Icons.system_update_alt)),
-                            )
-                          : FilledButton.tonalIcon(
-                              key: const ValueKey('update-all'),
-                              onPressed: running ? null : updateAll,
-                              icon: const Icon(Icons.system_update_alt, size: 18),
-                              label: Text(trf('Update all ({0})', [updatable])),
-                            ),
-                    ),
                   if (aiOn)
                     IconButton(
                       key: const ValueKey('ai-button'),
@@ -737,6 +797,19 @@ class AppsPageState extends State<AppsPage> {
                         child: const Icon(Icons.auto_awesome),
                       ),
                     ),
+                  Builder(
+                    builder: (context) => IconButton(
+                      key: const ValueKey('legend'),
+                      tooltip: tr('What the marks mean'),
+                      isSelected: markFilter != null,
+                      onPressed: () {
+                        final box = context.findRenderObject()! as RenderBox;
+                        _legend(box.localToGlobal(box.size.bottomLeft(Offset.zero)));
+                      },
+                      icon: const Icon(Icons.info_outline),
+                      selectedIcon: const Icon(Icons.filter_alt),
+                    ),
+                  ),
                   IconButton(
                     tooltip: tr('Check for updates (F5)'),
                     onPressed: checking ? null : () => checkUpdates(force: true),
@@ -793,10 +866,7 @@ class AppsPageState extends State<AppsPage> {
                       children: [
                         for (final (title, items) in secs)
                           if (items.isNotEmpty) ...[
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
-                              child: Text(title, style: TextStyle(fontWeight: FontWeight.w700)),
-                            ),
+                            _sectionLine(title, items, narrow: narrow, running: running),
                             for (final x in items) _row(x),
                           ],
                         if (shownNew.isNotEmpty) ...[

@@ -1256,5 +1256,13 @@
   "Transparent": "Durchsichtig",
   "Glassy (blurred)": "Glas (unscharf)",
   "Follow the desktop": "Wie der Desktop",
-  "For all Maprisma apps: see-through windows, blurred behind where the desktop blurs (Glassy). Follow the desktop uses Omarchy's window style, elsewhere Glassy while Maprisma Theme has blur on.": "Für alle Maprisma-Apps: durchsichtige Fenster, dahinter unscharf, wo der Desktop das kann (Glas). „Wie der Desktop“ nimmt Omarchys Fensterart, sonst Glas, solange Maprisma Theme die Unschärfe an hat."
+  "For all Maprisma apps: see-through windows, blurred behind where the desktop blurs (Glassy). Follow the desktop uses Omarchy's window style, elsewhere Glassy while Maprisma Theme has blur on.": "Für alle Maprisma-Apps: durchsichtige Fenster, dahinter unscharf, wo der Desktop das kann (Glas). „Wie der Desktop“ nimmt Omarchys Fensterart, sonst Glas, solange Maprisma Theme die Unschärfe an hat.",
+  "Update available: Update in its menu or Update all": "Update verfügbar: Aktualisieren im Menü oder Alle aktualisieren",
+  "Partly installed: a part or a prerequisite is missing": "Teilweise installiert: Ein Teil oder eine Voraussetzung fehlt",
+  "Build unknown: installed before Maprisma Settings (Reinstall records it)": "Build unbekannt: vor Maprisma Settings installiert (Neu installieren erfasst ihn)",
+  "Needs repair: the last job was interrupted or failed": "Reparatur nötig: Der letzte Auftrag wurde unterbrochen oder ist fehlgeschlagen",
+  "A job is running for it": "Ein Auftrag läuft dafür",
+  "What the marks mean": "Was die Markierungen bedeuten",
+  "Show only these (click again or Esc: all)": "Nur diese zeigen (erneut klicken oder Esc: alle)",
+  "Update the apps of \"{0}\" (Ctrl+U: all)": "Die Apps von „{0}“ aktualisieren (Strg+U: alle)"
 }

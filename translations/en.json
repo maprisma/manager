@@ -1256,5 +1256,13 @@
   "Transparent": "Transparent",
   "Glassy (blurred)": "Glassy (blurred)",
   "Follow the desktop": "Follow the desktop",
-  "For all Maprisma apps: see-through windows, blurred behind where the desktop blurs (Glassy). Follow the desktop uses Omarchy's window style, elsewhere Glassy while Maprisma Theme has blur on.": "For all Maprisma apps: see-through windows, blurred behind where the desktop blurs (Glassy). Follow the desktop uses Omarchy's window style, elsewhere Glassy while Maprisma Theme has blur on."
+  "For all Maprisma apps: see-through windows, blurred behind where the desktop blurs (Glassy). Follow the desktop uses Omarchy's window style, elsewhere Glassy while Maprisma Theme has blur on.": "For all Maprisma apps: see-through windows, blurred behind where the desktop blurs (Glassy). Follow the desktop uses Omarchy's window style, elsewhere Glassy while Maprisma Theme has blur on.",
+  "Update available: Update in its menu or Update all": "Update available: Update in its menu or Update all",
+  "Partly installed: a part or a prerequisite is missing": "Partly installed: a part or a prerequisite is missing",
+  "Build unknown: installed before Maprisma Settings (Reinstall records it)": "Build unknown: installed before Maprisma Settings (Reinstall records it)",
+  "Needs repair: the last job was interrupted or failed": "Needs repair: the last job was interrupted or failed",
+  "A job is running for it": "A job is running for it",
+  "What the marks mean": "What the marks mean",
+  "Show only these (click again or Esc: all)": "Show only these (click again or Esc: all)",
+  "Update the apps of \"{0}\" (Ctrl+U: all)": "Update the apps of \"{0}\" (Ctrl+U: all)"
 }

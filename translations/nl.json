@@ -1256,5 +1256,13 @@
   "Transparent": "Doorzichtig",
   "Glassy (blurred)": "Glas (vervaagd)",
   "Follow the desktop": "Zoals het bureaublad",
-  "For all Maprisma apps: see-through windows, blurred behind where the desktop blurs (Glassy). Follow the desktop uses Omarchy's window style, elsewhere Glassy while Maprisma Theme has blur on.": "Voor alle Maprisma-apps: doorzichtige vensters, erachter vervaagd waar het bureaublad dat doet (Glas). „Zoals het bureaublad” volgt de vensterstijl van Omarchy, elders Glas zolang Maprisma Theme vervaging aan heeft."
+  "For all Maprisma apps: see-through windows, blurred behind where the desktop blurs (Glassy). Follow the desktop uses Omarchy's window style, elsewhere Glassy while Maprisma Theme has blur on.": "Voor alle Maprisma-apps: doorzichtige vensters, erachter vervaagd waar het bureaublad dat doet (Glas). „Zoals het bureaublad” volgt de vensterstijl van Omarchy, elders Glas zolang Maprisma Theme vervaging aan heeft.",
+  "Update available: Update in its menu or Update all": "Update beschikbaar: Bijwerken in het menu of Alles bijwerken",
+  "Partly installed: a part or a prerequisite is missing": "Deels geïnstalleerd: een onderdeel of vereiste ontbreekt",
+  "Build unknown: installed before Maprisma Settings (Reinstall records it)": "Build onbekend: geïnstalleerd vóór Maprisma Settings (Opnieuw installeren legt hem vast)",
+  "Needs repair: the last job was interrupted or failed": "Herstel nodig: de laatste taak werd onderbroken of mislukte",
+  "A job is running for it": "Er loopt een taak voor",
+  "What the marks mean": "Wat de markeringen betekenen",
+  "Show only these (click again or Esc: all)": "Alleen deze tonen (nogmaals klikken of Esc: alle)",
+  "Update the apps of \"{0}\" (Ctrl+U: all)": "De apps van ‘{0}’ bijwerken (Ctrl+U: alle)"
 }
